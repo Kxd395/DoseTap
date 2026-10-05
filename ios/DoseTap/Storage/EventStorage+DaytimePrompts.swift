@@ -52,7 +52,7 @@ extension SessionRepository {
                                asOf now: Date) throws -> [DaytimePromptAnchorContext] {
         guard let rule = schedule.rule, rule.anchor != .clock,
               let zone = TimeZone(identifier: schedule.timeZone) else { return [] }
-        let usesWork = rule.anchor == .shiftMidpoint || rule.anchor == .shiftBreak
+        let usesWork = rule.randomizedWake != nil || rule.anchor == .shiftMidpoint || rule.anchor == .shiftBreak
         let work = usesWork ? try workContext() : nil
         let usesWake = rule.anchor == .mainWake || (usesWork && rule.offDayAnchor == .mainWake)
         let wakes = usesWake ? try daytimeMainWakeSources(asOf: now) : []

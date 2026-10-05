@@ -121,6 +121,8 @@ struct DaytimeCheckInEditor: View {
     var onSaved: ((DaytimeCheckIn) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var repository = SessionRepository.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var showDetails = false
     @State private var score: Int?
     @State private var status: DaytimeCheckIn.Status = .incomplete
     @State private var retrospective = false
@@ -146,25 +148,30 @@ struct DaytimeCheckInEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Custom sleepiness diary · 0–10") {
-                    Text("How sleepy do you feel now? 0 means not sleepy; 10 means extremely sleepy. This is a custom diary, not KSS or ESS.")
-                    if original == nil && promptID == nil {
-                        Toggle("Remembering an earlier observation", isOn: $retrospective)
-                            .onChange(of: retrospective) { _ in score = nil; status = .incomplete; assessedAt = Date() }
-                        if !retrospective { Toggle("Recording because I feel sleepy", isOn: $symptomTriggered) }
-                        if retrospective {
-                            DatePicker("Observed at", selection: $assessedAt, in: ...Date())
-                            Text("This will be labeled retrospective, not a current assessment.").font(.caption)
+                Section(retrospective ? "How sleepy did you feel?" : "How sleepy do you feel now?") {
+                    if retrospective { Text("Remembered observation: \(assessedAt.formatted())").font(.caption) }
+                    Text("0 · Not sleepy     10 · Extremely sleepy").font(.subheadline)
+                    Text(score.map { "Your rating: \($0)/10" } ?? "Choose a rating")
+                        .font(.headline).accessibilityIdentifier("daytime-rating-summary")
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 76 : 48))], spacing: 10) {
+                        ForEach(0...10, id: \.self) { value in
+                            Button {
+                                score = value; status = .answered
+                                if !retrospective && original == nil { assessedAt = Date() }
+                            } label: {
+                                Text(String(value)).font(.headline)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .background(score == value ? Color.accentColor : Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                                    .foregroundStyle(score == value ? Color.white : Color.primary)
+                            }.buttonStyle(.plain)
+                                .accessibilityLabel("Sleepiness \(value) of 10")
+                                .accessibilityAddTraits(score == value ? .isSelected : [])
+                                .accessibilityIdentifier("daytime-rating-\(value)")
                         }
-                    } else if original != nil { Text("Correcting the saved response; its observation time remains unchanged.") }
-                    Picker("Response", selection: $score) {
-                        Text("Choose a rating").tag(Int?.none)
-                        ForEach(0...10, id: \.self) { Text(String($0)).tag(Optional($0)) }
-                    }.accessibilityIdentifier("daytime-rating")
-                        .onChange(of: score) { value in
-                            status = value == nil ? .incomplete : .answered
-                            if !retrospective && original == nil { assessedAt = Date() }
-                        }
+                    }
+                    if score != nil { Button("Clear rating") { score = nil; status = .incomplete } }
+                    Text("Choose a rating and tap Save. Details are optional.").font(.caption)
+                    if original != nil { Text("Correcting the saved response; its observation time remains unchanged.").font(.caption) }
                     if score == nil {
                         Picker("No rating", selection: $status) {
                             Text("Incomplete").tag(DaytimeCheckIn.Status.incomplete)
@@ -174,6 +181,25 @@ struct DaytimeCheckInEditor: View {
                     }
                 }.disabled(pending != nil)
                 if original == nil {
+                    Section {
+                        DisclosureGroup("Add details (optional)", isExpanded: $showDetails) {
+                            Text("Activity, notes, earlier observations and event links.").font(.caption)
+                        }.accessibilityIdentifier("daytime-details")
+                    }
+                }
+                if original == nil && showDetails {
+                    Section("Observation timing") {
+                        if promptID == nil {
+                            Toggle("Remembering an earlier observation", isOn: $retrospective)
+                                .onChange(of: retrospective) { _ in score = nil; status = .incomplete; assessedAt = Date() }
+                            if !retrospective { Toggle("Recording because I feel sleepy", isOn: $symptomTriggered) }
+                            if retrospective {
+                                DatePicker("Observed at", selection: $assessedAt, in: ...Date())
+                                Text("This will be labeled retrospective, not a current assessment.").font(.caption)
+                            }
+                        }
+                        Text("This is a custom 0–10 diary, not KSS or ESS.").font(.caption)
+                    }.disabled(pending != nil)
                     Section("Optional context") {
                         Picker("Activity during observation", selection: $activity) {
                             Text("Not answered").tag(DaytimeCheckIn.Activity?.none)
@@ -195,10 +221,10 @@ struct DaytimeCheckInEditor: View {
                         TextField("Optional note (no names)", text: $note, axis: .vertical)
                         Text("Record actions already taken; this diary does not recommend caffeine or medication.").font(.caption)
                     }.disabled(pending != nil)
-                } else {
+                } else if original != nil {
                     Section("Correction reason") { TextField("Why are you correcting this response?", text: $reason) }.disabled(pending != nil)
                 }
-                if original == nil {
+                if original == nil && showDetails {
                     Section("Optional existing source links") {
                         NavigationLink("Review nap, medication or main-wake links (\(sourceLinks.count))") {
                             DaytimeSourcePicker(repository: repository, selected: $sourceLinks)

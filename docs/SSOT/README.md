@@ -36,6 +36,11 @@ and the end of the verified queue. Permission denial links to iOS Settings.
 Reconciliation clears stale queue evidence before checking; a saved routine alone
 does not claim a notification is queued or delivered. Save is also in the toolbar.
 
+Randomized wake routines optionally offer three workday windows (2–4, 6–9,
+and 11–13 hours after reported wake) and two off-day windows (3–5 and 8–10).
+Saved work status and separate bedtime cutoffs are required; times remain stable
+on refresh and missing wake evidence never becomes a guessed schedule.
+
 ## Physician review preparation (DOSETAP-59)
 
 The [physician review contract](contracts/physician-review.md) defines completed-visit anchors, explicit report bounds, immutable preview snapshots and unscored notes. It does not authorize automatic sharing or instrument scoring.

@@ -3031,14 +3031,13 @@ extension DoseTapUITests {
         let record = app.buttons["tonight-daytime-record"]
         XCTAssertTrue(record.waitForExistence(timeout: 15)); reveal(record); record.tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
-        reveal(app.buttons["daytime-rating"])
-        XCTAssertTrue(app.buttons["daytime-rating"].label.contains("Choose a rating"))
+        reveal(app.staticTexts["daytime-rating-summary"])
+        XCTAssertEqual(app.staticTexts["daytime-rating-summary"].label, "Choose a rating")
         app.buttons["Cancel"].tap()
         XCTAssertFalse(app.staticTexts["tonight-daytime-saved"].exists)
         reveal(record); record.tap()
-        let rating = app.buttons["daytime-rating"]
+        let rating = app.buttons["daytime-rating-4"]
         reveal(rating); rating.tap()
-        app.buttons["4"].tap()
         let save = app.buttons["daytime-save-top"]
         for _ in 0..<5 where !save.isHittable { app.swipeUp() }
         XCTAssertTrue(save.isHittable); save.tap()
@@ -3149,7 +3148,8 @@ extension DoseTapUITests {
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap()
         XCTAssertTrue(app.buttons["history-daytime"].waitForExistence(timeout: 10)); app.buttons["history-daytime"].tap()
         app.buttons["daytime-add-top"].tap()
-        reveal(app.buttons["daytime-rating"]); app.buttons["daytime-rating"].tap(); app.buttons["4"].tap()
+        reveal(app.buttons["daytime-rating-4"]); app.buttons["daytime-rating-4"].tap()
+        reveal(app.buttons["daytime-details"]); app.buttons["daytime-details"].tap()
         reveal(app.buttons["daytime-source-open"]); app.buttons["daytime-source-open"].tap()
         let candidate = app.buttons["daytime-source-candidate"].firstMatch
         XCTAssertTrue(candidate.waitForExistence(timeout: 5)); reveal(candidate); candidate.tap()

@@ -48,6 +48,12 @@ final class DaytimePromptUITests: XCTestCase {
             XCTAssertEqual(toggle.value as? String, "1", "Refresh must preserve the unsaved draft")
             control.tap()
         }
+        let varied = app.switches["daytime-randomized"]
+        reveal(varied)
+        let variedControl = varied.switches.firstMatch.exists ? varied.switches.firstMatch : varied
+        if varied.value as? String == "0" { variedControl.tap() }
+        reveal(app.staticTexts["Workdays: 3 check-ins, 2–4, 6–9 and 11–13 hours after waking."])
+        reveal(app.staticTexts["Off days: 2 check-ins, 3–5 and 8–10 hours after waking."])
         XCTAssertTrue(save.isHittable); save.tap()
         reveal(status, towardTop: true)
         XCTAssertEqual(status.label, "Reminders paused")

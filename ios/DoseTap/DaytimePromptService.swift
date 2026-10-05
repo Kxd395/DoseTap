@@ -104,6 +104,10 @@ final class DaytimePromptService: ObservableObject {
             guard let schedule = value.current, let zone = TimeZone(identifier: schedule.timeZone) else { throw DaytimeDiaryError.invalid }
             var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
             let sampledAt = now(), contexts = try contextProvider(schedule, value, now())
+            _ = value.prepareHorizon(at: sampledAt, contexts: contexts)
+            for assessment in try repository.daytimeCheckIns().revisions where assessment.predecessorID == nil && assessment.promptID == nil && assessment.origin != .retrospective && assessment.status != .incomplete {
+                try value.satisfyRandomizedWindow(assessmentID: assessment.id, assessedAt: assessment.assessedAt, recordedAt: assessment.recordedAt)
+            }
             let upcoming = value.prepareHorizon(at: sampledAt, contexts: contexts)
             if let rule = schedule.rule {
                 let grouped = Dictionary(grouping: contexts, by: \.dayKey)
@@ -113,8 +117,9 @@ final class DaytimePromptService: ObservableObject {
                     let key = DaytimePromptRule.dayKey(day, timeZone: schedule.timeZone), candidates = grouped[key] ?? []
                     let resolution = rule.resolve(day: day, clockHour: schedule.hour, clockMinute: schedule.minute,
                         timeZone: schedule.timeZone, context: candidates.count == 1 ? candidates.first : nil, now: sampledAt)
+                    if rule.randomizedWake != nil && candidates.first?.working == nil { return "\(key): not queued — work or off-day status needs review." }
                     if let reason = resolution.unavailableReason { return "\(key): not queued — \(reason)." }
-                    if let intended = resolution.intendedAt, intended <= sampledAt { return "\(key): selected anchor has passed; no new reminder queued." }
+                    if rule.randomizedWake == nil, let intended = resolution.intendedAt, intended <= sampledAt { return "\(key): selected anchor has passed; no new reminder queued." }
                     return nil
                 }
             }
@@ -162,7 +167,7 @@ final class DaytimePromptService: ObservableObject {
                 value.suppressDue(at: now(), reason: "Known sleep or nap active")
                 status = "Queued reminders paused during known sleep or nap."
             } else {
-                status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS."
+                status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : (schedule.rule?.randomizedWake != nil ? "Wake-based check-ins queued for recorded wake days. Record your next main wake to schedule that day. Delivery is controlled by iOS." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS.")
             }
             try repository.saveDaytimePrompts(value); ledger = value
             if !repository.daytimePromptSleepActive {
@@ -193,6 +198,15 @@ final class DaytimePromptService: ObservableObject {
     func handle(promptID: UUID, action: String) async {
         guard [UNNotificationDefaultActionIdentifier, "open", "daytime_skip", "daytime_later"].contains(action) else { return }
         if isBusy { await withCheckedContinuation { actions.append((promptID, action, $0)) }; return }
+        if action == "daytime_later" {
+            do {
+                var preview = try repository.daytimePrompts()
+                try preview.deferPrompt(id: promptID, until: Date(timeIntervalSince1970: ceil(now().timeIntervalSince1970 + 1800)), now: now())
+            } catch {
+                status = "This check-in cannot be postponed within its window. Check in now or skip it."
+                return
+            }
+        }
         let changed = await change { value in
             if action == "daytime_skip" { try value.skip(id: promptID) }
             else if action == "daytime_later" { try value.deferPrompt(id: promptID, until: Date(timeIntervalSince1970: ceil(now().timeIntervalSince1970 + 1800)), now: now()) }

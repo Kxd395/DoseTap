@@ -62,4 +62,69 @@ final class DaytimePromptAnchorTests: XCTestCase {
         XCTAssertNil(rule.resolve(day: now, clockHour: 14, clockMinute: 0, timeZone: zone, context: context, now: now).intendedAt)
     }
 
+    func testRandomWakeWindowsAreStableBoundedAndSeparateByDayType() throws {
+        let wake = date("2026-10-05T09:00:00Z")
+        let source = try DaytimeAnchorSource(id: "wake", revision: "r1", at: wake)
+        let rule = try DaytimePromptRule(anchor: .mainWake, randomizedWake: .init())
+        for working in [true, false] {
+            let context = DaytimePromptAnchorContext(dayKey: "2026-10-05", timeZone: zone, working: working, mainWake: source)
+            var ledger = DaytimePromptLedger()
+            try ledger.configure(hour: 14, minute: 0, timeZone: zone, enabled: true, at: wake, rule: rule)
+            let first = ledger.prepareHorizon(at: wake, contexts: [context])
+            XCTAssertEqual(first.count, working ? 3 : 2)
+            XCTAssertEqual(first, ledger.prepareHorizon(at: wake.addingTimeInterval(60), contexts: [context]))
+            var restored = try DaytimePromptLedger.decodePayload(ledger.encodedPayload())
+            XCTAssertEqual(first, restored.prepareHorizon(at: wake, contexts: [context]))
+            for (index, prompt) in first.enumerated() {
+                XCTAssertGreaterThanOrEqual(prompt.intendedAt, try XCTUnwrap(prompt.windowStart))
+                XCTAssertLessThanOrEqual(prompt.intendedAt, try XCTUnwrap(prompt.windowEnd))
+                if index > 0 { XCTAssertGreaterThanOrEqual(prompt.intendedAt.timeIntervalSince(first[index - 1].intendedAt), 7200) }
+            }
+            try ledger.respond(id: first[0].id, assessmentID: UUID(), assessedAt: first[0].intendedAt, at: first[0].intendedAt)
+            XCTAssertEqual(ledger.prepareHorizon(at: first[0].intendedAt, contexts: [context]).count, first.count - 1)
+        }
+    }
+    func testRandomWakeRequiresWorkStatusAndHonorsBedtimeAndCorrection() throws {
+        let wake = date("2026-10-05T09:00:00Z")
+        let source = try DaytimeAnchorSource(id: "wake", revision: "r1", at: wake)
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 14, minute: 0, timeZone: zone, enabled: true, at: wake,
+            rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init(workBedtimeMinute: 900)))
+        XCTAssertTrue(ledger.prepareHorizon(at: wake, contexts: [.init(dayKey: "2026-10-05", timeZone: zone, mainWake: source)]).isEmpty)
+        let context = DaytimePromptAnchorContext(dayKey: "2026-10-05", timeZone: zone, working: true, mainWake: source)
+        let prompts = ledger.prepareHorizon(at: wake, contexts: [context])
+        XCTAssertEqual(prompts.count, 2)
+        XCTAssertTrue(prompts.allSatisfy { $0.intendedAt <= date("2026-10-05T17:00:00Z") })
+        let corrected = try DaytimeAnchorSource(id: "wake", revision: "r2", at: wake.addingTimeInterval(600))
+        XCTAssertTrue(ledger.prepareHorizon(at: wake.addingTimeInterval(600), contexts: [.init(dayKey: "2026-10-05", timeZone: zone, working: true, mainWake: corrected)]).isEmpty)
+    }
+
+    func testRandomWakeDSTAndDeferralStayWithinWindows() throws {
+        for stamp in ["2026-03-08T05:30:00Z", "2026-11-01T04:30:00Z"] {
+            let wake = date(stamp), key = DaytimePromptRule.dayKey(wake, timeZone: zone)
+            let context = DaytimePromptAnchorContext(dayKey: key, timeZone: zone, working: true,
+                mainWake: try DaytimeAnchorSource(id: key, revision: "r1", at: wake))
+            var ledger = DaytimePromptLedger()
+            try ledger.configure(hour: 14, minute: 0, timeZone: zone, enabled: true, at: wake,
+                rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init()))
+            let slots = ledger.prepareHorizon(at: wake, contexts: [context])
+            XCTAssertEqual(slots.count, 3)
+            XCTAssertEqual(slots[0].windowStart!.timeIntervalSince(wake), 7200)
+            XCTAssertThrowsError(try ledger.deferPrompt(id: slots[0].id, until: slots[0].windowEnd!.addingTimeInterval(1), now: wake))
+            try ledger.satisfyRandomizedWindow(assessmentID: UUID(), assessedAt: slots[0].windowStart!, recordedAt: slots[0].windowStart!)
+            XCTAssertEqual(ledger.prompts[0].status, .responded)
+            XCTAssertEqual(ledger.prepareHorizon(at: slots[0].windowStart!, contexts: [context]).count, 2)
+            try ledger.configure(hour: 14, minute: 0, timeZone: zone, enabled: true, at: slots[0].windowStart!,
+                rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init()))
+            XCTAssertFalse(ledger.prepareHorizon(at: slots[0].windowStart!, contexts: [context]).contains { $0.windowIndex == 0 })
+        }
+    }
+    func testRandomWakeRejectsInvalidRoutineAndKeepsLegacyPayloadReadable() throws {
+        XCTAssertThrowsError(try DaytimePromptRule(anchor: .clock, randomizedWake: .init()))
+        XCTAssertThrowsError(try DaytimePromptRule(anchor: .mainWake, randomizedWake: .init(offBedtimeMinute: 1440)))
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 14, minute: 0, timeZone: zone, enabled: true, at: date("2026-10-05T09:00:00Z"), rule: DaytimePromptRule(anchor: .clock))
+        XCTAssertEqual(try DaytimePromptLedger.decodePayload(ledger.encodedPayload()), ledger)
+    }
+
 }

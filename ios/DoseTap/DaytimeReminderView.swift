@@ -4,6 +4,9 @@ import DoseCore
 struct DaytimeReminderView: View {
     @Environment(\.openURL) private var openURL
     @ObservedObject private var service = DaytimePromptService.shared
+    @State private var randomized = false
+    @State private var workBedtime = Date()
+    @State private var offBedtime = Date()
     @State private var enabled = false
     @State private var draftLoaded = false
     @State private var time = Date()
@@ -61,6 +64,16 @@ struct DaytimeReminderView: View {
             }
             Section("Optional routine reminder") {
                 Toggle("Enable daytime reminder", isOn: $enabled)
+                Toggle("Vary check-ins after waking", isOn: $randomized)
+                    .accessibilityIdentifier("daytime-randomized")
+                if randomized {
+                    Text("Workdays: 3 check-ins, 2–4, 6–9 and 11–13 hours after waking.")
+                    Text("Off days: 2 check-ins, 3–5 and 8–10 hours after waking.")
+                    Text("Times vary by day and stay at least 2 hours apart. Record your main wake and save your work/off-day schedule first.").font(.caption)
+                    DatePicker("Workday bedtime", selection: $workBedtime, displayedComponents: .hourAndMinute)
+                    DatePicker("Off-day bedtime", selection: $offBedtime, displayedComponents: .hourAndMinute)
+                    Text("Check these bedtime choices before saving. Nudges stop 2 hours before bedtime; quiet hours still apply. No automatic follow-ups.").font(.caption)
+                } else {
                 Picker("Reminder anchor", selection: $anchor) {
                     ForEach(DaytimePromptRule.Anchor.allCases, id: \.self) { Text($0.title).tag($0) }
                 }
@@ -74,6 +87,7 @@ struct DaytimeReminderView: View {
                 }
                 if anchor == .mainWake || ((anchor == .shiftMidpoint || anchor == .shiftBreak) && offDayAnchor == .mainWake) {
                     Stepper("After reported main wake: \(wakeOffset) minutes", value: $wakeOffset, in: 0...1440, step: 15)
+                }
                 }
                 ForEach(1...7, id: \.self) { day in
                     Toggle(Calendar(identifier: .gregorian).weekdaySymbols[day - 1], isOn: Binding(
@@ -137,6 +151,10 @@ struct DaytimeReminderView: View {
         guard !draftLoaded, !service.isBusy, service.hasLoadedLedger else { return }
         enabled = service.ledger.enabled
         let rule = service.ledger.current?.rule
+        randomized = rule?.randomizedWake != nil
+        let routine = rule?.randomizedWake ?? RandomizedWakeRoutine()
+        workBedtime = clock(hour: routine.workBedtimeMinute / 60, minute: routine.workBedtimeMinute % 60)
+        offBedtime = clock(hour: routine.offBedtimeMinute / 60, minute: routine.offBedtimeMinute % 60)
         anchor = rule?.anchor ?? .clock; weekdays = Set(rule?.selectedWeekdays ?? Array(1...7))
         wakeOffset = rule?.wakeOffsetMinutes ?? 240; offDayAnchor = rule?.offDayAnchor ?? .clock
         offDayTime = clock(hour: rule?.offDayHour ?? 14, minute: rule?.offDayMinute ?? 0)
@@ -157,10 +175,13 @@ struct DaytimeReminderView: View {
             value.quietEnd = calendar.component(.hour, from: quietEnd) * 60 + calendar.component(.minute, from: quietEnd)
             try value.configure(hour: calendar.component(.hour, from: time), minute: calendar.component(.minute, from: time),
                                 timeZone: timeZoneID, enabled: enabled, at: Date(),
-                                rule: DaytimePromptRule(anchor: anchor, selectedWeekdays: savedDays,
+                                rule: DaytimePromptRule(anchor: randomized ? .mainWake : anchor, selectedWeekdays: savedDays,
                                     wakeOffsetMinutes: wakeOffset, offDayAnchor: offDayAnchor,
                                     offDayHour: calendar.component(.hour, from: offDayTime),
-                                    offDayMinute: calendar.component(.minute, from: offDayTime)))
+                                    offDayMinute: calendar.component(.minute, from: offDayTime),
+                                    randomizedWake: randomized ? RandomizedWakeRoutine(
+                                        workBedtimeMinute: calendar.component(.hour, from: workBedtime) * 60 + calendar.component(.minute, from: workBedtime),
+                                        offBedtimeMinute: calendar.component(.hour, from: offBedtime) * 60 + calendar.component(.minute, from: offBedtime)) : nil))
         }
     }
 }

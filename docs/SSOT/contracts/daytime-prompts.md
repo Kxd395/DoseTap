@@ -46,3 +46,31 @@ Anchor rules evaluate a rolling interval after reconciliation through the same s
 The app resolves work evidence from the validated work document in the routine’s saved timezone. Initial wake-anchor selection requires exactly one explicit reported main-wake source for the selected civil day. Existing prompts resolve their original stable night-source identity after corrections; cleared, absent or conflicting evidence remains unscheduled. Session closure, nap end and provider data are not fallback anchors. Current source context and the canonical prompt ledger are re-read after asynchronous notification work; a changed source cancels owned requests and reports a failed update rather than claiming the old context was scheduled successfully.
 
 Non-repeating OS trigger components use UTC so the second occurrence of a repeated fall-back clock hour retains its exact intended instant. Saved-zone weekday selection, originating anchor day, quiet-hour evaluation and original source metadata remain in the routine’s explicitly saved timezone.
+
+## Randomized main-wake routine (DOSETAP-58)
+
+An optional randomized wake routine preserves existing single-reminder schedules.
+Workdays use elapsed-hour windows 2–4, 6–9 and 11–13 after explicitly reported
+main wake; off days use 3–5 and 8–10. Work status must be explicitly resolved for
+the wake date. Unknown status, missing/future/ambiguous wake or mismatched zones
+remain unscheduled. These are personal diary defaults, not clinical thresholds.
+A separately saved work/off-day bedtime (initial draft 22:00, editable before
+Save) stops prompts two hours before the next bedtime after wake. Quiet hours
+and known sleep remain independent suppressors. No future wakes are predicted.
+
+A stable schedule/date/window seed selects whole-minute offsets once, with at
+least two hours between attempts. Each occurrence retains its window bounds and
+wake/work evidence. Refresh and restart cannot redraw it. Source corrections
+suppress remaining old occurrences for that wake date instead of silently
+resampling; a reviewed new schedule is required. Past, answered or skipped
+windows are not repeated by saving a new routine. At most three windows per
+workday or two per off day are created; missed windows never cause catch-up.
+The existing seven-request queue ceiling and seven-civil-day horizon remain.
+
+Completing a nonretrospective original check-in within a window satisfies that
+window without changing its reported origin or answers. Explicit prompt responses
+still refer to their original prompt. Later windows remain independent. Later
+moves the same occurrence by 30 minutes only within its window and bedtime cutoff,
+and only when two-hour spacing from other attempts remains; otherwise it fails
+without a new request. There are no automatic follow-up nudges. Missing responses
+remain unknown. Enabling and Save remain explicit user actions.

@@ -39,6 +39,9 @@ public struct DaytimePrompt: Codable, Equatable, Identifiable, Sendable {
     public var assessmentID: UUID?
     public var anchor: DaytimePromptAnchorResolution?
     public var anchorDayKey: String?
+    public var windowIndex: Int?
+    public var windowStart: Date?
+    public var windowEnd: Date?
     public var isOutstanding: Bool { status == .pending || status == .deferred }
 }
 
@@ -78,6 +81,7 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
             && ["Notification permission unavailable", "Inside configured quiet hours"].contains(prompts[index].reason ?? "") {
             prompts[index].status = .pending; prompts[index].reason = nil
         }
+        if schedule.rule?.randomizedWake != nil { return prepareRandomizedHorizon(schedule: schedule, at: now, contexts: contexts) }
         if schedule.rule != nil { return prepareAnchoredHorizon(schedule: schedule, at: now, contexts: contexts) }
         var cursor = now
         for _ in 0..<7 {
@@ -133,6 +137,64 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
         return Array(prompts.filter { $0.scheduleID == schedule.id && $0.isOutstanding && $0.nextAttemptAt > now && $0.nextAttemptAt <= end }
             .sorted { $0.nextAttemptAt < $1.nextAttemptAt }.prefix(7))
     }
+    private mutating func prepareRandomizedHorizon(schedule: DaytimePromptSchedule, at now: Date,
+                                                   contexts: [DaytimePromptAnchorContext]) -> [DaytimePrompt] {
+        guard now.timeIntervalSince1970.isFinite, let rule = schedule.rule, let routine = rule.randomizedWake,
+              let zone = TimeZone(identifier: schedule.timeZone) else { return [] }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        let grouped = Dictionary(grouping: contexts, by: \.dayKey)
+        for offset in -1...0 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else { continue }
+            let key = DaytimePromptRule.dayKey(day, timeZone: schedule.timeZone)
+            let matches = grouped[key] ?? []
+            let context = matches.count == 1 ? matches.first : nil
+            let resolution = rule.resolve(day: day, clockHour: schedule.hour, clockMinute: schedule.minute,
+                                          timeZone: schedule.timeZone, context: context, now: now)
+            let previous = prompts.indices.filter { prompts[$0].scheduleID == schedule.id && prompts[$0].anchorDayKey == key }
+            if !previous.isEmpty {
+                for index in previous where prompts[index].isOutstanding {
+                    let old = prompts[index].anchor
+                    if resolution.intendedAt == nil || context?.working == nil || old?.sourceID != resolution.sourceID ||
+                        old?.sourceRevision != resolution.sourceRevision || old?.sourceAt != resolution.sourceAt ||
+                        old?.working != context?.working || old?.workRevision != context?.workRevision {
+                        prompts[index].status = .suppressed; prompts[index].reason = "Wake or work evidence changed; review the routine"
+                    }
+                }
+                continue
+            }
+            guard resolution.intendedAt != nil, let wake = resolution.sourceAt, let working = context?.working,
+                  let cutoff = routine.cutoff(wake: wake, working: working, timeZone: schedule.timeZone) else { continue }
+            var last: Date?
+            for (index, window) in routine.windows(working: working).enumerated() {
+                let lower = wake.addingTimeInterval(Double(window.lowerBound * 60))
+                let upper = min(wake.addingTimeInterval(Double(window.upperBound * 60)), cutoff)
+                let start = max(lower, last?.addingTimeInterval(7200) ?? lower)
+                guard start <= upper else { continue }
+                let seed = RandomizedWakeRoutine.hash("\(schedule.id)#\(key)#\(index)")
+                let minutes = Int(upper.timeIntervalSince(start) / 60)
+                let intended = Date(timeIntervalSince1970: ceil(start.addingTimeInterval(Double(seed % UInt64(minutes + 1)) * 60).timeIntervalSince1970))
+                last = intended
+                guard intended > now, intended <= upper else { continue }
+                // Saving a different routine cannot repeat an already attempted or explicitly resolved window.
+                guard !prompts.contains(where: { $0.anchorDayKey == key && $0.windowIndex == index &&
+                    ($0.intendedAt <= now || $0.status == .responded || $0.status == .skipped) }) else { continue }
+                guard let id = UUID(uuidString: String(schedule.id.uuidString.prefix(24)) + String(format: "%012llx", seed & 0xFFFFFFFFFFFF)) else { continue }
+                let anchor = DaytimePromptAnchorResolution(intendedAt: intended, sourceID: resolution.sourceID,
+                    sourceRevision: resolution.sourceRevision, sourceAt: wake,
+                    label: "\(working ? "Workday" : "Off-day") check-in \(index + 1) · after main wake", unavailableReason: nil,
+                    kind: .mainWake, working: working, workSourceID: context?.workSourceID, workRevision: context?.workRevision)
+                prompts.append(DaytimePrompt(id: id, scheduleID: schedule.id, intendedAt: intended, nextAttemptAt: intended,
+                    anchor: anchor, anchorDayKey: key, windowIndex: index, windowStart: lower, windowEnd: upper))
+            }
+        }
+        return Array(prompts.filter { $0.scheduleID == schedule.id && $0.isOutstanding && $0.nextAttemptAt > now }
+            .sorted { $0.nextAttemptAt < $1.nextAttemptAt }.prefix(7))
+    }
+    public mutating func satisfyRandomizedWindow(assessmentID: UUID, assessedAt: Date, recordedAt: Date) throws {
+        guard let index = prompts.firstIndex(where: { $0.scheduleID == current?.id && $0.isOutstanding &&
+            $0.windowStart.map { assessedAt >= $0 } == true && $0.windowEnd.map { assessedAt <= $0 } == true }) else { return }
+        try respond(id: prompts[index].id, assessmentID: assessmentID, assessedAt: assessedAt, at: recordedAt)
+    }
     public mutating func suppressDue(at now: Date, reason _: String) {
         for index in prompts.indices where prompts[index].isOutstanding && prompts[index].nextAttemptAt <= now {
             prompts[index].status = .expired; prompts[index].reason = "No response recorded; earlier delivery unknown"
@@ -159,6 +221,10 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
     public mutating func deferPrompt(id: UUID, until: Date, now: Date) throws {
         guard let index = prompts.firstIndex(where: { $0.id == id }), prompts[index].isOutstanding,
               until > now, until.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
+        if let end = prompts[index].windowEnd {
+            guard until <= end, prompts.filter({ $0.id != id && $0.anchorDayKey == prompts[index].anchorDayKey && $0.windowIndex != nil })
+                .allSatisfy({ abs($0.nextAttemptAt.timeIntervalSince(until)) >= 7200 }) else { throw DaytimeDiaryError.invalid }
+        }
         prompts[index].status = .deferred; prompts[index].nextAttemptAt = Self.canonicalDate(until); prompts[index].reason = "Deferred by user"
     }
     public mutating func respond(id: UUID, assessmentID: UUID, assessedAt: Date, at: Date) throws {
@@ -178,6 +244,13 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
             guard let schedule = schedules.first(where: { $0.id == prompt.scheduleID }),
                   schedule.rule == nil || (prompt.anchor != nil && prompt.anchorDayKey != nil)
             else { throw DaytimeDiaryError.invalid }
+            if schedule.rule?.randomizedWake != nil {
+                guard let index = prompt.windowIndex, let working = prompt.anchor?.working,
+                      schedule.rule!.randomizedWake!.windows(working: working).indices.contains(index),
+                      let start = prompt.windowStart, let end = prompt.windowEnd,
+                      start <= prompt.intendedAt, prompt.intendedAt <= end, prompt.nextAttemptAt <= end,
+                      start.timeIntervalSince1970.isFinite, end.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
+            }
             if let anchor = prompt.anchor {
                 guard anchor.intendedAt == prompt.intendedAt, anchor.kind != nil, let key = prompt.anchorDayKey,
                       key.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil,

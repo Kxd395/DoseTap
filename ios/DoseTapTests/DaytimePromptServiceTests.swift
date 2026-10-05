@@ -11,6 +11,36 @@ final class DaytimePromptServiceTests: XCTestCase {
     func enable(_ service: DaytimePromptService) async -> Bool {
         await service.change { try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now) }
     }
+    func testRandomizedWakeQueuesStableWindowsAndManualCheckInCancelsOnlyCurrentWindow() async throws {
+        var clock = now
+        let repo = SessionRepository(storage: .inMemory(), clock: { clock }), client = Client()
+        let key = DaytimePromptRule.dayKey(now, timeZone: "UTC")
+        let context = DaytimePromptAnchorContext(dayKey: key, timeZone: "UTC", working: true,
+            mainWake: try DaytimeAnchorSource(id: "wake", revision: "r1", at: now))
+        let service = DaytimePromptService(repository: repo, client: client, now: { clock }, contexts: { _, _, _ in [context] })
+        let saved = await service.change {
+            $0.quietStart = 0; $0.quietEnd = 0
+            try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: self.now,
+                rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: .init(workBedtimeMinute: 60)))
+        }
+        XCTAssertTrue(saved)
+        XCTAssertEqual(client.requests.count, 3)
+        let first = service.ledger.prompts
+        await service.reconcile()
+        XCTAssertEqual(service.ledger.prompts, first)
+        clock = first[0].windowEnd!
+        let queued = Set(client.requests.keys)
+        await service.handle(promptID: first[0].id, action: "daytime_later")
+        XCTAssertEqual(Set(client.requests.keys), queued, "An unavailable deferral must preserve other windows")
+        clock = first[0].windowStart!
+        let entry = try DaytimeCheckIn(assessedAt: clock, recordedAt: clock, timeZoneIdentifier: "UTC", response: 4, status: .answered)
+        try repo.saveDaytimeCheckIn(entry)
+        await service.reconcile()
+        XCTAssertEqual(client.requests.count, 2)
+        XCTAssertEqual(service.ledger.prompts[0].assessmentID, entry.id)
+        XCTAssertEqual(try repo.daytimeCheckIns().revisions.first?.origin, entry.origin)
+        XCTAssertTrue(service.ledger.prompts.dropFirst().allSatisfy { $0.isOutstanding })
+    }
     func testVerifiedQueueReportsNextFutureAttemptAndClearsOnPause() async throws {
         let repo = SessionRepository(storage: .inMemory()), client = Client()
         var clock = now

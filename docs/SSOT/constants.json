@@ -1,5 +1,5 @@
 {
-  "daytimePrompts": {"horizonDays": 7, "deferMinutes": 30, "nonresponseAfterHours": 24, "notificationQueueCeiling": 64, "anchorRuleVersion": 1, "maximumWakeOffsetMinutes": 1440},
+  "daytimePrompts": {"horizonDays": 7, "deferMinutes": 30, "nonresponseAfterHours": 24, "notificationQueueCeiling": 64, "randomizedWake": {"workWindowMinutes": [[120,240],[360,540],[660,780]], "offWindowMinutes": [[180,300],[480,600]], "minimumSpacingMinutes": 120, "bedtimeBufferMinutes": 120, "defaultBedtimeMinute": 1320}, "anchorRuleVersion": 1, "maximumWakeOffsetMinutes": 1440},
   "bottleTracking": {
     "defaultReceiptCount": 3,
     "maximumReceiptCount": 100,

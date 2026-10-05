@@ -51,6 +51,7 @@ public struct DaytimePromptRule: Codable, Equatable, Sendable {
             case .shiftMidpoint: return "Saved shift midpoint"; case .shiftBreak: return "Saved shift break" }
         }
     }
+    public let randomizedWake: RandomizedWakeRoutine?
     public let anchor: Anchor
     public let selectedWeekdays: [Int]
     public let wakeOffsetMinutes: Int
@@ -58,16 +59,20 @@ public struct DaytimePromptRule: Codable, Equatable, Sendable {
     public let offDayHour: Int
     public let offDayMinute: Int
     public init(anchor: Anchor, selectedWeekdays: Set<Int> = Set(1...7), wakeOffsetMinutes: Int = 240,
-                offDayAnchor: Anchor = .clock, offDayHour: Int = 14, offDayMinute: Int = 0) throws {
+                offDayAnchor: Anchor = .clock, offDayHour: Int = 14, offDayMinute: Int = 0,
+                randomizedWake: RandomizedWakeRoutine? = nil) throws {
         guard !selectedWeekdays.isEmpty, selectedWeekdays.allSatisfy({ (1...7).contains($0) }),
               (0...1440).contains(wakeOffsetMinutes), [.clock, .mainWake].contains(offDayAnchor),
               (0...23).contains(offDayHour), (0...59).contains(offDayMinute) else { throw DaytimeDiaryError.invalid }
+        try randomizedWake?.validate()
+        guard randomizedWake == nil || anchor == .mainWake else { throw DaytimeDiaryError.invalid }
+        self.randomizedWake = randomizedWake
         self.anchor = anchor; self.selectedWeekdays = selectedWeekdays.sorted(); self.wakeOffsetMinutes = wakeOffsetMinutes
         self.offDayAnchor = offDayAnchor; self.offDayHour = offDayHour; self.offDayMinute = offDayMinute
     }
     public func validate() throws {
         _ = try Self(anchor: anchor, selectedWeekdays: Set(selectedWeekdays), wakeOffsetMinutes: wakeOffsetMinutes,
-                     offDayAnchor: offDayAnchor, offDayHour: offDayHour, offDayMinute: offDayMinute)
+                     offDayAnchor: offDayAnchor, offDayHour: offDayHour, offDayMinute: offDayMinute, randomizedWake: randomizedWake)
         guard selectedWeekdays == Set(selectedWeekdays).sorted() else { throw DaytimeDiaryError.invalid }
     }
     public static func dayKey(_ date: Date, timeZone: String) -> String {
@@ -112,5 +117,30 @@ public struct DaytimePromptRule: Codable, Equatable, Sendable {
         return .init(intendedAt: DaytimePromptLedger.canonicalDate(date), sourceID: source?.id, sourceRevision: source?.revision,
                      sourceAt: source?.at, label: label, unavailableReason: nil, kind: selected, sourceEndAt: source?.endAt,
                      working: evidence?.working, workSourceID: evidence?.workSourceID, workRevision: evidence?.workRevision)
+    }
+}
+
+/// User-configured diary sampling defaults, not clinical recommendations.
+public struct RandomizedWakeRoutine: Codable, Equatable, Sendable {
+    public let workBedtimeMinute: Int
+    public let offBedtimeMinute: Int
+    public init(workBedtimeMinute: Int = 1320, offBedtimeMinute: Int = 1320) {
+        self.workBedtimeMinute = workBedtimeMinute; self.offBedtimeMinute = offBedtimeMinute
+    }
+    public func validate() throws {
+        guard (0..<1440).contains(workBedtimeMinute), (0..<1440).contains(offBedtimeMinute) else { throw DaytimeDiaryError.invalid }
+    }
+    public func windows(working: Bool) -> [ClosedRange<Int>] {
+        working ? [120...240, 360...540, 660...780] : [180...300, 480...600]
+    }
+    public func cutoff(wake: Date, working: Bool, timeZone: String) -> Date? {
+        guard let zone = TimeZone(identifier: timeZone), (try? validate()) != nil else { return nil }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        let minute = working ? workBedtimeMinute : offBedtimeMinute
+        return calendar.nextDate(after: wake, matching: DateComponents(hour: minute / 60, minute: minute % 60),
+            matchingPolicy: .nextTime, repeatedTimePolicy: .first)?.addingTimeInterval(-7200)
+    }
+    static func hash(_ text: String) -> UInt64 {
+        text.utf8.reduce(UInt64(14695981039346656037)) { ($0 ^ UInt64($1)) &* 1099511628211 }
     }
 }

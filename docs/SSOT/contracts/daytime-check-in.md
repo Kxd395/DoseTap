@@ -60,3 +60,14 @@ A saved explicit main-wake source link or a scheduled prompt's saved main-wake a
 - The optional source picker selects existing eligible naps, actual medication administrations, or explicitly reported main wakes; it never creates another source event or infers an effect. Preserve source ID/revision, semantic evidence, actual/unknown time precision and original nap day/timezone. Overlapping, unresolved duplicate or stale-source naps require review before linking.
 - New observation links are revalidated inside the observation transaction; missing, changed or unreadable evidence rolls back the write and retains the draft. Identical committed retries and response corrections preserve historical source snapshots. Nested nap reads join the existing transaction without committing it.
 - Wake comparison resolves only an explicit saved main-wake link or the original prompt anchor with matching prompt/schedule identity. Freeze source reads at the capture, retain original and current provenance and exact elapsed seconds, and never substitute a nearby wake, nap, provider endpoint or session-close time. The versioned descriptive one-hour bands remain separate from protocol/work/clock/content strata.
+
+## Quick daily entry
+
+The current-moment entry starts unanswered and presents direct 0–10 rating buttons
+with 44-point minimum targets, a selected-state label and accessible values.
+Rating then Save is sufficient. Optional context, retrospective controls, source
+links and interval review are collapsed behind Add details; collapsing them never
+erases a draft. No prior rating is carried forward. Unsure, skipped and incomplete
+remain distinct. Correction retains its original observation time and reason.
+A durable save triggers reminder reconciliation so a current observation can
+satisfy its randomized window without editing its sampling origin.
