@@ -222,21 +222,33 @@ final class DaytimePromptService: ObservableObject {
             }
             return (true, false, .committedQueueVerified)
         } catch {
-            if reconciliationStarted {
-                verifiedAttempts = []; try? await cancelOwnedRequests()
-            }
-            else if (try? repository.daytimePrompts()) == nil {
-                verifiedAttempts = []; try? await cancelOwnedRequests()
+            var cleanupVerified = true
+            if reconciliationStarted || (try? repository.daytimePrompts()) == nil {
+                verifiedAttempts = []
+                cleanupVerified = await cancelOwnedRequestsAfterFailure()
             }
             hasLoadedLedger = false
             if let current = try? repository.daytimePrompts() {
                 ledger = current; hasLoadedLedger = true
                 if !current.prompts.contains(where: { $0.id == promptToOpen?.id }) { promptToOpen = nil }
             }
-            status = "Reminder update failed. Existing records are retained; retry when ready."
+            status = cleanupVerified
+                ? "Reminder update failed. Existing records are retained; retry when ready."
+                : "Reminder update failed. Cancellation could not be verified. Existing records are retained; retry / refresh status when ready."
             log.error("Daytime reminder update failed")
             let failure = error as? DaytimeDiaryError
-            return (false, osWorkStarted && failure != .conflict && failure != .invalid && failure != .unreadable, osWorkStarted ? .committedQueueUnverified : .notCommitted)
+            return (false, cleanupVerified && osWorkStarted && failure != .conflict && failure != .invalid && failure != .unreadable, osWorkStarted ? .committedQueueUnverified : .notCommitted)
+        }
+    }
+    private func cancelOwnedRequestsAfterFailure() async -> Bool {
+        do { try await cancelOwnedRequests(); return true }
+        catch {
+            // One cancellation-only retry; do not replan against the primary failed source.
+            do { try await cancelOwnedRequests(); return true }
+            catch {
+                log.error("Daytime reminder cancellation could not be verified after retry")
+                return false
+            }
         }
     }
     private func cancelOwnedRequests() async throws {
@@ -264,7 +276,7 @@ final class DaytimePromptService: ObservableObject {
         let saved = (try? repository.daytimePrompts())?.prompts.first { $0.id == promptID }
         if result.outcome == .committedQueueUnverified && action == "daytime_later",
            saved?.status == .deferred, saved?.nextAttemptAt == DaytimePromptLedger.canonicalDate(laterAt) {
-            status = "Check-in postponed, but reminder scheduling could not be verified. Retry / refresh status when ready."
+            status = "Check-in postponed; reminder scheduling is unverified. \(status)"
         }
         if [.committedQueueVerified, .committedQueueUnverified].contains(result.outcome),
            action != "daytime_skip" && action != "daytime_later", saved?.openedAt != nil {

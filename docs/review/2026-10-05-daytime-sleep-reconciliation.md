@@ -117,8 +117,44 @@ growth on the main actor. The original passing tests did not cover those paths.
 - Repository pre-commit checks passed without overrides, including the generic
   simulator build; /tmp/dosetap104-fixes-precommit.log. Legacy safety, companion
   target and repository hygiene guards passed.
-- Daybreak round two remains pending at this source checkpoint. Installation
-  awaits that assessment; verified phone delivery remains build103.
+- Daybreak round two independently confirmed the query-growth repair, but found
+  one remaining cancellation-verification failure path. The candidate was not
+  installed; verified phone delivery remains build103.
+
+## Daybreak round-two cancellation recovery
+
+A failed cleanup removal had been discarded before ordinary OS work began. A
+transiently ignored removal could therefore retain owned requests after the
+initial source read failed, despite empty visible queue verification.
+
+- A new test reproduced eight assertion failures across regular and randomized
+  wake routines and transient/persistent removal cases;
+  /tmp/dosetap104-cancel-red.log. Assertions completed, but the owned Xcode runner
+  stalled in teardown and was terminated (exit143); this is not a passing run.
+- Failure cleanup now verifies removal, retries cancellation once, and returns an
+  explicit success/failure result. This recovery does not reread or replan an
+  unreadable source. Persistent failure prevents automatic replanning and shows
+  that cancellation could not be verified; it never claims that OS removal passed.
+- Durable action outcomes remain separate. A saved Later stays deferred and retains
+  precise cancellation-failure guidance instead of replacing it with generic text.
+- The complete service/storage run passed 67 tests, zero failures and natural
+  TEST SUCCEEDED; /tmp/dosetap104-cancel-final.log and .xcresult. New coverage
+  verifies exactly two cleanup attempts, one failed wake read, retained ledger,
+  preserved unrelated dose request, transient recovery and persistent failure
+  bounds. A committed Later test verifies the separate normal cancellation plus
+  two cleanup attempts with no automatic replanning. Query probes remain 18/18.
+- Default and UTC core suites each passed 1,203 XCTest and 43 Swift Testing cases;
+  /tmp/dosetap104-cancel-core.log and -cancel-core-utc.log. SwiftPM build and
+  required Plane/SSOT/docs/architecture/dose-write/version guards passed.
+- Revised signed build and strict codesign passed; product reads 0.4.19 (104),
+  /tmp/dosetap104-cancel-device.log.
+- Final UI journeys passed at normal text (15.505 seconds) and largest text
+  (45.260 seconds), two tests with zero failures;
+  /tmp/dosetap104-cancel-ui.log and .xcresult.
+- Repository pre-commit checks passed without overrides, including SwiftPM and
+  generic simulator builds; /tmp/dosetap104-cancel-precommit.log.
+- Daybreak round three is pending at this checkpoint. No build104 installation
+  is claimed; verified physical delivery remains build103.
 
 ## Acceptance boundaries
 

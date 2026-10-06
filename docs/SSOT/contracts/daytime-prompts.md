@@ -110,7 +110,11 @@ Explicit skip, source-change, schedule-change, expired and responded states stay
 Rejected mutations and stale actions preserve the verified OS queue. Once mutation
 validation succeeds, any failed evidence read clears verification and cancels owned
 requests, including a failure before the new ledger is committed. This boundary
-does not report an uncommitted action as saved. Later samples one
+does not report an uncommitted action as saved. Failed cleanup verification gets
+one cancellation-only retry, including an early nonretryable source error; cleanup
+never replans unreadable evidence. Persistent cleanup failure keeps verification
+empty, reports that cancellation could not be verified and prevents automatic
+replanning. A committed Later retains this failure guidance. Later samples one
 clock instant for preview and mutation. After partial OS work fails, cancel owned partial
 requests and make at most one fresh reconciliation attempt; persistent failure leaves
 verification empty and exposes retry. Other notification owners remain untouched.

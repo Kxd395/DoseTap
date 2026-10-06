@@ -244,6 +244,67 @@ final class DaytimePromptServiceTests: XCTestCase {
             XCTAssertEqual(try repo.daytimePrompts(), retained)
         }
     }
+    func testUnreadableWakeRetriesOnlyCancellationAndBoundsPersistentFailure() async throws {
+        for randomized in [false, true] {
+            for persistent in [false, true] {
+                let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+                XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('real-wake','2035-10-03','2035-10-04T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+                var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-7200)
+                XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+                var work = WorkContextDocument()
+                work.occurrences = [WorkOccurrence(workDate: "2035-10-04", timeZoneIdentifier: "UTC", plannedWorking: true, recordedAt: now)]
+                try storage.saveWorkContext(work, expectedRevision: nil)
+                let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+                let enabled = await service.change {
+                    $0.quietStart = 0; $0.quietEnd = 0
+                    try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: self.now,
+                        rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: randomized ? .init(workBedtimeMinute: 60) : nil))
+                }
+                XCTAssertTrue(enabled); XCTAssertNotNil(service.nextReminderAt)
+                let owned = client.requests.keys.filter(DaytimePromptService.owns).count
+                XCTAssertGreaterThan(owned, 0)
+                client.requests["dose-owner"] = UNNotificationRequest(identifier: "dose-owner", content: UNMutableNotificationContent(), trigger: nil)
+                client.removed = []; client.ignoresRemovals = true
+                client.onPending = { if !persistent && !client.removed.isEmpty { client.ignoresRemovals = false } }
+                let retained = try repo.daytimePrompts()
+                XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json='invalid JSON' WHERE checkin_type='night_outcome'", nil, nil, nil), SQLITE_OK)
+                let reads = UnsafeMutablePointer<Int>.allocate(capacity: 1); reads.initialize(to: 0)
+                defer { sqlite3_trace_v2(storage.db, 0, nil, nil); reads.deinitialize(count: 1); reads.deallocate() }
+                sqlite3_trace_v2(storage.db, UInt32(SQLITE_TRACE_STMT), { _, context, statement, _ in
+                    if let statement, let sql = sqlite3_sql(OpaquePointer(statement)),
+                       String(cString: sql).hasPrefix("SELECT session_date, source_record_id") {
+                        context?.assumingMemoryBound(to: Int.self).pointee += 1
+                    }
+                    return SQLITE_OK
+                }, reads)
+                await service.reconcile()
+                XCTAssertEqual(client.removed.filter(DaytimePromptService.owns).count, owned * 2, "Exactly one cancellation retry")
+                XCTAssertEqual(client.requests.keys.contains(where: DaytimePromptService.owns), persistent)
+                XCTAssertNotNil(client.requests["dose-owner"]); XCTAssertFalse(client.removed.contains("dose-owner"))
+                XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+                XCTAssertEqual(try repo.daytimePrompts(), retained)
+                XCTAssertEqual(reads.pointee, 1, "Cancellation retry must not reread or replan the unreadable wake source")
+                XCTAssertTrue(service.status.contains("failed"))
+                XCTAssertEqual(service.status.contains("Cancellation could not be verified"), persistent)
+            }
+        }
+    }
+    func testCommittedLaterPreservesUnverifiedCancellationGuidance() async throws {
+        var clock = now
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { clock })
+        let enabled = await enable(service); XCTAssertTrue(enabled)
+        let prompt = try XCTUnwrap(service.ledger.prompts.first)
+        clock = prompt.intendedAt
+        client.ignoresRemovals = true; client.removed = []
+        await service.handle(promptID: prompt.id, action: "daytime_later")
+        let saved = try XCTUnwrap(repo.daytimePrompts().prompts.first { $0.id == prompt.id })
+        XCTAssertEqual(saved.status, .deferred)
+        XCTAssertTrue(service.status.contains("postponed"))
+        XCTAssertTrue(service.status.contains("Cancellation could not be verified"))
+        XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+        XCTAssertEqual(client.removed.count, 21, "One normal cancellation and two bounded cleanup attempts; no replanning")
+    }
     func testRealWakeCorrectionDuringOSAddInvalidatesBatchSnapshot() async throws {
         let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
         XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('real-wake','2035-10-03','2035-10-04T00:00:00.000Z')", nil, nil, nil), SQLITE_OK)
