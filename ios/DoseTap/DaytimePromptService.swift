@@ -38,10 +38,15 @@ final class DaytimePromptService: ObservableObject {
         self.repository = repository; self.client = client; self.now = now
         contextProvider = contexts
     }
+    /// Persisted evidence that cannot be read or validated is unavailable to planning.
+    private func readEvidence<T>(_ read: () throws -> T) throws -> T {
+        do { return try read() }
+        catch { throw DaytimeDiaryError.unreadable }
+    }
     private func contexts(for schedule: DaytimePromptSchedule, ledger: DaytimePromptLedger, at: Date,
                           evidence: DaytimeSleepEvidenceSnapshot) throws -> [DaytimePromptAnchorContext] {
         if let contextProvider { return try contextProvider(schedule, ledger, at) }
-        return try repository.daytimePromptContexts(for: schedule, ledger: ledger, asOf: at, wakeSources: evidence.wakes)
+        return try readEvidence { try repository.daytimePromptContexts(for: schedule, ledger: ledger, asOf: at, wakeSources: evidence.wakes) }
     }
     var permitsForegroundPresentation: Bool {
         guard let value = try? repository.daytimePrompts(), value.enabled,
@@ -93,7 +98,7 @@ final class DaytimePromptService: ObservableObject {
             } else if again { again = false; Task { await reconcile() } }
         }
         do {
-            var value = try repository.daytimePrompts()
+            var value = try readEvidence { try repository.daytimePrompts() }
             ledger = value; hasLoadedLedger = true
             do { try mutation(&value); try value.validate() }
             catch {
@@ -103,12 +108,12 @@ final class DaytimePromptService: ObservableObject {
             reconciliationStarted = true
             anchorAvailability = []
             // Recover a response committed before a crash or a failed prompt-status write.
-            for assessment in try repository.daytimeCheckIns().revisions where assessment.predecessorID == nil {
+            for assessment in try readEvidence({ try repository.daytimeCheckIns() }).revisions where assessment.predecessorID == nil {
                 if let id = assessment.promptID, value.prompts.contains(where: { $0.id == id && $0.assessmentID == nil }) {
                     try value.respond(id: id, assessmentID: assessment.id, assessedAt: assessment.assessedAt, at: assessment.recordedAt)
                 }
             }
-            let assessments = try repository.daytimeCheckIns().revisions
+            let assessments = try readEvidence({ try repository.daytimeCheckIns() }).revisions
             let initialEvidence = value.enabled ? try repository.daytimeSleepEvidence(asOf: sampledAt) : nil
             var plannedContexts: [DaytimePromptAnchorContext] = []
             if value.enabled, let schedule = value.current {
@@ -129,7 +134,7 @@ final class DaytimePromptService: ObservableObject {
                 permission = await client.authorizationStatus()
             }
             notificationPermission = permission
-            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
+            guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
             guard value.enabled else {
                 if let delivered = await client.deliveredIdentifiers() { client.removeDeliveredNotifications(withIdentifiers: delivered.filter { Self.owns($0) }) }
                 promptToOpen = nil; status = "Reminders paused"; return (true, false, .committedQueueVerified)
@@ -179,7 +184,7 @@ final class DaytimePromptService: ObservableObject {
                 return (true, false, .committedQueueVerified)
             }
             let beforeAddAt = now(), beforeAddEvidence = try repository.daytimeSleepEvidence(asOf: beforeAddAt)
-            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
+            guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload(),
                   try self.contexts(for: schedule, ledger: value, at: beforeAddAt, evidence: beforeAddEvidence) == contexts else { throw DaytimeDiaryError.conflict }
             guard !beforeAddEvidence.sleepActive else {
                 value.suppressDue(at: beforeAddAt, reason: "Known sleep or nap active")
@@ -200,7 +205,7 @@ final class DaytimePromptService: ObservableObject {
             }
             let pending = await client.pendingRequests()
             let finalAt = now(), finalEvidence = try repository.daytimeSleepEvidence(asOf: finalAt)
-            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
+            guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload(),
                   try self.contexts(for: schedule, ledger: value, at: finalAt, evidence: finalEvidence) == contexts else { throw DaytimeDiaryError.conflict }
             guard Set(pending.filter { Self.owns($0.identifier) }.map(\.identifier)) == Set(eligible.map { Self.requestID + "." + $0.id.uuidString }),
                   eligible.allSatisfy({ prompt in
@@ -212,7 +217,7 @@ final class DaytimePromptService: ObservableObject {
             }) else { throw DaytimeDiaryError.notCommitted }
             if finalEvidence.sleepActive {
                 try await cancelOwnedRequests()
-                guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
+                guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: sampledAt)
                 status = "Queued reminders paused during known sleep or nap."

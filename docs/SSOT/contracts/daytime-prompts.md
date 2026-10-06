@@ -116,7 +116,12 @@ never replans unreadable evidence. Persistent cleanup failure keeps verification
 empty and reports that cancellation could not be verified. Unreadable evidence or
 persistently unverified cleanup uses a completion policy that consumes any plain
 refresh coalesced while the failed operation was busy, without
-launching another reconciliation. Explicit queued notification actions still drain
+launching another reconciliation. Production ledger, assessment and anchor-context
+read/decode/validation failures are classified as unreadable evidence at the service
+boundary, including malformed, invalid or unavailable work context. Deliberate
+injected context-provider errors retain their test classification. Storage-write
+failures and rejected mutations retain their separate commit/validation outcomes.
+Explicit queued notification actions still drain
 and retain their normal validation/commit rules. A later independently initiated
 refresh may retry; failure does not permanently disable scheduling. A committed
 Later retains this failure guidance. Later samples one

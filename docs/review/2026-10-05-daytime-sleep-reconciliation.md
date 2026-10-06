@@ -200,8 +200,57 @@ also overwrite the status of an explicit queued action.
 - Repository pre-commit checks passed without overrides, including SwiftPM,
   print policy, generic simulator build and the commit-size cap;
   /tmp/dosetap104-coalesced-precommit.log. The normal commit uses the same hook.
-- Daybreak round four is pending for the committed revision. No build104
+- Daybreak round four confirmed these exact repairs but found a remaining
+  work-context error-classification escape, described below. No build104
   installation is claimed; independently verified physical delivery remains103.
+
+## Daybreak round-four production evidence classification
+
+The fourth independent review found one Medium/P2 defect: malformed JSON,
+invalid stored values or unavailable work context could escape as DecodingError
+or WorkContextStorageError. After successful cancellation, those errors did not
+select the unreadable-evidence completion policy, allowing `again` to drain.
+The exact night-outcome and persistent-cleanup scenarios remained repaired.
+
+- The broader source audit identified the same raw decode/validation/read error
+  risk for persisted reminder and assessment evidence. A new production evidence
+  boundary classifies failed reads or validation as DaytimeDiaryError.unreadable.
+  It wraps the initial ledger, assessments, real anchor contexts and fresh ledger
+  reads after awaited OS operations. Sleep/wake evidence already normalizes errors.
+  Injected context-provider behavior remains separate. Writes, rejected mutations,
+  semantic source conflicts and durable action outcomes retain their existing rules.
+- The pre-fix regression completed one test with 31 assertion failures;
+  /tmp/dosetap104-context-red.log. It reproduced extra source reads, repeated
+  cleanup and overwritten queued-action status. Xcode remained in diagnostic
+  collection after assertions; only that owned Xcode process and its diagnostic
+  child were terminated (exit143). This is reproduction evidence, not a passing
+  or naturally completed test invocation.
+- The expanded regression covers malformed/invalid/unavailable work context,
+  malformed stored reminder data and malformed/unavailable assessment data.
+  Work scenarios overlap an automatic refresh, with and without a stale explicit
+  action. Malformed work context also fails during before-add and after-pending
+  evidence checks, proving ordinary recovery does not reread the failed source.
+  Thirteen suspended scenarios verify source counts, bounded removal, retained
+  ledger/other owners, no false verification and status/action completion. Adds
+  made before a final read failure are cancelled, never reported as verified.
+- Default and UTC core suites each passed 1,203 XCTest and 43 Swift Testing cases;
+  /tmp/dosetap104-context-core.log and -context-core-utc.log. SwiftPM build and
+  Plane/SSOT/docs/architecture/dose-write/version guards passed.
+- The final focused suite naturally passed 76 tests with zero failures: 42 service,
+  28 storage and six supply-reminder tests; /tmp/dosetap104-context-final.log and
+  .xcresult. Query probes remain 18 SELECT statements for both 4 and 40 nights,
+  for clock and wake reconciliation. The healthy-coalescing control remains green.
+- Revised signed build and strict codesign passed; product reads 0.4.19 (104),
+  /tmp/dosetap104-context-device.log. No installation is claimed.
+- Final UI journeys naturally passed two tests with zero failures at normal text
+  (30.156 seconds) and largest text (60.433 seconds);
+  /tmp/dosetap104-context-ui.log and .xcresult. These interaction durations do not
+  measure physical-device performance.
+- Explicit repository pre-commit checks passed without overrides, including SwiftPM,
+  print policy, generic simulator build and the commit-size cap;
+  /tmp/dosetap104-context-precommit.log. The normal commit uses the same hook.
+- Daybreak round five is pending for the committed repair; phone acceptance and
+  build104 installation remain separate open gates.
 
 ## Acceptance boundaries
 
