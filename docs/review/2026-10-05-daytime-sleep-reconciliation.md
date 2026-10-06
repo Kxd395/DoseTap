@@ -1,6 +1,6 @@
 # Daytime reminder sleep-state reconciliation
 
-Status: Implementation evidence; final review and physical acceptance remain open
+Status: Source review cleared; build104 installed and launched; physical acceptance remains open
 Date: 2026-10-05, America/New_York
 Plane authority: DOSETAP-58
 Baseline: cfe5ad4, build 0.4.19 (103)
@@ -249,13 +249,52 @@ The exact night-outcome and persistent-cleanup scenarios remained repaired.
 - Explicit repository pre-commit checks passed without overrides, including SwiftPM,
   print policy, generic simulator build and the commit-size cap;
   /tmp/dosetap104-context-precommit.log. The normal commit uses the same hook.
-- Daybreak round five is pending for the committed repair; phone acceptance and
-  build104 installation remain separate open gates.
+- Daybreak round five cleared the committed repair, and build104 delivery is
+  verified below. Remaining physical and owner acceptance gates stay open.
+
+## Daybreak round-five clearance and physical delivery
+
+Daybreak Blue completed the fifth independent review of candidate
+93025dc0b4e1fd66ae40777733a708ca263eb16b with zero actionable findings. It confirmed
+all prior source-boundary, N+1, cancellation-verification, coalesced-refresh and
+production evidence-classification findings are resolved in the reviewed scope.
+The reviewer read completed artifacts; it did not rerun tests or operate the phone.
+This clears the source-review gate for delivery, not release acceptance.
+
+- The reviewed signed 0.4.19 (104) product passed strict codesign and Info.plist
+  readback immediately before installation. No app-source changes followed review.
+- The first installation attempt failed when the CoreDevice connection reset;
+  /tmp/dosetap104-install.log. The existing Mirroring connection was resumed, and
+  an independent device app query confirmed build103 remained installed;
+  /tmp/dosetap104-before-app-readback.json. No successful install is claimed from
+  that first attempt.
+- The second in-place installation succeeded on the paired iPhone 15 Pro Max;
+  /tmp/dosetap104-install-retry.log. The app was not uninstalled or reset.
+- An independent device app query returned com.dosetap.ios, version 0.4.19,
+  bundleVersion 104; /tmp/dosetap104-installed-app-readback.json. A separate launch
+  succeeded with PID 94890, followed by a process query identifying the executable
+  in the same installed bundle; /tmp/dosetap104-launch.json and
+  /tmp/dosetap104-process-readback.json.
+- Fresh physical Mirroring screenshots showed Tonight's daytime entry points.
+  Record now opened an unanswered 0–10 rating with collapsed optional details.
+  Cancel returned to Tonight without a saved-success message. No answer was
+  selected, no assessment saved and no medication action performed.
+- The existing reminder page showed a freshly checked known-sleep suppression
+  status and existing enabled randomized controls. The agent did not toggle,
+  select or save a routine or manufacture a wake/nap end. The phone returned to
+  Tonight. These observations do not establish real notification delivery,
+  post-wake recovery or the original exact source blocker.
+- Mirroring exposed only the native wrapper, not the iPhone accessibility tree.
+  Pixel-based navigation is bounded physical UI evidence, not VoiceOver acceptance.
+- DOSETAP-58 remains In Progress. Physical delivery and bounded navigation passed;
+  the remaining owner, notification, provider, privacy and release gates below
+  are retained.
 
 ## Acceptance boundaries
 
-The phone inspection establishes bounded read-only navigation on build103 only.
-It does not establish a saved symptom observation, delivery of a notification,
+The earlier build103 inspection and latest installed build104 inspection establish
+bounded read-only navigation. They do not establish a saved symptom observation,
+delivery of a notification,
 Open/Later/Skip, background renewal, Focus/lock-screen privacy, physical suppression
 and recovery, VoiceOver, performance or owner usability. Existing prior-night,
 provider, privacy/content, iPad/report, hosted integration and release gates remain
