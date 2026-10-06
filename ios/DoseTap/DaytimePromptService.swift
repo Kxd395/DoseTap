@@ -39,7 +39,8 @@ final class DaytimePromptService: ObservableObject {
         contextProvider = contexts ?? { try repository.daytimePromptContexts(for: $0, ledger: $1, asOf: $2) }
     }
     var permitsForegroundPresentation: Bool {
-        guard let value = try? repository.daytimePrompts(), value.enabled, !repository.daytimePromptSleepActive,
+        guard let value = try? repository.daytimePrompts(), value.enabled,
+              (try? repository.daytimePromptSleepActive(asOf: now())) == false,
               let zone = value.current.flatMap({ TimeZone(identifier: $0.timeZone) }) else { return false }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
         let minute = calendar.component(.hour, from: now()) * 60 + calendar.component(.minute, from: now())
@@ -125,7 +126,7 @@ final class DaytimePromptService: ObservableObject {
                 try repository.saveDaytimePrompts(value); ledger = value
                 status = "Enable notifications in iOS Settings to receive reminders."; return (true, false, .committedQueueVerified)
             }
-            guard !repository.daytimePromptSleepActive else {
+            guard !(try repository.daytimePromptSleepActive(asOf: sampledAt)) else {
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: sampledAt)
                 try repository.saveDaytimePrompts(value); ledger = value
@@ -188,7 +189,7 @@ final class DaytimePromptService: ObservableObject {
                     && (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() == prompt.nextAttemptAt
                 }
             }) else { throw DaytimeDiaryError.notCommitted }
-            if repository.daytimePromptSleepActive {
+            if try repository.daytimePromptSleepActive(asOf: now()) {
                 try await cancelOwnedRequests()
                 guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
@@ -198,7 +199,7 @@ final class DaytimePromptService: ObservableObject {
                 status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : (schedule.rule?.randomizedWake != nil ? "Wake-based check-ins queued for recorded wake days. Record your next main wake to schedule that day. Delivery is controlled by iOS." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS.")
             }
             try repository.saveDaytimePrompts(value); ledger = value
-            if !repository.daytimePromptSleepActive {
+            if !(try repository.daytimePromptSleepActive(asOf: now())) {
                 verifiedAttempts = eligible.map(\.nextAttemptAt).sorted()
             }
             return (true, false, .committedQueueVerified)

@@ -27,6 +27,18 @@ History and preferences persist in SQLite through SessionRepository. Clear All D
 
 Eligibility recovery may resume only future instances in the current schedule that were suppressed for notification permission, configured quiet hours or known sleep. Preserve their intended time and identity; recheck permission, quiet hours and known sleep before queueing. Explicit skips, responses, older schedule versions and past unknown-delivery instances never reactivate automatically.
 
+Sleep suppression evaluates saved sleep transitions at the injected reconciliation
+instant. It reads all relevant transitions rather than a limited recent-history
+display. A validated explicit final-wake answer from the night-outcome revision
+visible at that instant ends earlier main-sleep suppression, just as a recorded
+final-wake event does. A later lights-out still suppresses; an equal-time start
+remains conservatively active. A final wake does not fabricate an end or duration
+for an unfinished nap. An active dose session without final wake or completed
+check-in remains suppressed. Future transitions do not describe current sleep.
+Failed reads or malformed sleep/wake evidence leave the queue unverified and show
+failure/retry guidance; they never become evidence that the user is awake. This
+does not turn session closure or nap end into a main-wake scheduling anchor.
+
 ## Selected days and evidence-based anchors
 
 A versioned rule chooses Gregorian weekdays in its explicitly saved timezone and one primary anchor: local clock time, elapsed minutes after a patient-reported designated main wake, reviewed saved shift midpoint, or reviewed saved shift break. Shift-based rules have a separately configured off-day clock or main-wake anchor. Unknown work status cannot silently choose either branch. A 13-hour explicitly saved shift midpoint is 6 hours 30 minutes after its start; weekday names never supply a start. Missing, conflicting or differently zoned source evidence remains explicitly unscheduled.

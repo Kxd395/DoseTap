@@ -26,23 +26,54 @@ extension EventStorage {
         guard sqlite3_bind_text(statement, 1, payload, -1, SQLITE_TRANSIENT) == SQLITE_OK,
               sqlite3_step(statement) == SQLITE_DONE else { throw DaytimeDiaryError.notCommitted }
     }
+    func daytimeSleepTransitions(asOf: Date) throws -> [(type: String, at: Date)] {
+        try readExportRows("""
+            SELECT lower(replace(event_type, ' ', '_')), timestamp FROM sleep_events
+            WHERE lower(replace(event_type, ' ', '_')) IN
+                ('nap_start', 'nap_end', 'lights_out', 'lightsout', 'wake_final', 'wakefinal')
+            """) { statement in
+            func text(_ column: Int32) throws -> String {
+                guard sqlite3_column_type(statement, column) == SQLITE_TEXT,
+                      let bytes = sqlite3_column_text(statement, column),
+                      let value = String(bytes: UnsafeBufferPointer(start: bytes,
+                        count: Int(sqlite3_column_bytes(statement, column))), encoding: .utf8),
+                      !value.contains("\0") else { throw DaytimeDiaryError.unreadable }
+                return value
+            }
+            let type = try text(0), raw = try text(1)
+            guard let at = AppFormatters.iso8601Fractional.date(from: raw) ?? AppFormatters.iso8601.date(from: raw),
+                  at.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.unreadable }
+            return (type: type, at: at)
+        }.filter { $0.at <= asOf }
+    }
 }
 
 extension SessionRepository {
     func daytimePrompts() throws -> DaytimePromptLedger { try storage.loadDaytimePrompts() }
     func saveDaytimePrompts(_ value: DaytimePromptLedger) throws { try storage.saveDaytimePrompts(value) }
     var daytimePromptSleepActive: Bool {
+        (try? daytimePromptSleepActive(asOf: clock())) ?? true
+    }
+    func daytimePromptSleepActive(asOf: Date) throws -> Bool {
+        guard asOf.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
         if dose1Time != nil && wakeFinalTime == nil && !checkInCompleted { return true }
-        let events = fetchRecentEvents(limit: 500).sorted { $0.timestamp < $1.timestamp }
-        var nap = false, mainSleep = false
-        for event in events {
-            let type = event.eventType.lowercased().replacingOccurrences(of: " ", with: "_")
-            if type == "nap_start" { nap = true }
-            if type == "nap_end" { nap = false }
-            if ["lights_out", "lightsout"].contains(type) { mainSleep = true }
-            if ["wake_final", "wakefinal"].contains(type) { mainSleep = false }
+        do {
+            let events = try storage.daytimeSleepTransitions(asOf: asOf)
+            let wakes = try daytimeMainWakeSources(asOf: asOf)
+            func latest(_ types: Set<String>) -> Date? {
+                events.filter { types.contains($0.type) }.map(\.at).max()
+            }
+            func active(start: Date?, end: Date?) -> Bool {
+                guard let start else { return false }
+                return end.map { start >= $0 } ?? true
+            }
+            let finalWake = [latest(["wake_final", "wakefinal"]), wakes.map(\.at).max()].compactMap { $0 }.max()
+            let nap = active(start: latest(["nap_start"]), end: latest(["nap_end"]))
+            let mainSleep = active(start: latest(["lights_out", "lightsout"]), end: finalWake)
+            return nap || (mainSleep && !checkInCompleted)
+        } catch {
+            throw DaytimeDiaryError.unreadable
         }
-        return nap || (mainSleep && !checkInCompleted)
     }
 }
 

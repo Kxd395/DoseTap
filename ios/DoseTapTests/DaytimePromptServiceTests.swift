@@ -167,6 +167,109 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertFalse(failed)
         XCTAssertEqual(try repo.daytimePrompts(), before)
     }
+    func testReportedFinalWakeEndsHistoricalMainSleepSuppression() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('reported-wake','2035-10-03','2035-10-04T00:00:00.000Z'); INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('lights','lights_out','2035-10-04T01:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-4 * 3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+        XCTAssertFalse(repo.daytimePromptSleepActive, "An explicitly reported final wake must end earlier main-sleep suppression after rollover")
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        let saved = await enable(service)
+        XCTAssertTrue(saved); XCTAssertEqual(client.requests.count, 7)
+        XCTAssertNotNil(service.nextReminderAt)
+    }
+    func testFutureSleepEventDoesNotSuppressCurrentReminders() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('future-sleep','lights_out','2035-10-05T01:00:00.000Z','2035-10-04')", nil, nil, nil), SQLITE_OK)
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        _ = await enable(service)
+        XCTAssertEqual(client.requests.count, 7)
+        XCTAssertNotNil(service.nextReminderAt)
+    }
+    func testUnreadableSleepEvidenceNeverQueuesReminders() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+        XCTAssertEqual(sqlite3_exec(storage.db, "ALTER TABLE sleep_events RENAME TO unavailable_sleep_events", nil, nil, nil), SQLITE_OK)
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        _ = await enable(service)
+        XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertNil(service.nextReminderAt)
+        XCTAssertTrue(service.status.contains("failed"))
+    }
+    func testReportedWakePreservesLaterSleepAndUnfinishedNap() throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now })
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('reported-wake','2035-10-03','2035-10-04T00:00:00Z'); INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('lights','LightsOut','2035-10-04T01:00:00Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-4 * 3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+        XCTAssertFalse(try repo.daytimePromptSleepActive(asOf: now))
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('later-lights','Lights Out','2035-10-04T08:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repo.daytimePromptSleepActive(asOf: now))
+        XCTAssertEqual(sqlite3_exec(storage.db, "DELETE FROM sleep_events WHERE id='later-lights'; INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('nap','nap_start','2035-10-04T08:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repo.daytimePromptSleepActive(asOf: now), "Main wake never supplies a missing nap end")
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('nap-end','nap_end','2035-10-04T09:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(try repo.daytimePromptSleepActive(asOf: now))
+    }
+    func testRelevantSleepEvidenceIsNotLimitedByUnrelatedDisplayRows() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('nap','nap_start','2035-10-04T01:00:00.000Z','2035-10-03'); WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<501) INSERT INTO sleep_events(id,event_type,timestamp,session_date) SELECT 'unrelated-'||x,'bathroom','2035-10-04T09:00:00.000Z','2035-10-03' FROM n", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repo.fetchRecentEvents(limit: 500).contains { $0.eventType == "nap_start" })
+        XCTAssertTrue(try repo.daytimePromptSleepActive(asOf: now))
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        _ = await enable(service)
+        XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertTrue(service.status.contains("sleep"))
+    }
+    func testMalformedSleepOrWakeEvidenceClearsQueueAndForegroundPermission() async throws {
+        for malformedWake in [false, true] {
+            let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+            let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+            _ = await enable(service)
+            XCTAssertNotNil(service.nextReminderAt); XCTAssertTrue(service.permitsForegroundPresentation)
+            if malformedWake {
+                XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('bad','2035-10-03','2035-10-04T00:00:00.000Z')", nil, nil, nil), SQLITE_OK)
+                XCTAssertTrue(storage.saveNightOutcome(NightOutcomeDiary(), review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+                XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json='invalid JSON' WHERE checkin_type='night_outcome'", nil, nil, nil), SQLITE_OK)
+            } else {
+                XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('bad','lights_out','invalid date','2035-10-03')", nil, nil, nil), SQLITE_OK)
+            }
+            XCTAssertThrowsError(try repo.daytimePromptSleepActive(asOf: now))
+            XCTAssertFalse(service.permitsForegroundPresentation)
+            await service.reconcile()
+            XCTAssertTrue(client.requests.isEmpty); XCTAssertNil(service.nextReminderAt)
+            XCTAssertTrue(service.status.contains("failed"))
+        }
+    }
+    func testFutureWakeAndEqualTimeEndCannotClearCurrentSleep() throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now })
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('sleep','lights_out','2035-10-04T08:00:00.000Z','2035-10-03'),('future-wake','wake_final','2035-10-05T06:00:00.000Z','2035-10-04')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repo.daytimePromptSleepActive(asOf: now))
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('tied-wake','wakefinal','2035-10-04T08:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(try repo.daytimePromptSleepActive(asOf: now))
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('wake','Wake Final','2035-10-04T09:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(try repo.daytimePromptSleepActive(asOf: now))
+        XCTAssertThrowsError(try repo.daytimePromptSleepActive(asOf: Date(timeIntervalSince1970: .nan)))
+    }
+    func testSleepStateUsesWakeRevisionVisibleAtCapture() throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now })
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('reported-wake','2035-10-03','2035-10-04T00:00:00.000Z'); INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('lights','lights_out','2035-10-04T01:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-4 * 3600)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+        diary.finalWakeAt = nil
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "Wake uncertain", recordedAt: now.addingTimeInterval(30)).isCommitted)
+        XCTAssertFalse(try repo.daytimePromptSleepActive(asOf: now))
+        XCTAssertTrue(try repo.daytimePromptSleepActive(asOf: now.addingTimeInterval(30)))
+    }
+    func testSleepStartedDuringOSAddCancelsOwnedQueueWithoutVerification() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        client.onAdd = {
+            XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('new-nap','nap_start','2035-10-04T10:00:00.000Z','2035-10-03')", nil, nil, nil), SQLITE_OK)
+            client.onAdd = nil
+        }
+        _ = await enable(service)
+        XCTAssertTrue(client.requests.isEmpty); XCTAssertNil(service.nextReminderAt)
+        XCTAssertTrue(service.status.contains("sleep"))
+        XCTAssertTrue(service.ledger.prompts.allSatisfy { $0.status == .suppressed })
+    }
     func testResetDuringSleepCancellationDoesNotRestoreDeletedHistory() async throws {
         let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage), client = Client()
         let service = DaytimePromptService(repository: repo, client: client, now: { self.now })

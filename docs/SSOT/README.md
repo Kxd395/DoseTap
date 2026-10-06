@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-10-05
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (103)
+App version defined in this revision's Xcode project: 0.4.19 (104)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -40,6 +40,11 @@ Randomized wake routines optionally offer three workday windows (2–4, 6–9,
 and 11–13 hours after reported wake) and two off-day windows (3–5 and 8–10).
 Saved work status and separate bedtime cutoffs are required; times remain stable
 on refresh and missing wake evidence never becomes a guessed schedule.
+
+Sleep suppression also reads explicitly reported final wake from the validated
+night-outcome history. Earlier lights-out cannot keep suppressing after that wake;
+later sleep and unfinished naps remain suppressors. Future events do not describe
+current sleep, and unreadable evidence cannot produce a verified reminder queue.
 
 ## Physician review preparation (DOSETAP-59)
 
