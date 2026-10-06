@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 import DoseCore
 import UserNotifications
 import SQLite3
@@ -288,6 +289,103 @@ final class DaytimePromptServiceTests: XCTestCase {
                 XCTAssertEqual(service.status.contains("Cancellation could not be verified"), persistent)
             }
         }
+    }
+    func testPersistentCleanupDropsCoalescedRefreshButDrainsExplicitActions() async throws {
+        for randomized in [false, true] {
+            for variant in [(false, false), (true, false), (false, true), (true, true)] {
+                let persistent = variant.0, queueAction = variant.1
+                let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+                XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('real-wake','2035-10-03','2035-10-04T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+                var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-7200)
+                XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+                var work = WorkContextDocument()
+                work.occurrences = [WorkOccurrence(workDate: "2035-10-04", timeZoneIdentifier: "UTC", plannedWorking: true, recordedAt: now)]
+                try storage.saveWorkContext(work, expectedRevision: nil)
+                let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+                let enabled = await service.change {
+                    $0.quietStart = 0; $0.quietEnd = 0
+                    try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: self.now,
+                        rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: randomized ? .init(workBedtimeMinute: 60) : nil))
+                }
+                XCTAssertTrue(enabled)
+                let owned = client.requests.keys.filter(DaytimePromptService.owns).count
+                let retained = try repo.daytimePrompts()
+                client.requests["dose-owner"] = UNNotificationRequest(identifier: "dose-owner", content: UNMutableNotificationContent(), trigger: nil)
+                client.removed = []; client.ignoresRemovals = true
+                client.onPending = { if !persistent && !client.removed.isEmpty { client.ignoresRemovals = false } }
+                var adds = 0; client.onAdd = { adds += 1 }
+                XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json='invalid JSON' WHERE checkin_type='night_outcome'", nil, nil, nil), SQLITE_OK)
+                let reads = UnsafeMutablePointer<Int>.allocate(capacity: 1); reads.initialize(to: 0)
+                defer { sqlite3_trace_v2(storage.db, 0, nil, nil); reads.deinitialize(count: 1); reads.deallocate() }
+                sqlite3_trace_v2(storage.db, UInt32(SQLITE_TRACE_STMT), { _, context, statement, _ in
+                    if let statement, let sql = sqlite3_sql(OpaquePointer(statement)), String(cString: sql).hasPrefix("SELECT session_date, source_record_id") {
+                        context?.assumingMemoryBound(to: Int.self).pointee += 1
+                    }
+                    return SQLITE_OK
+                }, reads)
+                let entered = expectation(description: "First cleanup read is suspended")
+                let extraPass = expectation(description: "No coalesced automatic reconciliation"); extraPass.isInverted = true
+                var release: CheckedContinuation<Void, Never>?, pendingCalls = 0, reportedExtraPass = false
+                client.onPendingAsync = {
+                    pendingCalls += 1
+                    if pendingCalls == 1 { await withCheckedContinuation { release = $0; entered.fulfill() } }
+                    if pendingCalls > 4 && !reportedExtraPass { reportedExtraPass = true; extraPass.fulfill() }
+                }
+                let first = Task { await service.reconcile() }
+                await fulfillment(of: [entered], timeout: 3)
+                XCTAssertTrue(service.isBusy)
+                await service.reconcile() // An overlapping lifecycle refresh must be consumed after terminal cleanup.
+                var explicit: Task<Void, Never>?
+                if queueAction {
+                    let queued = expectation(description: "Explicit action entered")
+                    explicit = Task { queued.fulfill(); await service.handle(promptID: UUID(), action: "daytime_skip") }
+                    await fulfillment(of: [queued], timeout: 3)
+                    await Task.yield()
+                }
+                let blocked = try XCTUnwrap(release); release = nil; blocked.resume()
+                await first.value
+                if let explicit { await explicit.value }
+                await fulfillment(of: [extraPass], timeout: 0.15)
+                XCTAssertEqual(reads.pointee, 1)
+                XCTAssertEqual(pendingCalls, 4)
+                XCTAssertEqual(client.removed.filter(DaytimePromptService.owns).count, owned * 2)
+                XCTAssertEqual(client.requests.keys.contains(where: DaytimePromptService.owns), persistent)
+                XCTAssertNotNil(client.requests["dose-owner"]); XCTAssertFalse(client.removed.contains("dose-owner"))
+                XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+                XCTAssertEqual(try repo.daytimePrompts(), retained); XCTAssertEqual(adds, 0)
+                XCTAssertFalse(service.isBusy)
+                XCTAssertTrue(service.status.contains(queueAction ? "no longer available" : (persistent ? "Cancellation could not be verified" : "failed")))
+                client.onPendingAsync = nil; client.onPending = nil; client.onAdd = nil
+            }
+        }
+    }
+    func testHealthyReconciliationStillDrainsCoalescedRefresh() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        let enabled = await enable(service); XCTAssertTrue(enabled)
+        let entered = expectation(description: "First cancellation read is suspended")
+        let finished = expectation(description: "Both healthy refreshes completed")
+        var release: CheckedContinuation<Void, Never>?, pendingCalls = 0, completions = 0, adds = 0
+        client.onPendingAsync = {
+            pendingCalls += 1
+            if pendingCalls == 1 { await withCheckedContinuation { release = $0; entered.fulfill() } }
+        }
+        client.onAdd = { adds += 1 }
+        let observation = service.$isBusy.dropFirst().filter { !$0 }.sink { _ in
+            completions += 1
+            if completions == 2 { finished.fulfill() }
+        }
+        defer { observation.cancel(); client.onPendingAsync = nil; client.onAdd = nil }
+        let first = Task { await service.reconcile() }
+        await fulfillment(of: [entered], timeout: 3)
+        XCTAssertTrue(service.isBusy)
+        await service.reconcile()
+        let blocked = try XCTUnwrap(release); release = nil; blocked.resume()
+        await first.value
+        await fulfillment(of: [finished], timeout: 3)
+        XCTAssertEqual(completions, 2); XCTAssertEqual(adds, 14)
+        XCTAssertFalse(service.isBusy); XCTAssertNotNil(service.nextReminderAt)
+        XCTAssertEqual(client.requests.count, 7)
     }
     func testCommittedLaterPreservesUnverifiedCancellationGuidance() async throws {
         var clock = now

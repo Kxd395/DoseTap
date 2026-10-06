@@ -15,6 +15,7 @@ final class SupplyReminderServiceTests: XCTestCase {
         var mismatchesTrigger = false
         var onAdd: (() -> Void)?
         var onPending: (() -> Void)?
+        var onPendingAsync: (() async -> Void)?
         var ignoresRemovals = false
         func setDelegate(_ delegate: (any UNUserNotificationCenterDelegate)?) {}
         func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {}
@@ -29,7 +30,9 @@ final class SupplyReminderServiceTests: XCTestCase {
                         trigger: UNTimeIntervalNotificationTrigger(timeInterval: 600, repeats: false)) : request
             }
         }
-        func pendingRequests() async -> [UNNotificationRequest] { onPending?(); return Array(requests.values) }
+        func pendingRequests() async -> [UNNotificationRequest] {
+            await onPendingAsync?(); onPending?(); return Array(requests.values)
+        }
         func removePendingRequests(withIdentifiers identifiers: [String]) {
             removed += identifiers
             if ignoresRemovals { return }

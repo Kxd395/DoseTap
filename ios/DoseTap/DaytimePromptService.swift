@@ -61,6 +61,7 @@ final class DaytimePromptService: ObservableObject {
         let fixedTime = prompt.anchor == nil || prompt.anchor?.kind == .clock ? " \(clock)" : ""
         return "\(prompt.anchor?.label ?? "Clock time")\(fixedTime) · \(days) · \(schedule.timeZone)"
     }
+    private enum CompletionPolicy { case drainPending, discardCoalescedRefresh }
     private enum ActionOutcome { case rejected, notCommitted, committedQueueVerified, committedQueueUnverified }
     private typealias UpdateResult = (success: Bool, retry: Bool, outcome: ActionOutcome)
     func reconcile() async { _ = await change { _ in } }
@@ -81,10 +82,12 @@ final class DaytimePromptService: ObservableObject {
         isBusy = true
         var osWorkStarted = false
         var reconciliationStarted = false
+        var completionPolicy = CompletionPolicy.drainPending
         let sampledAt = now()
         defer {
             lastCheckedAt = now()
             isBusy = false
+            if completionPolicy == .discardCoalescedRefresh { again = false }
             if !actions.isEmpty {
                 let next = actions.removeFirst(); Task { await handle(promptID: next.0, action: next.1); next.2.resume() }
             } else if again { again = false; Task { await reconcile() } }
@@ -237,6 +240,7 @@ final class DaytimePromptService: ObservableObject {
                 : "Reminder update failed. Cancellation could not be verified. Existing records are retained; retry / refresh status when ready."
             log.error("Daytime reminder update failed")
             let failure = error as? DaytimeDiaryError
+            if !cleanupVerified || failure == .unreadable { completionPolicy = .discardCoalescedRefresh }
             return (false, cleanupVerified && osWorkStarted && failure != .conflict && failure != .invalid && failure != .unreadable, osWorkStarted ? .committedQueueUnverified : .notCommitted)
         }
     }

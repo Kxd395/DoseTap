@@ -113,8 +113,13 @@ requests, including a failure before the new ledger is committed. This boundary
 does not report an uncommitted action as saved. Failed cleanup verification gets
 one cancellation-only retry, including an early nonretryable source error; cleanup
 never replans unreadable evidence. Persistent cleanup failure keeps verification
-empty, reports that cancellation could not be verified and prevents automatic
-replanning. A committed Later retains this failure guidance. Later samples one
+empty and reports that cancellation could not be verified. Unreadable evidence or
+persistently unverified cleanup uses a completion policy that consumes any plain
+refresh coalesced while the failed operation was busy, without
+launching another reconciliation. Explicit queued notification actions still drain
+and retain their normal validation/commit rules. A later independently initiated
+refresh may retry; failure does not permanently disable scheduling. A committed
+Later retains this failure guidance. Later samples one
 clock instant for preview and mutation. After partial OS work fails, cancel owned partial
 requests and make at most one fresh reconciliation attempt; persistent failure leaves
 verification empty and exposes retry. Other notification owners remain untouched.

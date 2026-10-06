@@ -133,8 +133,9 @@ initial source read failed, despite empty visible queue verification.
   stalled in teardown and was terminated (exit143); this is not a passing run.
 - Failure cleanup now verifies removal, retries cancellation once, and returns an
   explicit success/failure result. This recovery does not reread or replan an
-  unreadable source. Persistent failure prevents automatic replanning and shows
-  that cancellation could not be verified; it never claims that OS removal passed.
+  unreadable source. Persistent failure prevents the ordinary recovery path from
+  replanning and shows that cancellation could not be verified; it never claims
+  that OS removal passed. Round three below found a separate coalesced path.
 - Durable action outcomes remain separate. A saved Later stays deferred and retains
   precise cancellation-failure guidance instead of replacing it with generic text.
 - The complete service/storage run passed 67 tests, zero failures and natural
@@ -153,8 +154,54 @@ initial source read failed, despite empty visible queue verification.
   /tmp/dosetap104-cancel-ui.log and .xcresult.
 - Repository pre-commit checks passed without overrides, including SwiftPM and
   generic simulator builds; /tmp/dosetap104-cancel-precommit.log.
-- Daybreak round three is pending at this checkpoint. No build104 installation
-  is claimed; verified physical delivery remains build103.
+- Daybreak round three found one Medium/P2 coalesced-refresh escape, described
+  below. No build104 installation is claimed; physical delivery remains build103.
+
+## Daybreak round-three coalesced refresh recovery
+
+Daybreak confirmed the earlier source-boundary, query-growth and standalone
+cancellation repairs, but found that an overlapping lifecycle refresh could set
+`again` while cleanup was suspended. The unconditional completion path then
+launched a second reconciliation despite persistent cleanup failure. It could
+also overwrite the status of an explicit queued action.
+
+- The first red fixture repeatedly fulfilled an inverted expectation and crashed;
+  /tmp/dosetap104-coalesced-red.log and .xcresult, exit65. This fixture error is
+  retained and is not counted as a successful reproduction or validation.
+- After guarding that expectation, the corrected red test naturally failed with
+  18 assertion failures; /tmp/dosetap104-coalesced-red-corrected.log and .xcresult,
+  exit65. It measured two wake-source reads instead of one, eight pending reads
+  instead of four, and four owned-removal attempts instead of two.
+- A local completion policy consumes plain refreshes coalesced during unreadable
+  evidence or persistently unverified cleanup. Explicit queued notification
+  actions still drain through normal validation. A later independent refresh can
+  retry. Successful operations retain ordinary coalescing.
+- The regression holds the first cleanup pending read, overlaps a lifecycle
+  refresh, and optionally queues a stale explicit action. Eight scenarios cover
+  regular/randomized wake routines, transient/persistent removal and refresh
+  alone/queued action. They verify one source read, two cleanup attempts, retained
+  ledger, no new adds, no false queue verification, unrelated ownership, action
+  completion and status. A positive control verifies two healthy refresh passes.
+- The first repaired build exposed a tuple-label inference error in the new test;
+  /tmp/dosetap104-coalesced-final.log and .xcresult. Corrected tuple access compiled.
+- The final focused suite naturally passed 75 tests with zero failures: 41 service,
+  28 storage and six supply-reminder tests, including the shared mock's new optional
+  async pending-read hook; /tmp/dosetap104-coalesced-final-corrected.log and .xcresult.
+- Default and UTC core suites each passed 1,203 XCTest and 43 Swift Testing cases;
+  /tmp/dosetap104-coalesced-core.log and -coalesced-core-utc.log. SwiftPM build,
+  Plane workflow (15 tests, 80 assertions), SSOT/docs/architecture/dose-write/version
+  guards passed. The earlier 18/18 query probes remain unchanged.
+- Revised signed-device build and strict codesign passed; product Info.plist reads
+  0.4.19 (104); /tmp/dosetap104-coalesced-device.log. Installation is still pending.
+- Final UI journeys naturally passed two tests with zero failures at normal text
+  (27.565 seconds) and largest text (57.775 seconds);
+  /tmp/dosetap104-coalesced-ui.log and .xcresult. These simulator test durations
+  include UI interaction and are not physical-device latency measurements.
+- Repository pre-commit checks passed without overrides, including SwiftPM,
+  print policy, generic simulator build and the commit-size cap;
+  /tmp/dosetap104-coalesced-precommit.log. The normal commit uses the same hook.
+- Daybreak round four is pending for the committed revision. No build104
+  installation is claimed; independently verified physical delivery remains103.
 
 ## Acceptance boundaries
 
