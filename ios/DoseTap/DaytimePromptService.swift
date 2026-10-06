@@ -29,14 +29,19 @@ final class DaytimePromptService: ObservableObject {
     private let repository: SessionRepository
     private let client: AlarmNotificationCenterClient
     private let now: () -> Date
-    private let contextProvider: (DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext]
+    private let contextProvider: ((DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext])?
     private var again = false
     private var actions: [(UUID, String, CheckedContinuation<Void, Never>)] = []
     private let log = Logger(subsystem: "com.dosetap.app", category: "DaytimePrompt")
     init(repository: SessionRepository, client: AlarmNotificationCenterClient, now: @escaping () -> Date = Date.init,
          contexts: ((DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext])? = nil) {
         self.repository = repository; self.client = client; self.now = now
-        contextProvider = contexts ?? { try repository.daytimePromptContexts(for: $0, ledger: $1, asOf: $2) }
+        contextProvider = contexts
+    }
+    private func contexts(for schedule: DaytimePromptSchedule, ledger: DaytimePromptLedger, at: Date,
+                          evidence: DaytimeSleepEvidenceSnapshot) throws -> [DaytimePromptAnchorContext] {
+        if let contextProvider { return try contextProvider(schedule, ledger, at) }
+        return try repository.daytimePromptContexts(for: schedule, ledger: ledger, asOf: at, wakeSources: evidence.wakes)
     }
     var permitsForegroundPresentation: Bool {
         guard let value = try? repository.daytimePrompts(), value.enabled,
@@ -75,6 +80,7 @@ final class DaytimePromptService: ObservableObject {
         guard !isBusy else { again = true; return (false, false, .notCommitted) }
         isBusy = true
         var osWorkStarted = false
+        var reconciliationStarted = false
         let sampledAt = now()
         defer {
             lastCheckedAt = now()
@@ -91,6 +97,7 @@ final class DaytimePromptService: ObservableObject {
                 status = "This reminder action is no longer available. Existing reminders were retained."
                 return (false, false, .rejected)
             }
+            reconciliationStarted = true
             anchorAvailability = []
             // Recover a response committed before a crash or a failed prompt-status write.
             for assessment in try repository.daytimeCheckIns().revisions where assessment.predecessorID == nil {
@@ -99,9 +106,12 @@ final class DaytimePromptService: ObservableObject {
                 }
             }
             let assessments = try repository.daytimeCheckIns().revisions
+            let initialEvidence = value.enabled ? try repository.daytimeSleepEvidence(asOf: sampledAt) : nil
+            var plannedContexts: [DaytimePromptAnchorContext] = []
             if value.enabled, let schedule = value.current {
-                let contexts = try contextProvider(schedule, value, sampledAt)
-                _ = value.prepareHorizon(at: sampledAt, contexts: contexts)
+                guard let initialEvidence else { throw DaytimeDiaryError.unreadable }
+                plannedContexts = try contexts(for: schedule, ledger: value, at: sampledAt, evidence: initialEvidence)
+                _ = value.prepareHorizon(at: sampledAt, contexts: plannedContexts)
                 for assessment in assessments where assessment.predecessorID == nil && assessment.promptID == nil && assessment.origin != .retrospective && assessment.status != .incomplete {
                     try value.satisfyRandomizedWindow(assessmentID: assessment.id, assessedAt: assessment.assessedAt, recordedAt: assessment.recordedAt)
                 }
@@ -126,7 +136,7 @@ final class DaytimePromptService: ObservableObject {
                 try repository.saveDaytimePrompts(value); ledger = value
                 status = "Enable notifications in iOS Settings to receive reminders."; return (true, false, .committedQueueVerified)
             }
-            guard !(try repository.daytimePromptSleepActive(asOf: sampledAt)) else {
+            guard initialEvidence?.sleepActive == false else {
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: sampledAt)
                 try repository.saveDaytimePrompts(value); ledger = value
@@ -134,7 +144,7 @@ final class DaytimePromptService: ObservableObject {
             }
             guard let schedule = value.current, let zone = TimeZone(identifier: schedule.timeZone) else { throw DaytimeDiaryError.invalid }
             var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
-            let contexts = try contextProvider(schedule, value, sampledAt)
+            let contexts = plannedContexts
             _ = value.prepareHorizon(at: sampledAt, contexts: contexts)
             let upcoming = value.prepareHorizon(at: sampledAt, contexts: contexts)
             if let rule = schedule.rule {
@@ -165,8 +175,16 @@ final class DaytimePromptService: ObservableObject {
                 status = "Reminder queue is full. Existing dose reminders were preserved; retry after pending reminders clear."
                 return (true, false, .committedQueueVerified)
             }
+            let beforeAddAt = now(), beforeAddEvidence = try repository.daytimeSleepEvidence(asOf: beforeAddAt)
             guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
-                  try contextProvider(schedule, value, now()) == contexts else { throw DaytimeDiaryError.conflict }
+                  try self.contexts(for: schedule, ledger: value, at: beforeAddAt, evidence: beforeAddEvidence) == contexts else { throw DaytimeDiaryError.conflict }
+            guard !beforeAddEvidence.sleepActive else {
+                value.suppressDue(at: beforeAddAt, reason: "Known sleep or nap active")
+                value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: beforeAddAt)
+                try repository.saveDaytimePrompts(value); ledger = value
+                status = "Suppressed during known sleep or nap. Rechecked when the app records wake or nap end."
+                return (true, false, .committedQueueVerified)
+            }
             var triggerCalendar = Calendar(identifier: .gregorian)
             triggerCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
             for prompt in eligible {
@@ -177,19 +195,19 @@ final class DaytimePromptService: ObservableObject {
                 let trigger = UNCalendarNotificationTrigger(dateMatching: triggerCalendar.dateComponents([.timeZone, .year, .month, .day, .hour, .minute, .second], from: prompt.nextAttemptAt), repeats: false)
                 try await client.add(UNNotificationRequest(identifier: Self.requestID + "." + prompt.id.uuidString, content: content, trigger: trigger))
             }
-            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
-                  try contextProvider(schedule, value, now()) == contexts else { throw DaytimeDiaryError.conflict }
             let pending = await client.pendingRequests()
+            let finalAt = now(), finalEvidence = try repository.daytimeSleepEvidence(asOf: finalAt)
+            guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
+                  try self.contexts(for: schedule, ledger: value, at: finalAt, evidence: finalEvidence) == contexts else { throw DaytimeDiaryError.conflict }
             guard Set(pending.filter { Self.owns($0.identifier) }.map(\.identifier)) == Set(eligible.map { Self.requestID + "." + $0.id.uuidString }),
-                  try repository.daytimePrompts().encodedPayload() == value.encodedPayload(),
-                  try contextProvider(schedule, value, now()) == contexts, eligible.allSatisfy({ prompt in
+                  eligible.allSatisfy({ prompt in
                 pending.contains { request in
                     request.identifier == Self.requestID + "." + prompt.id.uuidString
                     && request.content.userInfo["prompt_id"] as? String == prompt.id.uuidString
                     && (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() == prompt.nextAttemptAt
                 }
             }) else { throw DaytimeDiaryError.notCommitted }
-            if try repository.daytimePromptSleepActive(asOf: now()) {
+            if finalEvidence.sleepActive {
                 try await cancelOwnedRequests()
                 guard try repository.daytimePrompts().encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
@@ -199,12 +217,14 @@ final class DaytimePromptService: ObservableObject {
                 status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : (schedule.rule?.randomizedWake != nil ? "Wake-based check-ins queued for recorded wake days. Record your next main wake to schedule that day. Delivery is controlled by iOS." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS.")
             }
             try repository.saveDaytimePrompts(value); ledger = value
-            if !(try repository.daytimePromptSleepActive(asOf: now())) {
+            if !finalEvidence.sleepActive {
                 verifiedAttempts = eligible.map(\.nextAttemptAt).sorted()
             }
             return (true, false, .committedQueueVerified)
         } catch {
-            if osWorkStarted { try? await cancelOwnedRequests() }
+            if reconciliationStarted {
+                verifiedAttempts = []; try? await cancelOwnedRequests()
+            }
             else if (try? repository.daytimePrompts()) == nil {
                 verifiedAttempts = []; try? await cancelOwnedRequests()
             }

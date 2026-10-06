@@ -178,6 +178,93 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertTrue(saved); XCTAssertEqual(client.requests.count, 7)
         XCTAssertNotNil(service.nextReminderAt)
     }
+    func testReconciliationQueryCountDoesNotGrowWithNightHistory() async throws {
+        func measuredReads(nights: Int, wakeBased: Bool) async throws -> Int {
+            let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now })
+            var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+            for offset in 1...nights {
+                let day = calendar.date(byAdding: .day, value: -offset, to: now)!
+                let key = DaytimePromptRule.dayKey(day, timeZone: "UTC")
+                let id = "wake-\(offset)"
+                XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('\(id)','\(key)','\(AppFormatters.iso8601Fractional.string(from: day))')", nil, nil, nil), SQLITE_OK)
+                var diary = NightOutcomeDiary(); diary.finalWakeAt = day.addingTimeInterval(22 * 3600)
+                XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key), reason: "", recordedAt: now).isCommitted)
+            }
+            XCTAssertEqual(try repo.daytimeMainWakeSources(asOf: now).count, nights)
+            let reads = UnsafeMutablePointer<Int>.allocate(capacity: 1); reads.initialize(to: 0)
+            defer { sqlite3_trace_v2(storage.db, 0, nil, nil); reads.deinitialize(count: 1); reads.deallocate() }
+            sqlite3_trace_v2(storage.db, UInt32(SQLITE_TRACE_STMT), { _, context, statement, _ in
+                if let statement, let sql = sqlite3_sql(OpaquePointer(statement)),
+                   String(cString: sql).trimmingCharacters(in: .whitespacesAndNewlines).uppercased().hasPrefix("SELECT") {
+                    context?.assumingMemoryBound(to: Int.self).pointee += 1
+                }
+                return SQLITE_OK
+            }, reads)
+            let client = Client(), service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+            let saved = await service.change {
+                $0.quietStart = 0; $0.quietEnd = 0
+                try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: self.now,
+                    rule: wakeBased ? DaytimePromptRule(anchor: .mainWake) : nil)
+            }
+            XCTAssertTrue(saved); XCTAssertNotNil(service.nextReminderAt)
+            return reads.pointee
+        }
+        for wakeBased in [false, true] {
+            let small = try await measuredReads(nights: 4, wakeBased: wakeBased)
+            let large = try await measuredReads(nights: 40, wakeBased: wakeBased)
+            NSLog("%@", "Daytime reminder query probe: wakeBased=\(wakeBased), nights=4/40, SELECT reads=\(small)/\(large)")
+            XCTAssertEqual(large, small, "Reconciliation queries must stay bounded as retained history grows; wakeBased=\(wakeBased)")
+        }
+    }
+    func testUnreadableRealWakeContextInvalidatesPreviouslyVerifiedQueue() async throws {
+        for randomized in [false, true] {
+            let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+            XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('real-wake','2035-10-03','2035-10-04T00:00:00.000Z')", nil, nil, nil), SQLITE_OK)
+            var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-7200)
+            XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+            var work = WorkContextDocument()
+            work.occurrences = [WorkOccurrence(workDate: "2035-10-04", timeZoneIdentifier: "UTC", plannedWorking: true, recordedAt: now)]
+            try storage.saveWorkContext(work, expectedRevision: nil)
+            let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+            let saved = await service.change {
+                $0.quietStart = 0; $0.quietEnd = 0
+                try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: self.now,
+                    rule: DaytimePromptRule(anchor: .mainWake, randomizedWake: randomized ? .init(workBedtimeMinute: 60) : nil))
+            }
+            XCTAssertTrue(saved); XCTAssertNotNil(service.nextReminderAt)
+            XCTAssertTrue(client.requests.keys.contains(where: DaytimePromptService.owns))
+            client.requests["dose-owner"] = UNNotificationRequest(identifier: "dose-owner", content: UNMutableNotificationContent(), trigger: nil)
+            let retained = try repo.daytimePrompts()
+            XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE checkin_submissions SET responses_json='invalid JSON' WHERE checkin_type='night_outcome'", nil, nil, nil), SQLITE_OK)
+            await service.reconcile()
+            XCTAssertFalse(client.requests.keys.contains(where: DaytimePromptService.owns))
+            XCTAssertNotNil(client.requests["dose-owner"])
+            XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+            XCTAssertTrue(service.status.contains("failed"))
+            XCTAssertEqual(try repo.daytimePrompts(), retained)
+        }
+    }
+    func testRealWakeCorrectionDuringOSAddInvalidatesBatchSnapshot() async throws {
+        let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('real-wake','2035-10-03','2035-10-04T00:00:00.000Z')", nil, nil, nil), SQLITE_OK)
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-7200)
+        XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "", recordedAt: now).isCommitted)
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        client.onAdd = {
+            client.onAdd = nil
+            diary.finalWakeAt = self.now.addingTimeInterval(-3600)
+            do {
+                XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2035-10-03"), reason: "Wake corrected", recordedAt: self.now).isCommitted)
+            } catch { XCTFail("Valid concurrent correction failed: \(error)") }
+        }
+        let saved = await service.change {
+            $0.quietStart = 0; $0.quietEnd = 0
+            try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: self.now, rule: DaytimePromptRule(anchor: .mainWake))
+        }
+        XCTAssertFalse(saved); XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+        XCTAssertFalse(client.requests.keys.contains(where: DaytimePromptService.owns))
+        XCTAssertEqual(try repo.daytimeMainWakeSources(asOf: now).first?.at, Date(timeIntervalSince1970: floor(try XCTUnwrap(diary.finalWakeAt).timeIntervalSince1970)))
+    }
     func testFutureSleepEventDoesNotSuppressCurrentReminders() async throws {
         let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage, clock: { self.now }), client = Client()
         XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('future-sleep','lights_out','2035-10-05T01:00:00.000Z','2035-10-04')", nil, nil, nil), SQLITE_OK)

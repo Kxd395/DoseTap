@@ -63,11 +63,62 @@ It does not modify the saved routine, history, dose alarms or provider records.
 - Reminder UI journeys passed at normal text (15.640 seconds) and largest text
   (43.293 seconds), two tests with zero failures; /tmp/dosetap104-ui.xcresult.
 - Signed-device build passed; strict codesign verification passed and the product
-  Info.plist reads 0.4.19 (104); /tmp/dosetap104-device.log. Independent Daybreak
-  review is pending. No signed build104 installation is claimed at this checkpoint.
+  Info.plist reads 0.4.19 (104); /tmp/dosetap104-device.log. This original product
+  predates the review fixes below and is not the final delivery candidate.
+  No signed build104 installation is claimed at this checkpoint.
 - The repository pre-commit script passed without overrides, including SwiftPM,
   print checks, the generic simulator build and the commit-size cap;
   /tmp/dosetap104-precommit.log.
+
+## Daybreak round-one findings and remediation
+
+Daybreak Blue completed the independent source review and found two actionable
+issues in the initial candidate: an early real wake-context failure could retain
+an old verified OS queue, and repeated per-night history reads caused N+1 query
+growth on the main actor. The original passing tests did not cover those paths.
+
+- The real-source stale-queue regression reproduced six assertion failures for
+  regular and randomized wake routines; /tmp/dosetap104-early-source-red.log.
+  Assertions completed, but the owned Xcode runner stalled in teardown and was
+  terminated (exit143). This is reproduction evidence, not a passing run.
+- Once mutation validation passes, all subsequent read failures clear verification
+  and cancel owned requests. Rejected actions preserve the previous queue; the
+  durable commit marker remains separate from the reconciliation boundary.
+- The pre-batch trace reproduced clock query growth 61 to 493, and wake query
+  growth 146 to 1,298, comparing 4 with 40 retained nights. The stale-queue test
+  passed in that run while the query test failed twice; exit65,
+  /tmp/dosetap104-query-red.log.
+- Three batched wake statements validate dates, identities, readable dose rows,
+  current answers and revisions. A scoped SQLite savepoint keeps transitions and
+  wake records coherent. Planning reuses one immutable snapshot; fresh snapshots
+  before adds and after pending readback retain concurrent-change detection.
+- The first refactor run caught retry misclassification of source conflicts and
+  reset (62 tests, four failures); /tmp/dosetap104-review-fixes.log. Separate
+  conflict and OS-readback error paths repaired it. The next run's sole failure
+  was a fixture comparing subsecond input with the existing whole-second night
+  JSON codec (64 tests); /tmp/dosetap104-review-fixes-final.log. Its owned runner
+  was terminated after completed assertions stalled in teardown (exit143).
+- The corrected final service/storage run passed 65 tests with zero failures and
+  TEST SUCCEEDED; /tmp/dosetap104-batch-final.log and
+  /tmp/dosetap104-batch-final.xcresult. It includes real wake correction during
+  OS add, conflicting and cross-night identity checks, malformed dose history,
+  and a concurrent WAL writer proving coherent sleep/wake snapshots. Both clock
+  and wake reconciliation measured 18 SELECT statements with either 4 or 40 nights,
+  superseding the reproduced 61/493 and 146/1,298 counts. Exact physical-device
+  latency is not measured.
+- Default and UTC core suites each passed 1,203 XCTest and 43 Swift Testing cases;
+  /tmp/dosetap104-fixes-core.log and /tmp/dosetap104-fixes-core-utc.log. Plane,
+  SSOT, documentation, architecture, dose-write and version guards passed.
+- Final reminder UI journeys passed at normal text (16.210 seconds) and largest
+  text (44.950 seconds), two tests with zero failures;
+  /tmp/dosetap104-fixes-ui.log and /tmp/dosetap104-fixes-ui.xcresult.
+- The revised signed build passed, strict codesign verification passed and product
+  Info.plist reads 0.4.19 (104); /tmp/dosetap104-fixes-device.log.
+- Repository pre-commit checks passed without overrides, including the generic
+  simulator build; /tmp/dosetap104-fixes-precommit.log. Legacy safety, companion
+  target and repository hygiene guards passed.
+- Daybreak round two remains pending at this source checkpoint. Installation
+  awaits that assessment; verified phone delivery remains build103.
 
 ## Acceptance boundaries
 

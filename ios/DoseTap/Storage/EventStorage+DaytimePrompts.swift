@@ -48,6 +48,11 @@ extension EventStorage {
     }
 }
 
+struct DaytimeSleepEvidenceSnapshot {
+    let wakes: [DaytimeMainWakeSource]
+    let sleepActive: Bool
+}
+
 extension SessionRepository {
     func daytimePrompts() throws -> DaytimePromptLedger { try storage.loadDaytimePrompts() }
     func saveDaytimePrompts(_ value: DaytimePromptLedger) throws { try storage.saveDaytimePrompts(value) }
@@ -57,20 +62,27 @@ extension SessionRepository {
     func daytimePromptSleepActive(asOf: Date) throws -> Bool {
         guard asOf.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
         if dose1Time != nil && wakeFinalTime == nil && !checkInCompleted { return true }
+        return try daytimeSleepEvidence(asOf: asOf).sleepActive
+    }
+    func daytimeSleepEvidence(asOf: Date) throws -> DaytimeSleepEvidenceSnapshot {
+        guard asOf.timeIntervalSince1970.isFinite else { throw DaytimeDiaryError.invalid }
         do {
-            let events = try storage.daytimeSleepTransitions(asOf: asOf)
-            let wakes = try daytimeMainWakeSources(asOf: asOf)
-            func latest(_ types: Set<String>) -> Date? {
-                events.filter { types.contains($0.type) }.map(\.at).max()
+            return try storage.withDaytimeEvidenceRead {
+                let events = try storage.daytimeSleepTransitions(asOf: asOf)
+                let wakes = try storage.daytimeMainWakeSources(asOf: asOf)
+                func latest(_ types: Set<String>) -> Date? {
+                    events.filter { types.contains($0.type) }.map(\.at).max()
+                }
+                func active(start: Date?, end: Date?) -> Bool {
+                    guard let start else { return false }
+                    return end.map { start >= $0 } ?? true
+                }
+                let finalWake = [latest(["wake_final", "wakefinal"]), wakes.map(\.at).max()].compactMap { $0 }.max()
+                let nap = active(start: latest(["nap_start"]), end: latest(["nap_end"]))
+                let mainSleep = active(start: latest(["lights_out", "lightsout"]), end: finalWake)
+                return DaytimeSleepEvidenceSnapshot(wakes: wakes, sleepActive:
+                    (dose1Time != nil && wakeFinalTime == nil && !checkInCompleted) || nap || (mainSleep && !checkInCompleted))
             }
-            func active(start: Date?, end: Date?) -> Bool {
-                guard let start else { return false }
-                return end.map { start >= $0 } ?? true
-            }
-            let finalWake = [latest(["wake_final", "wakefinal"]), wakes.map(\.at).max()].compactMap { $0 }.max()
-            let nap = active(start: latest(["nap_start"]), end: latest(["nap_end"]))
-            let mainSleep = active(start: latest(["lights_out", "lightsout"]), end: finalWake)
-            return nap || (mainSleep && !checkInCompleted)
         } catch {
             throw DaytimeDiaryError.unreadable
         }
@@ -80,13 +92,13 @@ extension SessionRepository {
 @MainActor
 extension SessionRepository {
     func daytimePromptContexts(for schedule: DaytimePromptSchedule, ledger: DaytimePromptLedger,
-                               asOf now: Date) throws -> [DaytimePromptAnchorContext] {
+                               asOf now: Date, wakeSources: [DaytimeMainWakeSource]? = nil) throws -> [DaytimePromptAnchorContext] {
         guard let rule = schedule.rule, rule.anchor != .clock,
               let zone = TimeZone(identifier: schedule.timeZone) else { return [] }
         let usesWork = rule.randomizedWake != nil || rule.anchor == .shiftMidpoint || rule.anchor == .shiftBreak
         let work = usesWork ? try workContext() : nil
         let usesWake = rule.anchor == .mainWake || (usesWork && rule.offDayAnchor == .mainWake)
-        let wakes = usesWake ? try daytimeMainWakeSources(asOf: now) : []
+        let wakes = usesWake ? try (wakeSources ?? daytimeMainWakeSources(asOf: now)) : []
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
         return try (-1...7).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else { return nil }

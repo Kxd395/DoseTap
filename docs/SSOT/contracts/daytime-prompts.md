@@ -39,6 +39,13 @@ Failed reads or malformed sleep/wake evidence leave the queue unverified and sho
 failure/retry guidance; they never become evidence that the user is awake. This
 does not turn session closure or nap end into a main-wake scheduling anchor.
 
+Sleep and wake evidence uses one coherent batch read with a fixed number of SQL
+statements, independent of retained-night count. Validate source identity, civil
+date, dose-row readability, current answers and every captured revision. Reuse
+that immutable snapshot for synchronous planning. Read fresh evidence before OS
+adds and after pending-request readback; changes cancel owned requests before
+publication. No evidence cache survives reconciliation.
+
 ## Selected days and evidence-based anchors
 
 A versioned rule chooses Gregorian weekdays in its explicitly saved timezone and one primary anchor: local clock time, elapsed minutes after a patient-reported designated main wake, reviewed saved shift midpoint, or reviewed saved shift break. Shift-based rules have a separately configured off-day clock or main-wake anchor. Unknown work status cannot silently choose either branch. A 13-hour explicitly saved shift midpoint is 6 hours 30 minutes after its start; weekday names never supply a start. Missing, conflicting or differently zoned source evidence remains explicitly unscheduled.
@@ -100,7 +107,10 @@ only future outstanding attempts. Due or past attempts retain unknown-delivery s
 Manual original nonretrospective assessments reconcile before permission and known-sleep
 returns; only permission, quiet-hour and known-sleep suppressions can become responded.
 Explicit skip, source-change, schedule-change, expired and responded states stay final.
-Rejected mutations and stale actions preserve the verified OS queue. Later samples one
+Rejected mutations and stale actions preserve the verified OS queue. Once mutation
+validation succeeds, any failed evidence read clears verification and cancels owned
+requests, including a failure before the new ledger is committed. This boundary
+does not report an uncommitted action as saved. Later samples one
 clock instant for preview and mutation. After partial OS work fails, cancel owned partial
 requests and make at most one fresh reconciliation attempt; persistent failure leaves
 verification empty and exposes retry. Other notification owners remain untouched.

@@ -45,6 +45,8 @@ Sleep suppression also reads explicitly reported final wake from the validated
 night-outcome history. Earlier lights-out cannot keep suppressing after that wake;
 later sleep and unfinished naps remain suppressors. Future events do not describe
 current sleep, and unreadable evidence cannot produce a verified reminder queue.
+Batch snapshots keep SQL query counts independent of retained-night count while
+rechecking sources after asynchronous notification work.
 
 ## Physician review preparation (DOSETAP-59)
 

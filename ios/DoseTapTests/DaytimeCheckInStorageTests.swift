@@ -163,6 +163,56 @@ extension DaytimeCheckInStorageTests {
         XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: key), reason: "Wake uncertain", recordedAt: now.addingTimeInterval(30)).isCommitted)
         XCTAssertTrue(try repository.daytimeMainWakeSources(asOf: now.addingTimeInterval(30)).isEmpty)
     }
+    func testBatchWakeReadRetainsHistoryIdentityAndReadabilityChecks() throws {
+        let corruptions = [
+            "UPDATE checkin_submissions SET source_record_id='orphan',session_id='orphan' WHERE checkin_type='night_outcome'",
+            "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('conflict','2026-09-20','2026-09-21T01:00:00Z')",
+            "INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('bad','dose1','invalid','2026-09-20','explicit-wake')",
+            "INSERT INTO dose_events(id,event_type,timestamp,session_date,session_id) VALUES('other-night','dose1','2026-09-21T00:00:00Z','2026-09-19','explicit-wake')"
+        ]
+        for sql in corruptions {
+            let storage = EventStorage.inMemory(), repository = repo(storage)
+            XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('explicit-wake','2026-09-20','2026-09-21T00:00:00Z')", nil, nil, nil), SQLITE_OK)
+            var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-60)
+            XCTAssertTrue(storage.saveNightOutcome(diary, review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-20"), reason: "", recordedAt: now).isCommitted)
+            XCTAssertEqual(try repository.daytimeMainWakeSources(asOf: now).first?.id, "explicit-wake")
+            XCTAssertEqual(sqlite3_exec(storage.db, sql, nil, nil, nil), SQLITE_OK)
+            XCTAssertThrowsError(try repository.daytimeMainWakeSources(asOf: now))
+            XCTAssertThrowsError(try repository.daytimeSleepEvidence(asOf: now))
+            XCTAssertEqual(sqlite3_get_autocommit(storage.db), 1)
+        }
+    }
+    func testConcurrentWakeCommitCannotTearSleepEvidenceSnapshot() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appendingPathComponent("wake.sqlite").path
+        let storage = EventStorage(dbPath: path), repository = repo(storage)
+        XCTAssertEqual(sqlite3_exec(storage.db, "PRAGMA journal_mode=WAL", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('explicit-wake','2026-09-20','2026-09-21T00:00:00Z'); INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('lights','lights_out','\(AppFormatters.iso8601Fractional.string(from: now.addingTimeInterval(-120)))','2026-09-20')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(storage.saveNightOutcome(NightOutcomeDiary(), review: try storage.nightOutcomeSnapshot(sessionDate: "2026-09-20"), reason: "", recordedAt: now).isCommitted)
+        var writer: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(path, &writer), SQLITE_OK)
+        let connection = try XCTUnwrap(writer); defer { sqlite3_close(connection) }
+        var diary = NightOutcomeDiary(); diary.finalWakeAt = now.addingTimeInterval(-60)
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let record = NightOutcomeRecord(answers: diary, recordedAt: now, revisions: [])
+        let probe = DaytimeEvidenceWriter(db: connection, payload: String(decoding: try encoder.encode(record), as: UTF8.self))
+        sqlite3_trace_v2(storage.db, UInt32(SQLITE_TRACE_STMT), { _, context, statement, _ in
+            if let context, let statement, let sql = sqlite3_sql(OpaquePointer(statement)),
+               String(cString: sql).hasPrefix("SELECT session_date, source_record_id") {
+                Unmanaged<DaytimeEvidenceWriter>.fromOpaque(context).takeUnretainedValue().writeOnce()
+            }
+            return SQLITE_OK
+        }, Unmanaged.passUnretained(probe).toOpaque())
+        defer { sqlite3_trace_v2(storage.db, 0, nil, nil) }
+        let first = try repository.daytimeSleepEvidence(asOf: now)
+        XCTAssertEqual(probe.result, SQLITE_DONE)
+        XCTAssertTrue(first.sleepActive); XCTAssertTrue(first.wakes.isEmpty)
+        let next = try repository.daytimeSleepEvidence(asOf: now)
+        XCTAssertFalse(next.sleepActive); XCTAssertEqual(next.wakes.first?.id, "explicit-wake")
+        XCTAssertEqual(sqlite3_get_autocommit(storage.db), 1)
+    }
     func testMainWakeSourceRejectsUnreadableOutcomeAndInvalidCapture() throws {
         let storage = EventStorage.inMemory(), repository = repo(storage)
         XCTAssertThrowsError(try repository.daytimeMainWakeSources(asOf: Date(timeIntervalSince1970: .nan)))
@@ -364,5 +414,23 @@ extension DaytimeCheckInStorageTests {
         let scheduled = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, origin: .scheduled, promptID: UUID())
         XCTAssertEqual(try repository.daytimeWakeContexts(observations: [scheduled], asOf: now)[scheduled.id]?.status, .unavailable)
         XCTAssertTrue(try repository.daytimeCheckIns().current.isEmpty)
+    }
+}
+
+private final class DaytimeEvidenceWriter {
+    let db: OpaquePointer
+    let payload: String
+    var result: Int32 = SQLITE_ERROR
+    private var wrote = false
+    init(db: OpaquePointer, payload: String) { self.db = db; self.payload = payload }
+    func writeOnce() {
+        guard !wrote else { return }; wrote = true
+        var statement: OpaquePointer?
+        result = sqlite3_prepare_v2(db, "UPDATE checkin_submissions SET responses_json=? WHERE checkin_type='night_outcome'", -1, &statement, nil)
+        guard result == SQLITE_OK, let statement else { return }
+        defer { sqlite3_finalize(statement) }
+        result = sqlite3_bind_text(statement, 1, payload, -1, SQLITE_TRANSIENT)
+        guard result == SQLITE_OK else { return }
+        result = sqlite3_step(statement)
     }
 }
