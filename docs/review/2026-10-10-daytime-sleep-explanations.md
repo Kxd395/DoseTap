@@ -48,7 +48,7 @@ successful sleep-pause explanation. Async branches use their own snapshot time.
 - Signed `tools/dt-build device -derivedDataPath /tmp/dosetap104-device` passed.
   Strict/deep codesign verification passed and product plist reports 0.4.19 (105).
   The reused DerivedData directory name is not its app version. Physical
-  installation and its distinct launch blocker are recorded below.
+  installation, initial launch failure and successful retry are recorded below.
 - The pre-commit generic iOS Simulator build passed with signing disabled.
   Source commit hooks also passed SwiftPM build and print-policy checks.
 - Daybreak Blue round 1 reviewed immutable patch SHA-256
@@ -81,15 +81,23 @@ blocker or delivered notification was established in this run.
 - A separate `devicectl device info apps` query against that phone independently
   returned bundle `com.dosetap.ios`, version `0.4.19`, build `105`.
   Readback: `/tmp/dosetap105-installed-app.json`.
-- The launch request failed with CoreDevice 10002 and the explicit underlying
+- The initial launch request failed with CoreDevice 10002 and the explicit underlying
   `Locked` reason: the phone was not, or could not be, unlocked. A separate
   process query returned no running DoseTap process. Logs:
   `/tmp/dosetap105-launch.log`, `/tmp/dosetap105-processes.json`.
+- After the owner confirmed the app was on their iPhone, a normal launch retry
+  succeeded on the same intended phone with PID 35643. An independent process
+  query returned the same PID and executable inside the installed build-105
+  application bundle, matching the separate installed-app URL readback.
+  Evidence: `/tmp/dosetap105-launch-retry.json` and
+  `/tmp/dosetap105-processes-retry.json`. The earlier lock/launch blocker is
+  resolved. This proves launch and running-app identity, not visible UI behavior.
 - iPhone Mirroring currently selects the owner's iPhone 18 Pro Max. The shared
-  macOS Mirroring/widgets device selector was inspected but not changed; explicit
-  approval for a temporary switch to the iPhone 15 Pro Max remains pending.
-  No build-105 phone pixels, current suppression reasons or running-build proof
-  are claimed. Unlocking the intended phone is required to retry launch.
+  macOS Mirroring/widgets device selector was inspected but not changed. The
+  owner's installation confirmation did not explicitly authorize that setting
+  change. No build-105 phone pixels or current suppression reasons were observed.
+  The owner can inspect Tonight → Daytime check-in → Daytime reminder; the new
+  section appears below Saved reminder status when saved records pause reminders.
 
 Local Plane is reachable again. Exact DOSETAP-58 preflight now succeeds
 and reports In Progress; the current workpad was read before implementation.
