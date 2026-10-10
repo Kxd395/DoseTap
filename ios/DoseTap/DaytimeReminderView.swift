@@ -62,6 +62,10 @@ struct DaytimeReminderView: View {
                 Text("Status reflects your saved routine. Changes below take effect only after Save.")
                     .font(.caption)
             }
+            if !service.isBusy, let checked = service.sleepEvidenceCheckedAt,
+               !service.sleepSuppressionReasons.isEmpty {
+                DaytimeSleepEvidenceSection(reasons: service.sleepSuppressionReasons, checkedAt: checked)
+            }
             Section("Optional routine reminder") {
                 Toggle("Enable daytime reminder", isOn: $enabled)
                 Toggle("Vary check-ins after waking", isOn: $randomized)
@@ -182,6 +186,48 @@ struct DaytimeReminderView: View {
                                     randomizedWake: randomized ? RandomizedWakeRoutine(
                                         workBedtimeMinute: calendar.component(.hour, from: workBedtime) * 60 + calendar.component(.minute, from: workBedtime),
                                         offBedtimeMinute: calendar.component(.hour, from: offBedtime) * 60 + calendar.component(.minute, from: offBedtime)) : nil))
+        }
+    }
+}
+
+struct DaytimeSleepEvidenceSection: View {
+    let reasons: [DaytimeSleepSuppressionReason]
+    let checkedAt: Date
+    var body: some View {
+        Section("Saved records pausing reminders") {
+            ForEach(reasons, id: \.kind) { reason in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title(for: reason.kind)).font(.headline)
+                    Text("\(eventLabel(for: reason.kind)): \(reason.startedAt.formatted(date: .abbreviated, time: .shortened))")
+                    Text(explanation(for: reason.kind)).font(.subheadline)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("daytime-sleep-reason-\(reason.kind.rawValue)")
+            }
+            Text("Sleep records checked: \(checkedAt.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption)
+                .accessibilityIdentifier("daytime-sleep-evidence-checked")
+        }
+    }
+    private func title(for kind: DaytimeSleepSuppressionReason.Kind) -> String {
+        switch kind {
+        case .activeDoseSession: return "Night session remains open"
+        case .nap: return "Nap start without a later nap end"
+        case .mainSleep: return "Lights out without a later final wake"
+        }
+    }
+    private func eventLabel(for kind: DaytimeSleepSuppressionReason.Kind) -> String {
+        switch kind {
+        case .activeDoseSession: return "Dose 1"
+        case .nap: return "Nap start"
+        case .mainSleep: return "Lights out"
+        }
+    }
+    private func explanation(for kind: DaytimeSleepSuppressionReason.Kind) -> String {
+        switch kind {
+        case .activeDoseSession: return "This session has no recorded Wake Up action or completed morning check-in."
+        case .nap: return "No later nap end is recorded."
+        case .mainSleep: return "No later final wake is recorded."
         }
     }
 }

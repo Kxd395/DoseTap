@@ -62,6 +62,89 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertNil(service.scheduledThrough)
         XCTAssertEqual(service.lastCheckedAt, clock)
     }
+    func testSleepReasonsClearAtStartAndAfterPauseDenialReadFailureOrRejection() async throws {
+        for outcome in ["pause", "denied", "sleep unreadable", "routine unreadable", "rejected", "refresh"] {
+            let storage = EventStorage.inMemory(), client = Client()
+            var clock = now
+            let repo = SessionRepository(storage: storage, clock: { clock })
+            let service = DaytimePromptService(repository: repo, client: client, now: { clock })
+            let napAt = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970) - 60)
+            let stamp = AppFormatters.iso8601Fractional.string(from: napAt)
+            XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('nap','nap_start','\(stamp)','2035-10-03')", nil, nil, nil), SQLITE_OK)
+            client.requests["dose-owner"] = UNNotificationRequest(identifier: "dose-owner", content: UNMutableNotificationContent(), trigger: nil)
+            let enabled = await enable(service)
+            XCTAssertTrue(enabled)
+            XCTAssertEqual(service.sleepSuppressionReasons, [.init(kind: .nap, startedAt: napAt)])
+            XCTAssertEqual(service.sleepEvidenceCheckedAt, clock)
+            clock = clock.addingTimeInterval(30)
+            client.onPending = {
+                XCTAssertTrue(service.sleepSuppressionReasons.isEmpty, "Old reasons must disappear during the new update: \(outcome)")
+                XCTAssertNil(service.sleepEvidenceCheckedAt, outcome)
+            }
+            if outcome == "denied" { client.authorization = .denied }
+            if outcome == "sleep unreadable" {
+                XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE sleep_events SET timestamp='invalid' WHERE id='nap'", nil, nil, nil), SQLITE_OK)
+            }
+            if outcome == "routine unreadable" {
+                XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE daytime_prompt_state SET payload='invalid'", nil, nil, nil), SQLITE_OK)
+            }
+            if outcome == "pause" {
+                let paused = await service.change { $0.enabled = false }
+                XCTAssertTrue(paused)
+            } else if outcome == "rejected" {
+                let accepted = await service.change { _ in throw DaytimeDiaryError.invalid }
+                XCTAssertFalse(accepted)
+            } else { await service.reconcile() }
+            if outcome == "refresh" {
+                XCTAssertEqual(service.sleepSuppressionReasons, [.init(kind: .nap, startedAt: napAt)])
+                XCTAssertEqual(service.sleepEvidenceCheckedAt, clock)
+            } else {
+                XCTAssertTrue(service.sleepSuppressionReasons.isEmpty, outcome)
+                XCTAssertNil(service.sleepEvidenceCheckedAt, outcome)
+            }
+            XCTAssertEqual(Set(client.requests.keys), ["dose-owner"], outcome)
+            XCTAssertFalse(client.removed.contains("dose-owner"), outcome)
+            XCTAssertNil(service.nextReminderAt)
+            XCTAssertNil(service.scheduledThrough)
+            client.onPending = nil
+        }
+    }
+
+    func testSleepReasonsUseFreshEvidenceBeforeAddsAndAfterPendingReadback() async throws {
+        for boundary in [3, 4] {
+            for cancellationFails in boundary == 4 ? [false, true] : [false] {
+                let storage = EventStorage.inMemory(), client = Client()
+                var clock = now
+                let repo = SessionRepository(storage: storage, clock: { clock })
+                let service = DaytimePromptService(repository: repo, client: client, now: { clock })
+                client.requests["dose-owner"] = UNNotificationRequest(identifier: "dose-owner", content: UNMutableNotificationContent(), trigger: nil)
+                let napAt = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970) + 30)
+                let stamp = AppFormatters.iso8601Fractional.string(from: napAt)
+                var pendingReads = 0, adds = 0
+                client.onAdd = { adds += 1 }
+                client.onPending = {
+                    pendingReads += 1
+                    if pendingReads == boundary {
+                        clock = clock.addingTimeInterval(60)
+                        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('new-nap','nap_start','\(stamp)','2035-10-03')", nil, nil, nil), SQLITE_OK)
+                        client.ignoresRemovals = cancellationFails
+                    }
+                }
+                let saved = await enable(service)
+                XCTAssertEqual(saved, !cancellationFails)
+                XCTAssertEqual(adds, boundary == 3 ? 0 : 7)
+                XCTAssertEqual(service.sleepSuppressionReasons, cancellationFails ? [] : [.init(kind: .nap, startedAt: napAt)])
+                XCTAssertEqual(service.sleepEvidenceCheckedAt, cancellationFails ? nil : clock)
+                XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+                XCTAssertEqual(client.requests.keys.filter(DaytimePromptService.owns).count, cancellationFails ? 7 : 0)
+                XCTAssertNotNil(client.requests["dose-owner"])
+                XCTAssertFalse(client.removed.contains("dose-owner"))
+                if cancellationFails { XCTAssertTrue(service.status.contains("Cancellation could not be verified")) }
+                client.onPending = nil; client.onAdd = nil
+            }
+        }
+    }
+
     func testUnreadableRoutineBlocksConfigurationUntilSuccessfulRetry() async throws {
         let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage), client = Client()
         let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
@@ -606,6 +689,8 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertTrue(client.requests.isEmpty); XCTAssertNil(service.nextReminderAt)
         XCTAssertTrue(service.status.contains("sleep"))
         XCTAssertTrue(service.ledger.prompts.allSatisfy { $0.status == .suppressed })
+        XCTAssertEqual(service.sleepSuppressionReasons, [.init(kind: .nap, startedAt: Date(timeIntervalSince1970: floor(now.timeIntervalSince1970)))])
+        XCTAssertEqual(service.sleepEvidenceCheckedAt, now)
     }
     func testResetDuringSleepCancellationDoesNotRestoreDeletedHistory() async throws {
         let storage = EventStorage.inMemory(), repo = SessionRepository(storage: storage), client = Client()
@@ -622,6 +707,8 @@ final class DaytimePromptServiceTests: XCTestCase {
         XCTAssertFalse(saved)
         XCTAssertTrue(try repo.daytimePrompts().prompts.isEmpty)
         XCTAssertTrue(client.requests.isEmpty)
+        XCTAssertTrue(service.sleepSuppressionReasons.isEmpty)
+        XCTAssertNil(service.sleepEvidenceCheckedAt)
     }
     func testFailedCancellationNeverClaimsPausedOrChangesOtherOwners() async throws {
         let repo = SessionRepository(storage: .inMemory()), client = Client()

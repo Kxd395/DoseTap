@@ -143,6 +143,32 @@ extension DaytimeCheckInStorageTests {
 }
 
 extension DaytimeCheckInStorageTests {
+    func testSleepSuppressionReasonsRetainMultipleCausesAndTiedEnds() throws {
+        let storage = EventStorage.inMemory(), repository = repo(storage)
+        let startedAt = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970) - 120)
+        repository.setDose1Time(startedAt)
+        let stamp = AppFormatters.iso8601Fractional.string(from: startedAt)
+        XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_events(id,event_type,timestamp,session_date) VALUES('lights','lights_out','\(stamp)','2026-09-20'),('nap','nap_start','\(stamp)','2026-09-20'),('nap-end','nap_end','\(stamp)','2026-09-20'),('wake','wake_final','\(stamp)','2026-09-20')", nil, nil, nil), SQLITE_OK)
+        let expected: [DaytimeSleepSuppressionReason] = [
+            .init(kind: .activeDoseSession, startedAt: startedAt),
+            .init(kind: .nap, startedAt: startedAt),
+            .init(kind: .mainSleep, startedAt: startedAt)
+        ]
+        let tied = try repository.daytimeSleepEvidence(asOf: now)
+        XCTAssertEqual(tied.suppressionReasons, expected)
+        XCTAssertEqual(tied.capturedAt, now)
+        XCTAssertTrue(tied.sleepActive)
+        let later = AppFormatters.iso8601Fractional.string(from: startedAt.addingTimeInterval(1))
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE sleep_events SET timestamp='\(later)' WHERE id='wake'", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(try repository.daytimeSleepEvidence(asOf: now).suppressionReasons, Array(expected.prefix(2)), "A main wake cannot end a nap or replace the active-session guard")
+        XCTAssertEqual(sqlite3_exec(storage.db, "UPDATE sleep_events SET timestamp='\(later)' WHERE id='nap-end'", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(try repository.daytimeSleepEvidence(asOf: now).suppressionReasons, [expected[0]])
+        XCTAssertTrue(repository.setWakeFinalTime(startedAt.addingTimeInterval(2)))
+        let awake = try repository.daytimeSleepEvidence(asOf: now)
+        XCTAssertTrue(awake.suppressionReasons.isEmpty)
+        XCTAssertFalse(awake.sleepActive)
+    }
+
     func testMainWakeSourceUsesExplicitAnswerAndStableSemanticRevision() throws {
         let storage = EventStorage.inMemory(), repository = repo(storage), key = "2026-09-20"
         XCTAssertEqual(sqlite3_exec(storage.db, "INSERT INTO sleep_sessions(session_id,session_date,start_utc) VALUES('explicit-wake','2026-09-20','2026-09-21T00:00:00Z')", nil, nil, nil), SQLITE_OK)
@@ -209,8 +235,11 @@ extension DaytimeCheckInStorageTests {
         let first = try repository.daytimeSleepEvidence(asOf: now)
         XCTAssertEqual(probe.result, SQLITE_DONE)
         XCTAssertTrue(first.sleepActive); XCTAssertTrue(first.wakes.isEmpty)
+        XCTAssertEqual(first.suppressionReasons, [.init(kind: .mainSleep, startedAt: now.addingTimeInterval(-120))])
+        XCTAssertEqual(first.capturedAt, now)
         let next = try repository.daytimeSleepEvidence(asOf: now)
         XCTAssertFalse(next.sleepActive); XCTAssertEqual(next.wakes.first?.id, "explicit-wake")
+        XCTAssertTrue(next.suppressionReasons.isEmpty)
         XCTAssertEqual(sqlite3_get_autocommit(storage.db), 1)
     }
     func testMainWakeSourceRejectsUnreadableOutcomeAndInvalidCapture() throws {

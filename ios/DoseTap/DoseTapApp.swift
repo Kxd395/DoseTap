@@ -202,6 +202,19 @@ struct DoseTapApp: App {
             .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-dose-sleep"))) {
                 ReviewedDoseSleepFixtureView()
             }
+            .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting")
+                && ProcessInfo.processInfo.arguments.contains("--uitesting-daytime-sleep-reasons"))) {
+                NavigationStack {
+                    Form {
+                        DaytimeSleepEvidenceSection(reasons: [
+                            .init(kind: .activeDoseSession, startedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                            .init(kind: .nap, startedAt: Date(timeIntervalSince1970: 1_700_003_600)),
+                            .init(kind: .mainSleep, startedAt: Date(timeIntervalSince1970: 1_700_007_200))
+                        ], checkedAt: Date(timeIntervalSince1970: 1_700_086_400))
+                    }
+                    .navigationTitle("Saved sleep evidence")
+                }
+            }
             #endif
             .modifier(DaytimePromptPresentation())
             .onReceive(container.sessionRepository.sessionDidChange) { _ in

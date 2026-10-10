@@ -20,6 +20,8 @@ final class DaytimePromptService: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private var verifiedAttempts: [Date] = []
     @Published private(set) var lastCheckedAt: Date?
+    @Published private(set) var sleepSuppressionReasons: [DaytimeSleepSuppressionReason] = []
+    @Published private(set) var sleepEvidenceCheckedAt: Date?
     @Published private(set) var notificationPermission: UNAuthorizationStatus?
     @Published private(set) var hasLoadedLedger = false
     var scheduledThrough: Date? { verifiedAttempts.last }
@@ -85,6 +87,7 @@ final class DaytimePromptService: ObservableObject {
     private func update(requestPermission: Bool, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> UpdateResult {
         guard !isBusy else { again = true; return (false, false, .notCommitted) }
         isBusy = true
+        sleepSuppressionReasons = []; sleepEvidenceCheckedAt = nil
         var osWorkStarted = false
         var reconciliationStarted = false
         var completionPolicy = CompletionPolicy.drainPending
@@ -144,10 +147,12 @@ final class DaytimePromptService: ObservableObject {
                 try repository.saveDaytimePrompts(value); ledger = value
                 status = "Enable notifications in iOS Settings to receive reminders."; return (true, false, .committedQueueVerified)
             }
-            guard initialEvidence?.sleepActive == false else {
+            guard let initialEvidence else { throw DaytimeDiaryError.unreadable }
+            guard !initialEvidence.sleepActive else {
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: sampledAt)
                 try repository.saveDaytimePrompts(value); ledger = value
+                publishSleepReasons(initialEvidence)
                 status = "Suppressed during known sleep or nap. Rechecked when the app records wake or nap end."; return (true, false, .committedQueueVerified)
             }
             guard let schedule = value.current, let zone = TimeZone(identifier: schedule.timeZone) else { throw DaytimeDiaryError.invalid }
@@ -190,6 +195,7 @@ final class DaytimePromptService: ObservableObject {
                 value.suppressDue(at: beforeAddAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: beforeAddAt)
                 try repository.saveDaytimePrompts(value); ledger = value
+                publishSleepReasons(beforeAddEvidence)
                 status = "Suppressed during known sleep or nap. Rechecked when the app records wake or nap end."
                 return (true, false, .committedQueueVerified)
             }
@@ -225,11 +231,14 @@ final class DaytimePromptService: ObservableObject {
                 status = eligible.isEmpty ? "No reminders queued. Review available anchors, selected days and quiet hours." : (schedule.rule?.randomizedWake != nil ? "Wake-based check-ins queued for recorded wake days. Record your next main wake to schedule that day. Delivery is controlled by iOS." : "Routine reminders queued for up to seven days. Delivery is controlled by iOS.")
             }
             try repository.saveDaytimePrompts(value); ledger = value
-            if !finalEvidence.sleepActive {
+            if finalEvidence.sleepActive {
+                publishSleepReasons(finalEvidence)
+            } else {
                 verifiedAttempts = eligible.map(\.nextAttemptAt).sorted()
             }
             return (true, false, .committedQueueVerified)
         } catch {
+            sleepSuppressionReasons = []; sleepEvidenceCheckedAt = nil
             var cleanupVerified = true
             if reconciliationStarted || (try? repository.daytimePrompts()) == nil {
                 verifiedAttempts = []
@@ -248,6 +257,10 @@ final class DaytimePromptService: ObservableObject {
             if !cleanupVerified || failure == .unreadable { completionPolicy = .discardCoalescedRefresh }
             return (false, cleanupVerified && osWorkStarted && failure != .conflict && failure != .invalid && failure != .unreadable, osWorkStarted ? .committedQueueUnverified : .notCommitted)
         }
+    }
+    private func publishSleepReasons(_ evidence: DaytimeSleepEvidenceSnapshot) {
+        sleepEvidenceCheckedAt = evidence.capturedAt
+        sleepSuppressionReasons = evidence.suppressionReasons
     }
     private func cancelOwnedRequestsAfterFailure() async -> Bool {
         do { try await cancelOwnedRequests(); return true }

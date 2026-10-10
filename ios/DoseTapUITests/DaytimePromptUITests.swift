@@ -1,6 +1,52 @@
 import XCTest
 
 final class DaytimePromptUITests: XCTestCase {
+    func testSleepEvidenceSectionAtNormalText() throws {
+        try verifySleepEvidenceSection(size: "UICTContentSizeCategoryL")
+    }
+    func testSleepEvidenceSectionAtLargestText() throws {
+        try verifySleepEvidenceSection(size: "UICTContentSizeCategoryAccessibilityXXXL")
+    }
+    private func verifySleepEvidenceSection(size: String) throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitesting-daytime-sleep-reasons", "-setup_completed_v2", "YES",
+                               "-healthkit_enabled", "NO", "-whoop_enabled", "NO", "-AppleLocale", "en_US", "-AppleLanguages", "(en)",
+                               "-UIPreferredContentSizeCategoryName", size]
+        app.launch()
+        // This fixture renders the production section; it does not exercise scheduling or storage.
+        let rows = [
+            ("activeDoseSession", "Night session remains open", "Dose 1:", "This session has no recorded Wake Up action or completed morning check-in."),
+            ("nap", "Nap start without a later nap end", "Nap start:", "No later nap end is recorded."),
+            ("mainSleep", "Lights out without a later final wake", "Lights out:", "No later final wake is recorded.")
+        ]
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<20 {
+                if element.exists && element.isHittable { return }
+                let towardTop = element.exists && element.frame.midY < app.frame.midY
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.35 : 0.7))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.7 : 0.35))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+            XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
+        }
+        func assertTimestamp(_ element: XCUIElement) {
+            XCTAssertTrue(element.label.contains("2023"), element.label)
+            XCTAssertNotNil(element.label.range(of: #"\d{1,2}:\d{2}"#, options: .regularExpression), element.label)
+            let proof = XCTAttachment(screenshot: app.screenshot())
+            proof.name = "Sleep evidence \(element.identifier) \(size)"; proof.lifetime = .keepAlways; add(proof)
+        }
+        XCTAssertTrue(app.staticTexts["daytime-sleep-reason-activeDoseSession"].waitForExistence(timeout: 15))
+        for (kind, title, prefix, detail) in rows {
+            let row = app.staticTexts["daytime-sleep-reason-\(kind)"]
+            reveal(row)
+            XCTAssertTrue(row.label.contains(title)); XCTAssertTrue(row.label.contains(prefix))
+            XCTAssertTrue(row.label.contains(detail))
+            assertTimestamp(row)
+        }
+        let checked = app.staticTexts["daytime-sleep-evidence-checked"]
+        reveal(checked); assertTimestamp(checked)
+        XCTAssertTrue(checked.label.contains("Sleep records checked:"))
+    }
     func testOptionalReminderControlsAtLargestText() throws {
         try verifyReminderStatus(size: "UICTContentSizeCategoryAccessibilityXXXL")
     }

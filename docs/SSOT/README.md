@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-10-05
+Last verified: 2026-10-10
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (104)
+App version defined in this revision's Xcode project: 0.4.19 (105)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -47,6 +47,17 @@ later sleep and unfinished naps remain suppressors. Future events do not describ
 current sleep, and unreadable evidence cannot produce a verified reminder queue.
 Batch snapshots keep SQL query counts independent of retained-night count while
 rechecking sources after asynchronous notification work.
+
+When sleep evidence pauses reminders, the screen lists every applicable saved
+cause (open dose session, nap start, lights out) with its occurrence date/time
+and the evidence capture time, displayed in the device timezone. These describe
+saved records, not a claim that the person is currently asleep. A same-time end
+does not count as a later end. Reasons come from the same snapshot and predicates
+that decide suppression; no extra queries, inferred wake, or record edits occur.
+Each refresh clears prior explanations before reading. Only successfully saved
+sleep suppression with verified owned-request cancellation publishes reasons;
+paused routines, denied permission, rejected actions and failures show no stale
+sleep explanation. Multiple simultaneous causes remain visible.
 
 ## Physician review preparation (DOSETAP-59)
 

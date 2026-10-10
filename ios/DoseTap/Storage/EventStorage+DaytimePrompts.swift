@@ -48,9 +48,17 @@ extension EventStorage {
     }
 }
 
+struct DaytimeSleepSuppressionReason: Equatable {
+    enum Kind: String { case activeDoseSession, nap, mainSleep }
+    let kind: Kind
+    let startedAt: Date
+}
+
 struct DaytimeSleepEvidenceSnapshot {
     let wakes: [DaytimeMainWakeSource]
-    let sleepActive: Bool
+    let suppressionReasons: [DaytimeSleepSuppressionReason]
+    let capturedAt: Date
+    var sleepActive: Bool { !suppressionReasons.isEmpty }
 }
 
 extension SessionRepository {
@@ -78,10 +86,18 @@ extension SessionRepository {
                     return end.map { start >= $0 } ?? true
                 }
                 let finalWake = [latest(["wake_final", "wakefinal"]), wakes.map(\.at).max()].compactMap { $0 }.max()
-                let nap = active(start: latest(["nap_start"]), end: latest(["nap_end"]))
-                let mainSleep = active(start: latest(["lights_out", "lightsout"]), end: finalWake)
-                return DaytimeSleepEvidenceSnapshot(wakes: wakes, sleepActive:
-                    (dose1Time != nil && wakeFinalTime == nil && !checkInCompleted) || nap || (mainSleep && !checkInCompleted))
+                var reasons: [DaytimeSleepSuppressionReason] = []
+                if let dose1Time, wakeFinalTime == nil && !checkInCompleted {
+                    reasons.append(.init(kind: .activeDoseSession, startedAt: dose1Time))
+                }
+                if let napStart = latest(["nap_start"]), active(start: napStart, end: latest(["nap_end"])) {
+                    reasons.append(.init(kind: .nap, startedAt: napStart))
+                }
+                if let lightsOut = latest(["lights_out", "lightsout"]),
+                   active(start: lightsOut, end: finalWake) && !checkInCompleted {
+                    reasons.append(.init(kind: .mainSleep, startedAt: lightsOut))
+                }
+                return DaytimeSleepEvidenceSnapshot(wakes: wakes, suppressionReasons: reasons, capturedAt: asOf)
             }
         } catch {
             throw DaytimeDiaryError.unreadable
