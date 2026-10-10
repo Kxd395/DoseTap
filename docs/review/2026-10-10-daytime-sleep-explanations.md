@@ -4,6 +4,7 @@ Date: 2026-10-10 (America/New_York). Work item: DOSETAP-58.
 Checkout: `/Volumes/Developer/projects/_DoseTap_Active/DoseTap-chart-inspection`.
 Branch: `feat/sleep-chart-inspection`; baseline `451cdd46700a1b56067085eff20e49204f6b5b59`.
 Candidate app version: 0.4.19 (105).
+Implementation commit: `113fdd69764414761de60b8d8a29ab86df3c9712`.
 
 ## Scope and behavior
 
@@ -48,9 +49,16 @@ successful sleep-pause explanation. Async branches use their own snapshot time.
   Strict/deep codesign verification passed and product plist reports 0.4.19 (105).
   The reused DerivedData directory name is not its app version. No build-105
   physical installation has been performed at this checkpoint.
-- Daybreak Blue round 1 is reviewing immutable patch SHA-256
+- The pre-commit generic iOS Simulator build passed with signing disabled.
+  Source commit hooks also passed SwiftPM build and print-policy checks.
+- Daybreak Blue round 1 reviewed immutable patch SHA-256
   `551731f5ff1ce85d4f141d91c0cc2a52cdc74214040baf041e786a8918033f8a`,
-  `.build/dosetap105-review.patch`. Its independent result remains pending.
+  `.build/dosetap105-review.patch`, identical to the committed source diff.
+  It found no actionable source defects, and flagged one P3 claiming an extra
+  count of 29 in this document. Plain-text disk and committed readback both show
+  the correct 44 + 29 + 6 = 79; the extra 29 appears to be a displayed line number.
+  No source or count edit is justified. Round 2 is resolving this evidence-only
+  disagreement before physical installation; its result remains pending.
 
 The synthetic UI fixture requires both UI-test flags
 and is excluded from physical-device and release builds. It renders the actual
