@@ -63,6 +63,32 @@ final class SystemDoseAlarmTests: XCTestCase {
         func removePendingRequests(withIdentifiers identifiers: [String]) { removed += identifiers }
         func removeDeliveredNotifications(withIdentifiers identifiers: [String]) { removed += identifiers }
     }
+    func testResetChecksSupplyPendingDeliveredAndNativeAlarmReadback() async {
+        let native = Native(), notifications = Notifications()
+        let alarm = service(native, notifications, now: Date())
+        alarm.prepareAlarmsForDataReset()
+        XCTAssertTrue(notifications.removed.contains(SupplyReminderService.requestID))
+        let clean = await alarm.verifyDataResetAlarmCancellation()
+        XCTAssertTrue(clean)
+        notifications.retainedDelivered = [SupplyReminderService.requestID]
+        let delivered = await alarm.verifyDataResetAlarmCancellation()
+        XCTAssertFalse(delivered)
+        notifications.retainedDelivered = []
+        notifications.retainedPending = [UNNotificationRequest(identifier: SupplyReminderService.requestID,
+            content: UNMutableNotificationContent(), trigger: nil)]
+        let pending = await alarm.verifyDataResetAlarmCancellation()
+        XCTAssertFalse(pending)
+        notifications.retainedPending = []
+        native.target = Date().addingTimeInterval(60)
+        let nativeRemaining = await alarm.verifyDataResetAlarmCancellation()
+        XCTAssertFalse(nativeRemaining)
+        native.target = nil
+        native.failsCancel = true
+        alarm.prepareAlarmsForDataReset()
+        let failedCancellation = await alarm.verifyDataResetAlarmCancellation()
+        XCTAssertFalse(failedCancellation)
+    }
+
     private var domains: [String] = []
     func testSkipCancellationWarningExplicitlySaysNotTaken() async throws {
         struct Clock: DateProviding { let date: Date; func now() -> Date { date } }

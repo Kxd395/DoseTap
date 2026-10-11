@@ -8,6 +8,7 @@
 
 import XCTest
 import Combine
+import SQLite3
 @testable import DoseTap
 import DoseCore
 
@@ -188,6 +189,150 @@ final class SleepPlanStoreTemplateTests: XCTestCase {
         components.minute = minute
         components.second = 0
         return Calendar.current.date(from: components) ?? Date()
+    }
+}
+
+@MainActor
+final class StorageResetFailureTests: XCTestCase {
+    private func fixture(path: String = ":memory:") throws -> (EventStorage, SessionRepository, FakeNotificationScheduler) {
+        let storage = EventStorage(dbPath: path)
+        let scheduler = FakeNotificationScheduler()
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-10T22:00:00Z"))
+        let zone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        let repository = SessionRepository(storage: storage, notificationScheduler: scheduler,
+            clock: { now }, timeZoneProvider: { zone })
+        XCTAssertTrue(repository.setDose1Time(now).isCommitted)
+        let observation = try DaytimeCheckIn(assessedAt: now, recordedAt: now,
+            timeZoneIdentifier: "UTC", response: 4)
+        try repository.saveDaytimeCheckIn(observation)
+        var prompts = DaytimePromptLedger()
+        try prompts.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now)
+        try repository.saveDaytimePrompts(prompts)
+        scheduler.reset()
+        return (storage, repository, scheduler)
+    }
+
+    func test_failedClearMustPreserveSessionDaytimeRecordsAndNotifications() throws {
+        let (storage, repository, scheduler) = try fixture()
+        let observations = try repository.daytimeCheckIns().revisions
+        let prompts = try repository.daytimePrompts()
+        let doseTime = repository.dose1Time
+        let sessionID = try XCTUnwrap(repository.activeSessionId)
+        let sessionDate = try XCTUnwrap(repository.activeSessionDate)
+        XCTAssertEqual(sqlite3_exec(storage.db,
+            "CREATE TRIGGER reject_reset_dose_delete BEFORE DELETE ON dose_events BEGIN SELECT RAISE(ABORT, 'synthetic reset failure'); END",
+            nil, nil, nil), SQLITE_OK)
+        scheduler.reset()
+        var publications = 0
+        let subscription = repository.sessionDidChange.sink { publications += 1 }
+        XCTAssertFalse(repository.clearAllData())
+        XCTAssertEqual(storage.fetchRowCount(table: "dose_events", sessionDate: sessionDate), 1)
+        XCTAssertEqual(storage.fetchRowCount(table: "current_session", sessionDate: sessionDate), 1,
+            "A failed reset must preserve the active session row")
+        XCTAssertEqual(try repository.daytimeCheckIns().revisions, observations,
+            "A later failed deletion must roll back the earlier daytime deletion")
+        XCTAssertEqual(try repository.daytimePrompts(), prompts)
+        XCTAssertEqual(repository.activeSessionId, sessionID)
+        XCTAssertEqual(repository.dose1Time, doseTime)
+        XCTAssertEqual(repository.dataResetGeneration, 0)
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty,
+            "A failed reset must preserve the retained session's reminders")
+        XCTAssertEqual(publications, 0)
+        subscription.cancel()
+    }
+
+    func test_beginDeleteAndCommitFailuresPreserveSessionAndDaytimeStateUntilRetry() throws {
+        for point: MedicationStorageFaultPoint in [.begin, .delete, .commit] {
+            let (storage, repository, scheduler) = try fixture()
+            let sessionID = repository.activeSessionId
+            let date = try XCTUnwrap(repository.activeSessionDate)
+            let observations = try repository.daytimeCheckIns().revisions
+            let prompts = try repository.daytimePrompts()
+            var publications = 0
+            let subscription = repository.sessionDidChange.sink { publications += 1 }
+            storage.medicationFaultInjector = { candidate in
+                candidate == point ? .init(code: .io, sqliteCode: SQLITE_IOERR, detail: "Synthetic reset failure") : nil
+            }
+            XCTAssertFalse(repository.clearAllData())
+            XCTAssertEqual(repository.lastDataResetFailure?.stage, String(describing: point))
+            XCTAssertFalse(try XCTUnwrap(repository.lastDataResetFailure).rollbackFailed)
+            XCTAssertEqual(repository.activeSessionId, sessionID)
+            XCTAssertEqual(storage.fetchRowCount(table: "dose_events", sessionDate: date), 1)
+            XCTAssertEqual(storage.fetchRowCount(table: "current_session", sessionDate: date), 1)
+            XCTAssertEqual(try repository.daytimeCheckIns().revisions, observations)
+            XCTAssertEqual(try repository.daytimePrompts(), prompts)
+            XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+            XCTAssertEqual(publications, 0)
+            XCTAssertEqual(repository.dataResetGeneration, 0)
+            storage.medicationFaultInjector = nil
+            XCTAssertTrue(repository.clearAllData(), "A failed reset remains explicitly retryable")
+            XCTAssertEqual(publications, 1)
+            XCTAssertEqual(repository.dataResetGeneration, 1)
+            subscription.cancel()
+        }
+    }
+
+    func test_rollbackFailureDisablesWritesAndReopenRetainsCommittedRecords() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("reset.sqlite").path
+        let (storage, repository, scheduler) = try fixture(path: path)
+        let date = try XCTUnwrap(repository.activeSessionDate)
+        let observations = try repository.daytimeCheckIns().revisions
+        let prompts = try repository.daytimePrompts()
+        storage.medicationFaultInjector = { point in
+            [.commit, .rollback].contains(point) ? .init(code: .io, sqliteCode: SQLITE_IOERR, detail: "Synthetic reset failure") : nil
+        }
+        XCTAssertFalse(repository.clearAllData())
+        XCTAssertTrue(try XCTUnwrap(repository.lastDataResetFailure).rollbackFailed)
+        XCTAssertNil(storage.db)
+        XCTAssertNotNil(storage.databaseInitializationFailure)
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+        XCTAssertEqual(repository.dataResetGeneration, 0)
+        XCTAssertFalse(repository.setDose1Time(try XCTUnwrap(observations.first).recordedAt).isCommitted)
+        let reopened = EventStorage(dbPath: path)
+        XCTAssertNil(reopened.databaseInitializationFailure)
+        XCTAssertEqual(reopened.fetchRowCount(table: "dose_events", sessionDate: date), 1)
+        let restored = SessionRepository(storage: reopened)
+        XCTAssertEqual(try restored.daytimeCheckIns().revisions, observations)
+        XCTAssertEqual(try restored.daytimePrompts(), prompts)
+    }
+
+    func test_successfulResetClearsNewLedgersPublishesOnceAndRetainsSchemaVersion() throws {
+        let (storage, repository, scheduler) = try fixture()
+        let date = try XCTUnwrap(repository.activeSessionDate), version = storage.getSchemaVersion()
+        var publications = 0
+        let subscription = repository.sessionDidChange.sink { publications += 1 }
+        XCTAssertTrue(repository.clearAllData())
+        XCTAssertNil(repository.lastDataResetFailure)
+        XCTAssertNil(repository.activeSessionId)
+        XCTAssertEqual(storage.fetchRowCount(table: "dose_events", sessionDate: date), 0)
+        XCTAssertEqual(storage.fetchRowCount(table: "current_session", sessionDate: date), 0)
+        XCTAssertTrue(try repository.daytimeCheckIns().revisions.isEmpty)
+        XCTAssertEqual(try repository.daytimePrompts(), DaytimePromptLedger())
+        XCTAssertEqual(storage.getSchemaVersion(), version)
+        XCTAssertEqual(publications, 1)
+        XCTAssertEqual(repository.dataResetGeneration, 1)
+        XCTAssertEqual(Set(scheduler.cancelledIdentifiers), Set(SessionRepository.sessionNotificationIdentifiers + [SupplyReminderService.requestID]))
+        subscription.cancel()
+    }
+
+    func test_nestedTransactionAndUnavailableHandleRejectResetWithoutSideEffects() throws {
+        let (storage, repository, scheduler) = try fixture()
+        let sessionID = repository.activeSessionId
+        XCTAssertEqual(sqlite3_exec(storage.db, "BEGIN IMMEDIATE", nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repository.clearAllData())
+        XCTAssertEqual(repository.lastDataResetFailure?.stage, "preflight")
+        XCTAssertEqual(sqlite3_get_autocommit(storage.db), 0, "Reset must not finish its caller's transaction")
+        XCTAssertEqual(sqlite3_exec(storage.db, "ROLLBACK", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_close_v2(storage.db), SQLITE_OK)
+        storage.db = nil
+        XCTAssertFalse(repository.clearAllData())
+        XCTAssertEqual(repository.lastDataResetFailure?.stage, "preflight")
+        XCTAssertEqual(repository.activeSessionId, sessionID)
+        XCTAssertEqual(repository.dataResetGeneration, 0)
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
     }
 }
 

@@ -882,6 +882,22 @@ public class AlarmService: NSObject, ObservableObject {
         guard sessionId == activeSessionId() else { return .notApplicable }
         cancelAllAlarms()
         clearDose2AlarmState()
+        return await verifyAlarmCancellation(additionalIDs: []) ? .cancelled : .unverified
+    }
+
+    /// Post-commit reset cleanup; no medication or database write is performed.
+    func prepareAlarmsForDataReset() {
+        cancelAllAlarms()
+        clearDose2AlarmState()
+        notificationClient.removePendingRequests(withIdentifiers: [SupplyReminderService.requestID])
+        notificationClient.removeDeliveredNotifications(withIdentifiers: [SupplyReminderService.requestID])
+    }
+
+    func verifyDataResetAlarmCancellation() async -> Bool {
+        await verifyAlarmCancellation(additionalIDs: [SupplyReminderService.requestID])
+    }
+
+    private func verifyAlarmCancellation(additionalIDs: [String]) async -> Bool {
         let systemFailed: Bool
         do {
             let remainingAlarm = try systemWakeAlarm?.deadline()
@@ -891,16 +907,16 @@ public class AlarmService: NSObject, ObservableObject {
                 lastSchedulingError = lastSystemAlarmCancellationError
             }
         }
-        catch { return .unverified }
-        let owned = Set(Self.wakeNotificationIdentifiers + Self.reminderNotificationIdentifiers)
+        catch { return false }
+        let owned = Set(Self.wakeNotificationIdentifiers + Self.reminderNotificationIdentifiers + additionalIDs)
         let pending = await notificationClient.pendingRequests()
         let delivered = await notificationClient.deliveredIdentifiers()
         // Readback may race a new session. Never perform further cancellation
         // after suspension, and never remove identifiers outside the owned set.
         guard !systemFailed, let delivered,
               !pending.contains(where: { owned.contains($0.identifier) }),
-              owned.isDisjoint(with: delivered) else { return .unverified }
-        return .cancelled
+              owned.isDisjoint(with: delivered) else { return false }
+        return true
     }
     
     /// Cancel all scheduled alarms

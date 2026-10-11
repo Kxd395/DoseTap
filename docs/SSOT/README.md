@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-10-10
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (105)
+App version defined in this revision's Xcode project: 0.4.19 (106)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -689,6 +689,10 @@ reads accept absolute ISO occurrences with or without fractional seconds and sor
 by the parsed instant; existing History identity and complete-read guards remain.
 
 Persistence is local SQLite via `EventStorage`.
+
+Reset failure behavior is defined in [Local data reset](storage-initialization-and-reset.md).
+Database deletion must commit before preferences, active-session state or reminder
+intent are cleared. This bounded reset does not delete external provider data.
 
 The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`, including the SQLite `user_version` and internal `schema_migrations` ledger. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not duplicate mutable schema versions, table totals, or partial table lists in this overview.
 
