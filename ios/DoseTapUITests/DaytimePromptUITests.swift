@@ -1,5 +1,95 @@
 import XCTest
 
+extension DaytimePromptUITests {
+    func testHistoricalDaytimeCorrectionAtNormalText() throws {
+        try verifyHistoricalCorrection(size: "UICTContentSizeCategoryL")
+    }
+    func testHistoricalDaytimeCorrectionAtLargestText() throws {
+        try verifyHistoricalCorrection(size: "UICTContentSizeCategoryAccessibilityXXXL")
+    }
+    private func verifyHistoricalCorrection(size: String) throws {
+        let app = XCUIApplication(), id = "00000000-0000-4000-8000-000000000107"
+        app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString
+        app.launchArguments = ["--uitesting", "--uitesting-daytime-correction", "-setup_completed_v2", "YES",
+                               "-healthkit_enabled", "NO", "-whoop_enabled", "NO", "-AppleLocale", "en_US",
+                               "-AppleLanguages", "(en)", "-UIPreferredContentSizeCategoryName", size]
+        app.launch()
+        func reveal(_ element: XCUIElement, towardTopIfAbsent: Bool = false) throws {
+            for _ in 0..<30 {
+                if element.exists && element.isHittable { return }
+                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < app.frame.midY : towardTopIfAbsent
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.35 : 0.7))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.7 : 0.35))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+            _ = try XCTUnwrap(element.exists && element.isHittable ? element : nil,
+                              "Could not reveal \(element.identifier) within 30 scrolls")
+        }
+        func openDiary() throws {
+            let history = app.buttons["History"].firstMatch
+            XCTAssertTrue(history.waitForExistence(timeout: 15)); history.tap()
+            let diary = app.buttons["history-daytime"]
+            XCTAssertTrue(diary.waitForExistence(timeout: 10)); try reveal(diary); diary.tap()
+        }
+        func capture(_ name: String) {
+            let proof = XCTAttachment(screenshot: app.screenshot())
+            proof.name = "\(name) \(size)"; proof.lifetime = .keepAlways; add(proof)
+        }
+        let question = app.staticTexts["daytime-rating-question"]
+        let context = app.staticTexts["daytime-correction-context"]
+        let record = app.buttons["tonight-daytime-record"]
+        XCTAssertTrue(record.waitForExistence(timeout: 15)); try reveal(record); record.tap()
+        XCTAssertTrue(question.waitForExistence(timeout: 10)); try reveal(question)
+        XCTAssertEqual(question.label.lowercased(), "how sleepy do you feel now?")
+        XCTAssertFalse(context.exists)
+        XCTAssertEqual(app.staticTexts["daytime-rating-summary"].label, "Choose a rating")
+        capture("New daytime observation")
+        app.buttons["Cancel"].tap()
+        try openDiary()
+        let row = app.staticTexts["daytime-saved-observation-\(id)"]
+        try reveal(row) // List virtualizes historical rows at accessibility text sizes.
+        let originalTime = row.label
+        XCTAssertTrue(originalTime.contains("2023"))
+        let correct = app.buttons["daytime-correct-\(id)"]
+        try reveal(correct); correct.tap()
+        XCTAssertTrue(question.waitForExistence(timeout: 10)); try reveal(question)
+        XCTAssertEqual(question.label.lowercased(), "how sleepy did you feel then?")
+        try reveal(context)
+        let originalContext = context.label
+        for evidence in ["2023", "5:13", "America/New_York"] { XCTAssertTrue(originalContext.contains(evidence), originalContext) }
+        capture("Historical correction context")
+        let summary = app.staticTexts["daytime-rating-summary"]
+        try reveal(summary); XCTAssertEqual(summary.label, "Your rating: 3/10")
+        let rating = app.buttons["daytime-rating-7"]
+        try reveal(rating); rating.tap()
+        let guidance = app.staticTexts["Update this response and add a reason before saving."]
+        try reveal(guidance)
+        try reveal(app.buttons["Save correction"])
+        let reason = app.textFields["daytime-correction-reason"]
+        try reveal(reason); reason.tap(); reason.typeText("Corrected my earlier rating")
+        let save = app.buttons["daytime-save-top"]
+        XCTAssertTrue(save.isHittable); save.tap()
+        try reveal(row, towardTopIfAbsent: true) // Return above the correction button in the virtualized list.
+        XCTAssertEqual(row.label, originalTime)
+        let correctedScore = app.staticTexts["Custom sleepiness: 7/10"]
+        try reveal(correctedScore); capture("Saved historical correction")
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-daytime-correction" }
+        app.launch()
+        try openDiary()
+        try reveal(row) // List virtualizes historical rows at accessibility text sizes.
+        XCTAssertEqual(row.label, originalTime, "Correction must retain the original observation time after relaunch")
+        try reveal(correctedScore)
+        try reveal(correct); correct.tap()
+        XCTAssertTrue(question.waitForExistence(timeout: 10)); try reveal(question)
+        XCTAssertEqual(question.label.lowercased(), "how sleepy did you feel then?")
+        try reveal(context); XCTAssertEqual(context.label, originalContext)
+        capture("Historical correction after relaunch")
+        try reveal(summary); XCTAssertEqual(summary.label, "Your rating: 7/10")
+        app.buttons["Cancel"].tap()
+    }
+}
+
 final class DaytimePromptUITests: XCTestCase {
     func testSleepEvidenceSectionAtNormalText() throws {
         try verifySleepEvidenceSection(size: "UICTContentSizeCategoryL")

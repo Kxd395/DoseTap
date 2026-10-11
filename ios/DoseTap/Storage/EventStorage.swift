@@ -118,6 +118,16 @@ public class EventStorage {
            let token = ProcessInfo.processInfo.environment["DOSETAP_DAYTIME_TEST_ID"], let id = UUID(uuidString: token) {
             self.init(dbPath: FileManager.default.temporaryDirectory.appendingPathComponent("daytime-ui-\(id.uuidString).sqlite").path)
             #if targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-daytime-correction") {
+                do {
+                    if try daytimeCheckIns().revisions.isEmpty,
+                       let observationID = UUID(uuidString: "00000000-0000-4000-8000-000000000107") {
+                        let assessedAt = Date(timeIntervalSince1970: 1_700_000_000)
+                        _ = try saveDaytimeCheckIn(DaytimeCheckIn(id: observationID, assessedAt: assessedAt,
+                            recordedAt: assessedAt.addingTimeInterval(300), timeZoneIdentifier: "America/New_York", response: 3))
+                    }
+                } catch { storageLog.error("Isolated correction UI fixture could not be prepared") }
+            }
             if ProcessInfo.processInfo.arguments.contains("--uitesting-reset-delete-failure") {
                 let result = sqlite3_exec(db, "CREATE TRIGGER IF NOT EXISTS reject_ui_reset BEFORE DELETE ON daytime_checkins BEGIN SELECT RAISE(ABORT, 'synthetic reset failure'); END", nil, nil, nil)
                 if result != SQLITE_OK { storageLog.error("Isolated reset failure fixture could not be prepared") }

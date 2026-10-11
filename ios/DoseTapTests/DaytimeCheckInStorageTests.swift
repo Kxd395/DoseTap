@@ -32,16 +32,38 @@ final class DaytimeCheckInStorageTests: XCTestCase {
         XCTAssertEqual(try repository.daytimeCheckIns().revisions, [a])
     }
     func testCorrectionRejectsStaleAndChangedIDAndClearRemovesAll() throws {
-        let storage = EventStorage(dbPath: ":memory:"), repository = repo(storage), a = try value()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("correction.sqlite").path
+        let storage = EventStorage(dbPath: path), repository = repo(storage)
+        let a = try DaytimeCheckIn(assessedAt: now.addingTimeInterval(-600), recordedAt: now,
+            timeZoneIdentifier: "America/New_York", response: 0, origin: .retrospective)
         try repository.saveDaytimeCheckIn(a)
         let next = try a.corrected(response: 4, status: .answered, reason: "Correction", recordedAt: now.addingTimeInterval(30))
         try repository.saveDaytimeCheckIn(next)
+        let reopened = repo(EventStorage(dbPath: path)), restored = try reopened.daytimeCheckIns()
+        XCTAssertEqual(restored.revisions.count, 2)
+        XCTAssertTrue(restored.revisions.contains(a), "The original observation remains unchanged")
+        XCTAssertNotEqual(a.utcOffsetSeconds, 0, "Exercise preservation of a non-UTC observation")
+        for correction in [next, try XCTUnwrap(restored.current.first)] {
+            XCTAssertEqual(correction.id, a.id)
+            XCTAssertEqual(correction.assessedAt, a.assessedAt)
+            XCTAssertEqual(correction.createdAt, a.createdAt)
+            XCTAssertEqual(correction.timeZoneIdentifier, a.timeZoneIdentifier)
+            XCTAssertEqual(correction.utcOffsetSeconds, a.utcOffsetSeconds)
+            XCTAssertEqual(correction.origin, a.origin)
+            XCTAssertEqual(correction.recordedAt, now.addingTimeInterval(30))
+            XCTAssertNotEqual(correction.recordedAt, a.recordedAt)
+            XCTAssertEqual(correction.predecessorID, a.revisionID)
+        }
         XCTAssertThrowsError(try repository.saveDaytimeCheckIn(a.corrected(response: 6, status: .answered, reason: "Stale", recordedAt: now.addingTimeInterval(40))))
         let changed = try DaytimeCheckIn(id: a.id, revisionID: a.revisionID, assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 2)
         XCTAssertThrowsError(try repository.saveDaytimeCheckIn(changed))
         XCTAssertEqual(try repository.daytimeCheckIns().current, [next])
         storage.clearAllData()
         XCTAssertTrue(try repository.daytimeCheckIns().revisions.isEmpty)
+        XCTAssertTrue(try reopened.daytimeCheckIns().revisions.isEmpty)
     }
     func testCorruptPayloadFailsClosed() throws {
         let storage = EventStorage(dbPath: ":memory:"), repository = repo(storage)

@@ -87,6 +87,7 @@ struct DaytimeCheckInView: View {
                         }
                         Text("Recorded \(value.recordedAt.formatted()). \(value.timeZoneIdentifier)").font(.caption).foregroundStyle(.secondary)
                         Button("Correct response") { editing = value }
+                            .accessibilityIdentifier("daytime-correct-\(value.id.uuidString)")
                         DisclosureGroup("Revision history") {
                             ForEach(ledger.revisions.filter { $0.id == value.id }, id: \.revisionID) { revision in
                                 Text("\(revision.recordedAt.formatted()): \(revision.response.map(String.init) ?? revision.status.rawValue). \(revision.correctionReason ?? "Original observation")")
@@ -145,11 +146,30 @@ struct DaytimeCheckInEditor: View {
     @State private var pending: DaytimeCheckIn?
     @State private var showSaveFailure = false
     @State private var failure: String?
+    private var ratingQuestion: String {
+        original != nil ? "How sleepy did you feel then?" :
+            (retrospective ? "How sleepy did you feel?" : "How sleepy do you feel now?")
+    }
+    private var correctionContext: String? {
+        guard let original else { return nil }
+        guard let zone = TimeZone(secondsFromGMT: original.utcOffsetSeconds) else {
+            return "Original observation time unavailable"
+        }
+        let style = Date.FormatStyle(date: .abbreviated, time: .shortened, timeZone: zone)
+        return "Original observation: \(original.assessedAt.formatted(style))\nTime zone: \(original.timeZoneIdentifier)"
+    }
+    private var saveLabel: String {
+        if original != nil { return pending == nil ? "Save correction" : "Retry exact correction" }
+        return pending == nil ? "Save observation" : "Retry exact observation"
+    }
     var body: some View {
         NavigationStack {
             Form {
-                Section(retrospective ? "How sleepy did you feel?" : "How sleepy do you feel now?") {
-                    if retrospective { Text("Remembered observation: \(assessedAt.formatted())").font(.caption) }
+                Section {
+                    if let correctionContext {
+                        Text(correctionContext).font(.subheadline)
+                            .accessibilityIdentifier("daytime-correction-context")
+                    } else if retrospective { Text("Remembered observation: \(assessedAt.formatted())").font(.caption) }
                     Text("0 · Not sleepy     10 · Extremely sleepy").font(.subheadline)
                     Text(score.map { "Your rating: \($0)/10" } ?? "Choose a rating")
                         .font(.headline).accessibilityIdentifier("daytime-rating-summary")
@@ -170,8 +190,9 @@ struct DaytimeCheckInEditor: View {
                         }
                     }
                     if score != nil { Button("Clear rating") { score = nil; status = .incomplete } }
-                    Text("Choose a rating and tap Save. Details are optional.").font(.caption)
-                    if original != nil { Text("Correcting the saved response; its observation time remains unchanged.").font(.caption) }
+                    Text(original == nil ? "Choose a rating and tap Save. Details are optional." :
+                            "Update this response and add a reason before saving.").font(.caption)
+                    if original != nil { Text("The observation time and entry type stay unchanged.").font(.caption) }
                     if score == nil {
                         Picker("No rating", selection: $status) {
                             Text("Incomplete").tag(DaytimeCheckIn.Status.incomplete)
@@ -179,6 +200,8 @@ struct DaytimeCheckInEditor: View {
                             Text("Skipped").tag(DaytimeCheckIn.Status.skipped)
                         }
                     }
+                } header: {
+                    Text(ratingQuestion).accessibilityIdentifier("daytime-rating-question")
                 }.disabled(pending != nil)
                 if original == nil {
                     Section {
@@ -222,7 +245,10 @@ struct DaytimeCheckInEditor: View {
                         Text("Record actions already taken; this diary does not recommend caffeine or medication.").font(.caption)
                     }.disabled(pending != nil)
                 } else if original != nil {
-                    Section("Correction reason") { TextField("Why are you correcting this response?", text: $reason) }.disabled(pending != nil)
+                    Section("Correction reason (required)") {
+                        TextField("Why are you correcting this response?", text: $reason)
+                            .accessibilityIdentifier("daytime-correction-reason")
+                    }.disabled(pending != nil)
                 }
                 if original == nil && showDetails {
                     Section("Optional existing source links") {
@@ -256,11 +282,11 @@ struct DaytimeCheckInEditor: View {
                         if pending != nil { Button("Edit entry before retry") { pending = nil; self.failure = nil } }
                     }
                 }
-                Button(pending == nil ? "Save observation" : "Retry exact observation", action: save)
+                Button(saveLabel, action: save)
                     .accessibilityIdentifier("daytime-save")
             }
             .navigationTitle(original == nil ? "Daytime check-in" : "Correct observation")
-            .alert("Observation not saved", isPresented: $showSaveFailure) {
+            .alert(original == nil ? "Observation not saved" : "Correction not saved", isPresented: $showSaveFailure) {
                 Button("Retry save", action: save)
                 Button("Keep entry", role: .cancel) {}
             } message: { Text(failure ?? DaytimeDiaryError.notCommitted.localizedDescription) }

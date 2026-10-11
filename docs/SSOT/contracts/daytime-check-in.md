@@ -71,3 +71,11 @@ erases a draft. No prior rating is carried forward. Unsure, skipped and incomple
 remain distinct. Correction retains its original observation time and reason.
 A durable save triggers reminder reconciliation so a current observation can
 satisfy its randomized window without editing its sampling origin.
+
+Correction asks how sleepy the person felt then and displays the original
+assessment date and time using its saved UTC offset, alongside its saved timezone
+identifier. It requires a correction reason and labels the action Save correction.
+The original observation identity, assessment time, timezone and entry origin stay
+unchanged; only the response revision and its submission time are new. Current
+entry continues to ask how sleepy the person feels now; retrospective entry keeps
+its separate remembered-observation controls.
