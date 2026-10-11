@@ -117,6 +117,12 @@ public class EventStorage {
         if ProcessInfo.processInfo.arguments.contains("--uitesting"),
            let token = ProcessInfo.processInfo.environment["DOSETAP_DAYTIME_TEST_ID"], let id = UUID(uuidString: token) {
             self.init(dbPath: FileManager.default.temporaryDirectory.appendingPathComponent("daytime-ui-\(id.uuidString).sqlite").path)
+            #if targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-reset-delete-failure") {
+                let result = sqlite3_exec(db, "CREATE TRIGGER IF NOT EXISTS reject_ui_reset BEFORE DELETE ON daytime_checkins BEGIN SELECT RAISE(ABORT, 'synthetic reset failure'); END", nil, nil, nil)
+                if result != SQLITE_OK { storageLog.error("Isolated reset failure fixture could not be prepared") }
+            }
+            #endif
             if ProcessInfo.processInfo.arguments.contains("--uitesting-daytime-overlap") {
                 do {
                     if try daytimeCheckIns().revisions.isEmpty {

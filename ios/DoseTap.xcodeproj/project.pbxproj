@@ -206,6 +206,7 @@
 		PSL007 /* PreSleepLogActivityNapsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL008 /* PreSleepLogActivityNapsCard.swift */; };
 		SSU001 /* SleepingSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSU002 /* SleepingSetupViews.swift */; };
 		SET001 /* SettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET101 /* SettingsSections.swift */; };
+		RST106B1 /* DataResetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = RST106F1 /* DataResetPresentation.swift */; };
 		SET002 /* SettingsActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET102 /* SettingsActions.swift */; };
 		SET003 /* SettingsStudioExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET103 /* SettingsStudioExport.swift */; };
 		SRQ001 /* SessionRepositoryQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ101 /* SessionRepositoryQueries.swift */; };
@@ -501,6 +502,7 @@
 		PSL008 /* PreSleepLogActivityNapsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogActivityNapsCard.swift; sourceTree = "<group>"; };
 		SSU002 /* SleepingSetupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepingSetupViews.swift; sourceTree = "<group>"; };
 		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
+		RST106F1 /* DataResetPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataResetPresentation.swift; sourceTree = "<group>"; };
 		SET102 /* SettingsActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsActions.swift; sourceTree = "<group>"; };
 		SET103 /* SettingsStudioExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStudioExport.swift; sourceTree = "<group>"; };
 		SRQ101 /* SessionRepositoryQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryQueries.swift; sourceTree = "<group>"; };
@@ -669,6 +671,7 @@
 				DYPR101 /* DaytimePromptService.swift */,
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
 				SET101 /* SettingsSections.swift */,
+				RST106F1 /* DataResetPresentation.swift */,
 				SET102 /* SettingsActions.swift */,
 				SET103 /* SettingsStudioExport.swift */,
 				EXCEL_FR01 /* SettingsExcelExport.swift */,
@@ -1270,6 +1273,7 @@
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,
+				RST106B1 /* DataResetPresentation.swift in Sources */,
 				SET002 /* SettingsActions.swift in Sources */,
 				SET003 /* SettingsStudioExport.swift in Sources */,
 				EXCEL_BF01 /* SettingsExcelExport.swift in Sources */,

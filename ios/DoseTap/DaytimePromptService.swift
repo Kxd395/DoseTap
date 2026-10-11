@@ -34,6 +34,9 @@ final class DaytimePromptService: ObservableObject {
     private let contextProvider: ((DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext])?
     private var again = false
     private var actions: [(UUID, String, CheckedContinuation<Void, Never>)] = []
+    private var resetCleanupTask: Task<Bool, Never>?
+    private var resetCleanupGeneration: UInt?
+    private var resetIdleWaiter: CheckedContinuation<Void, Never>?
     private let log = Logger(subsystem: "com.dosetap.app", category: "DaytimePrompt")
     init(repository: SessionRepository, client: AlarmNotificationCenterClient, now: @escaping () -> Date = Date.init,
          contexts: ((DaytimePromptSchedule, DaytimePromptLedger, Date) throws -> [DaytimePromptAnchorContext])? = nil) {
@@ -71,12 +74,66 @@ final class DaytimePromptService: ObservableObject {
     private enum CompletionPolicy { case drainPending, discardCoalescedRefresh }
     private enum ActionOutcome { case rejected, notCommitted, committedQueueVerified, committedQueueUnverified }
     private typealias UpdateResult = (success: Bool, retry: Bool, outcome: ActionOutcome)
+    /// Called synchronously after a committed reset, before Settings yields.
+    func beginDataResetCleanup() -> Task<Bool, Never> {
+        let generation = repository.dataResetGeneration
+        if let resetCleanupTask, resetCleanupGeneration == generation { return resetCleanupTask }
+        guard generation > 0, resetSourceIsCurrent(generation) else { return Task { false } }
+        let previousCleanup = resetCleanupTask
+        again = false
+        let discarded = actions; actions = []
+        for action in discarded { action.2.resume() }
+        promptToOpen = nil; verifiedAttempts = []; anchorAvailability = []
+        sleepSuppressionReasons = []; sleepEvidenceCheckedAt = nil
+        let task = Task { @MainActor in
+            if let previousCleanup { _ = await previousCleanup.value }
+            else if isBusy { await withCheckedContinuation { resetIdleWaiter = $0 } }
+            guard resetCleanupGeneration == generation else { return false }
+            isBusy = true
+            defer {
+                if resetCleanupGeneration == generation {
+                    isBusy = false; resetCleanupTask = nil; resetCleanupGeneration = nil; lastCheckedAt = now()
+                }
+            }
+            let verified = await verifyResetCleanup(generation)
+            guard resetCleanupGeneration == generation else { return false }
+            if let current = try? repository.daytimePrompts() { ledger = current; hasLoadedLedger = true }
+            else { hasLoadedLedger = false }
+            promptToOpen = nil; verifiedAttempts = []; anchorAvailability = []
+            sleepSuppressionReasons = []; sleepEvidenceCheckedAt = nil
+            status = verified ? "Local reminders cleared" : "Records cleared; reminder cleanup could not be verified."
+            return verified
+        }
+        resetCleanupGeneration = generation
+        resetCleanupTask = task
+        return task
+    }
+    private func resetSourceIsCurrent(_ generation: UInt) -> Bool {
+        repository.dataResetGeneration == generation && (try? repository.daytimePrompts()) == DaytimePromptLedger()
+    }
+    private func verifyResetCleanup(_ generation: UInt) async -> Bool {
+        guard resetSourceIsCurrent(generation) else { return false }
+        let pending = await client.pendingRequests()
+        guard resetSourceIsCurrent(generation) else { return false }
+        let delivered = await client.deliveredIdentifiers()
+        guard resetSourceIsCurrent(generation) else { return false }
+        client.removePendingRequests(withIdentifiers: pending.map(\.identifier).filter(Self.owns))
+        if let delivered { client.removeDeliveredNotifications(withIdentifiers: delivered.filter(Self.owns)) }
+        let remaining = await client.pendingRequests()
+        guard resetSourceIsCurrent(generation) else { return false }
+        let remainingDelivered = await client.deliveredIdentifiers()
+        return resetSourceIsCurrent(generation) && delivered != nil && remainingDelivered != nil
+            && remaining.allSatisfy { !Self.owns($0.identifier) }
+            && remainingDelivered!.allSatisfy { !Self.owns($0) }
+    }
     func reconcile() async { _ = await change { _ in } }
     @discardableResult func change(requestPermission: Bool = false, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> Bool {
         await performChange(requestPermission: requestPermission, mutation).success
     }
     private func performChange(requestPermission: Bool = false, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> UpdateResult {
+        let generation = repository.dataResetGeneration
         let result = await update(requestPermission: requestPermission, mutation)
+        guard generation == repository.dataResetGeneration else { return (false, false, .notCommitted) }
         if result.retry {
             // One fresh read/reconciliation after partial OS work; never retry a rejected action.
             let recovery = await update(requestPermission: false, { _ in })
@@ -85,7 +142,12 @@ final class DaytimePromptService: ObservableObject {
         return result
     }
     private func update(requestPermission: Bool, _ mutation: (inout DaytimePromptLedger) throws -> Void) async -> UpdateResult {
+        guard resetCleanupTask == nil else { return (false, false, .notCommitted) }
         guard !isBusy else { again = true; return (false, false, .notCommitted) }
+        let generation = repository.dataResetGeneration
+        func requireCurrentGeneration() throws {
+            guard generation == repository.dataResetGeneration else { throw DaytimeDiaryError.conflict }
+        }
         isBusy = true
         sleepSuppressionReasons = []; sleepEvidenceCheckedAt = nil
         var osWorkStarted = false
@@ -95,8 +157,9 @@ final class DaytimePromptService: ObservableObject {
         defer {
             lastCheckedAt = now()
             isBusy = false
-            if completionPolicy == .discardCoalescedRefresh { again = false }
-            if !actions.isEmpty {
+            if completionPolicy == .discardCoalescedRefresh || resetCleanupTask != nil { again = false }
+            if let waiter = resetIdleWaiter { resetIdleWaiter = nil; waiter.resume() }
+            if resetCleanupTask == nil, !actions.isEmpty {
                 let next = actions.removeFirst(); Task { await handle(promptID: next.0, action: next.1); next.2.resume() }
             } else if again { again = false; Task { await reconcile() } }
         }
@@ -131,15 +194,21 @@ final class DaytimePromptService: ObservableObject {
             osWorkStarted = true
             verifiedAttempts = []; notificationPermission = nil
             try await cancelOwnedRequests()
+            try requireCurrentGeneration()
             var permission = await client.authorizationStatus()
+            try requireCurrentGeneration()
             if value.enabled && requestPermission && permission == .notDetermined {
                 _ = try await client.requestAuthorization(options: [.alert])
+                try requireCurrentGeneration()
                 permission = await client.authorizationStatus()
+                try requireCurrentGeneration()
             }
             notificationPermission = permission
             guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
             guard value.enabled else {
-                if let delivered = await client.deliveredIdentifiers() { client.removeDeliveredNotifications(withIdentifiers: delivered.filter { Self.owns($0) }) }
+                let delivered = await client.deliveredIdentifiers()
+                try requireCurrentGeneration()
+                if let delivered { client.removeDeliveredNotifications(withIdentifiers: delivered.filter { Self.owns($0) }) }
                 promptToOpen = nil; status = "Reminders paused"; return (true, false, .committedQueueVerified)
             }
             guard permission == .authorized || permission == .provisional || permission == .ephemeral else {
@@ -184,6 +253,7 @@ final class DaytimePromptService: ObservableObject {
             try repository.saveDaytimePrompts(value); ledger = value
             // Preserve capacity for dose requests and all other notification owners.
             let existing = await client.pendingRequests()
+            try requireCurrentGeneration()
             guard existing.count + eligible.count <= 64 else {
                 status = "Reminder queue is full. Existing dose reminders were preserved; retry after pending reminders clear."
                 return (true, false, .committedQueueVerified)
@@ -208,8 +278,10 @@ final class DaytimePromptService: ObservableObject {
                 content.userInfo = ["prompt_id": prompt.id.uuidString]
                 let trigger = UNCalendarNotificationTrigger(dateMatching: triggerCalendar.dateComponents([.timeZone, .year, .month, .day, .hour, .minute, .second], from: prompt.nextAttemptAt), repeats: false)
                 try await client.add(UNNotificationRequest(identifier: Self.requestID + "." + prompt.id.uuidString, content: content, trigger: trigger))
+                try requireCurrentGeneration()
             }
             let pending = await client.pendingRequests()
+            try requireCurrentGeneration()
             let finalAt = now(), finalEvidence = try repository.daytimeSleepEvidence(asOf: finalAt)
             guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload(),
                   try self.contexts(for: schedule, ledger: value, at: finalAt, evidence: finalEvidence) == contexts else { throw DaytimeDiaryError.conflict }
@@ -223,6 +295,7 @@ final class DaytimePromptService: ObservableObject {
             }) else { throw DaytimeDiaryError.notCommitted }
             if finalEvidence.sleepActive {
                 try await cancelOwnedRequests()
+                try requireCurrentGeneration()
                 guard try readEvidence({ try repository.daytimePrompts() }).encodedPayload() == value.encodedPayload() else { throw DaytimeDiaryError.conflict }
                 value.suppressDue(at: sampledAt, reason: "Known sleep or nap active")
                 value.suppress(reason: DaytimePrompt.EnvironmentalSuppression.knownSleep.rawValue, at: sampledAt)
@@ -283,8 +356,10 @@ final class DaytimePromptService: ObservableObject {
         identifier == requestID || identifier.hasPrefix(requestID + ".")
     }
     func handle(promptID: UUID, action: String) async {
+        guard resetCleanupTask == nil else { return }
         guard [UNNotificationDefaultActionIdentifier, "open", "daytime_skip", "daytime_later"].contains(action) else { return }
         if isBusy { await withCheckedContinuation { actions.append((promptID, action, $0)) }; return }
+        let generation = repository.dataResetGeneration
         let actionAt = now()
         let laterAt = Date(timeIntervalSince1970: ceil(actionAt.timeIntervalSince1970 + 1800))
         let result = await performChange { value in
@@ -292,6 +367,7 @@ final class DaytimePromptService: ObservableObject {
             else if action == "daytime_later" { try value.deferPrompt(id: promptID, until: laterAt, now: actionAt) }
             else { try value.open(id: promptID, at: actionAt) }
         }
+        guard generation == repository.dataResetGeneration, resetCleanupTask == nil else { return }
         if result.outcome == .rejected && action == "daytime_later" {
             status = "This check-in cannot be postponed within its window. Check in now or skip it."
         }

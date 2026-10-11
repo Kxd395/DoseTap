@@ -281,11 +281,18 @@ final class StorageResetFailureTests: XCTestCase {
         let date = try XCTUnwrap(repository.activeSessionDate)
         let observations = try repository.daytimeCheckIns().revisions
         let prompts = try repository.daytimePrompts()
+        let sessionID = repository.activeSessionId
         storage.medicationFaultInjector = { point in
             [.commit, .rollback].contains(point) ? .init(code: .io, sqliteCode: SQLITE_IOERR, detail: "Synthetic reset failure") : nil
         }
         XCTAssertFalse(repository.clearAllData())
         XCTAssertTrue(try XCTUnwrap(repository.lastDataResetFailure).rollbackFailed)
+        let fatalFailure = try XCTUnwrap(repository.lastDataResetFailure)
+        XCTAssertFalse(repository.clearAllData(), "Retry cannot recover a disabled database handle")
+        XCTAssertEqual(repository.lastDataResetFailure, fatalFailure)
+        XCTAssertTrue(try XCTUnwrap(repository.lastDataResetFailure).rollbackFailed)
+        XCTAssertTrue(try XCTUnwrap(repository.lastDataResetFailure).localizedDescription.contains("Restart DoseTap"))
+        XCTAssertEqual(repository.activeSessionId, sessionID)
         XCTAssertNil(storage.db)
         XCTAssertNotNil(storage.databaseInitializationFailure)
         XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
@@ -333,6 +340,56 @@ final class StorageResetFailureTests: XCTestCase {
         XCTAssertEqual(repository.activeSessionId, sessionID)
         XCTAssertEqual(repository.dataResetGeneration, 0)
         XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+    }
+
+    func test_cleanupWarningPersistsForIndependentFailuresAndIsAbsentOnSuccess() async throws {
+        for (newSession, daytimeVerified, alarmsVerified, expectsWarning) in [
+            (true, false, true, true), (true, true, true, false), (false, true, false, true), (false, true, true, false)
+        ] {
+            let suite = "StorageResetFailureTests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let (_, repository, _) = try fixture()
+            let doseAt = try XCTUnwrap(repository.dose1Time)
+            XCTAssertTrue(repository.clearAllData())
+            let generation = repository.dataResetGeneration
+            if newSession { XCTAssertTrue(repository.setDose1Time(doseAt).isCommitted) }
+            var alarmChecks = 0
+            await DataResetPresentation.finishCleanup(repository: repository, generation: generation,
+                daytimeCleanup: Task { daytimeVerified }, verifyAlarms: {
+                    alarmChecks += 1
+                    return alarmsVerified
+                }, defaults: defaults)
+            let reopened = try XCTUnwrap(UserDefaults(suiteName: suite))
+            XCTAssertEqual(reopened.string(forKey: DataResetPresentation.warningKey),
+                expectsWarning ? DataResetPresentation.cleanupWarning : nil)
+            XCTAssertEqual(alarmChecks, newSession ? 0 : 1)
+        }
+    }
+
+    func test_laterResetSuppressesObsoleteCleanupWarningsAtBothAwaitBoundaries() async throws {
+        for resetDuringDaytime in [true, false] {
+            let suite = "StorageResetFailureTests.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let (_, repository, _) = try fixture()
+            XCTAssertTrue(repository.clearAllData())
+            let generation = repository.dataResetGeneration
+            let daytime = Task { @MainActor in
+                if resetDuringDaytime { XCTAssertTrue(repository.clearAllData()) }
+                return !resetDuringDaytime
+            }
+            var alarmChecks = 0
+            await DataResetPresentation.finishCleanup(repository: repository, generation: generation,
+                daytimeCleanup: daytime, verifyAlarms: {
+                    alarmChecks += 1
+                    XCTAssertTrue(repository.clearAllData())
+                    return false
+                }, defaults: defaults)
+            XCTAssertEqual(repository.dataResetGeneration, generation + 1)
+            XCTAssertNil(defaults.string(forKey: DataResetPresentation.warningKey))
+            XCTAssertEqual(alarmChecks, resetDuringDaytime ? 0 : 1)
+        }
     }
 }
 

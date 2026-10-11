@@ -14,6 +14,9 @@ final class SupplyReminderServiceTests: XCTestCase {
         var failsAdds = false
         var mismatchesTrigger = false
         var onAdd: (() -> Void)?
+        var onAddAsync: (() async -> Void)?
+        var delivered: Set<String>?
+        var ignoresDeliveredRemovals = false
         var onPending: (() -> Void)?
         var onPendingAsync: (() async -> Void)?
         var ignoresRemovals = false
@@ -24,6 +27,7 @@ final class SupplyReminderServiceTests: XCTestCase {
         func add(_ request: UNNotificationRequest) async throws {
             if failsAdds { throw SupplyStorageError.unavailable }
             onAdd?()
+            await onAddAsync?()
             if !dropsAdds {
                 requests[request.identifier] = mismatchesTrigger
                     ? UNNotificationRequest(identifier: request.identifier, content: request.content,
@@ -38,7 +42,11 @@ final class SupplyReminderServiceTests: XCTestCase {
             if ignoresRemovals { return }
             for id in identifiers { requests[id] = nil }
         }
-        func removeDeliveredNotifications(withIdentifiers identifiers: [String]) { removed += identifiers }
+        func deliveredIdentifiers() async -> [String]? { delivered.map { Array($0) } }
+        func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+            removed += identifiers
+            if !ignoresDeliveredRemovals { delivered?.subtract(identifiers) }
+        }
     }
     private func entry() -> SupplyReminderEntry {
         SupplyReminderEntry(year: 2035, month: 10, day: 4, hour: 9, minute: 0)

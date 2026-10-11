@@ -58,6 +58,8 @@ extension SettingsView {
             showingResetError = true
             return
         }
+        let resetGeneration = SessionRepository.shared.dataResetGeneration
+        let daytimeCleanup = DaytimePromptService.shared.beginDataResetCleanup()
         AlarmService.shared.prepareAlarmsForDataReset()
 
         if let bundleId = Bundle.main.bundleIdentifier {
@@ -70,11 +72,13 @@ extension SettingsView {
         sleepPlanStore.resetToDefaults()
         SessionRepository.shared.reload()
         Task { @MainActor in
-            guard SessionRepository.shared.activeSessionId == nil else { return }
-            let verified = await AlarmService.shared.verifyDataResetAlarmCancellation()
-            guard !verified, SessionRepository.shared.activeSessionId == nil else { return }
-            resetErrorMessage = "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them."
-            showingResetError = true
+            await DataResetPresentation.finishCleanup(
+                repository: SessionRepository.shared,
+                generation: resetGeneration,
+                daytimeCleanup: daytimeCleanup,
+                verifyAlarms: { await AlarmService.shared.verifyDataResetAlarmCancellation() },
+                defaults: .standard
+            )
         }
 
         #if DEBUG

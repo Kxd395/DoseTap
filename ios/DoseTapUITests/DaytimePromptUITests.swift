@@ -108,3 +108,90 @@ final class DaytimePromptUITests: XCTestCase {
         proof.name = "Optional daytime reminder status \(size)"; proof.lifetime = .keepAlways; add(proof)
     }
 }
+
+
+extension DaytimePromptUITests {
+    func testClearAllFailureRetainsDaytimeRowsAtNormalText() throws {
+        try verifyClearAllFailure(size: "UICTContentSizeCategoryL")
+    }
+    func testClearAllFailureRetainsDaytimeRowsAtLargestText() throws {
+        try verifyClearAllFailure(size: "UICTContentSizeCategoryAccessibilityXXXL")
+    }
+    func testResetCleanupWarningAppearsBeforeSetupAndAcknowledgementPersists() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString
+        app.launchArguments = ["--uitesting", "--uitesting-reset-cleanup-warning",
+                               "-healthkit_enabled", "NO", "-whoop_enabled", "NO",
+                               "-AppleLocale", "en_US", "-AppleLanguages", "(en)",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        app.launch()
+        let warning = app.alerts["Reset Status"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 15))
+        XCTAssertTrue(warning.staticTexts.matching(NSPredicate(format: "label == %@", "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them.")).firstMatch.exists)
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Reset cleanup warning before setup"; proof.lifetime = .keepAlways; add(proof)
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-reset-cleanup-warning" }
+        app.launch()
+        XCTAssertTrue(warning.waitForExistence(timeout: 15), "The unacknowledged warning must survive without reseeding")
+        XCTAssertTrue(warning.staticTexts.matching(NSPredicate(format: "label == %@", "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them.")).firstMatch.exists)
+        warning.buttons["OK"].tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
+        XCTAssertFalse(app.alerts["Reset Status"].waitForExistence(timeout: 3))
+    }
+    private func verifyClearAllFailure(size: String) throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString
+        app.launchArguments = ["--uitesting", "--uitesting-daytime-overlap", "--uitesting-reset-delete-failure",
+                               "-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO",
+                               "-AppleLocale", "en_US", "-AppleLanguages", "(en)", "-UIPreferredContentSizeCategoryName", size]
+        app.launch()
+        func reveal(_ element: XCUIElement) throws {
+            for _ in 0..<40 {
+                if element.exists && element.isHittable { return }
+                let towardTop = element.exists && !element.frame.isEmpty && element.frame.midY < app.frame.midY
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.35 : 0.7))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: towardTop ? 0.7 : 0.35))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+            _ = try XCTUnwrap(element.exists && element.isHittable ? element : nil,
+                              "Could not reveal \(element.identifier) within 40 scrolls")
+        }
+        func originalRows() throws -> [String] {
+            let history = app.buttons["History"].firstMatch
+            XCTAssertTrue(history.waitForExistence(timeout: 15)); history.tap()
+            let diary = app.buttons["history-daytime"]
+            XCTAssertTrue(diary.waitForExistence(timeout: 10)); try reveal(diary); diary.tap()
+            return try ["00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000001"].map { id in
+                let row = app.staticTexts["daytime-saved-observation-\(id)"]
+                try reveal(row); return row.label
+            }
+        }
+        let before = try originalRows()
+        XCTAssertEqual(before.count, 2)
+        app.buttons["Settings"].firstMatch.tap()
+        let clear = app.buttons["Clear All Data"]
+        try reveal(clear); clear.tap()
+        let confirmation = app.alerts["Clear All Data"]
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
+        let disclosure = confirmation.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        for retained in ["exported files", "credentials", "Apple Health/WHOOP records", "retained"] {
+            XCTAssertTrue(disclosure.contains(retained), disclosure)
+        }
+        let confirm = confirmation.buttons["Clear All"]
+        try reveal(confirm); confirm.tap()
+        let failure = app.alerts["Reset Status"]
+        XCTAssertTrue(failure.waitForExistence(timeout: 10))
+        XCTAssertTrue(failure.staticTexts["Your local records could not be cleared. Your session and settings were not reset. Please try again."].exists)
+        let proof = XCTAttachment(screenshot: app.screenshot())
+        proof.name = "Clear All rollback retains daytime records \(size)"; proof.lifetime = .keepAlways; add(proof)
+        let dismiss = failure.buttons["OK"]
+        try reveal(dismiss); dismiss.tap()
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-daytime-overlap" }
+        app.launch()
+        XCTAssertEqual(try originalRows(), before, "Both original observations must survive without reseeding")
+    }
+}

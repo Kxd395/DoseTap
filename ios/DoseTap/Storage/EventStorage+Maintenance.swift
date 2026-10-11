@@ -48,6 +48,8 @@ extension EventStorage {
     /// Reset source collections atomically; callers may publish only after true.
     @discardableResult
     public func clearAllData() -> Bool {
+        if lastDataResetFailure?.rollbackFailed == true,
+           databaseInitializationFailure != nil || db == nil { return false }
         lastDataResetFailure = nil
         guard databaseInitializationFailure == nil, let db, sqlite3_get_autocommit(db) != 0 else {
             lastDataResetFailure = DataResetFailure(stage: "preflight", sqliteCode: SQLITE_MISUSE, rollbackFailed: false)

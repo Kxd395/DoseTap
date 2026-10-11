@@ -12,6 +12,136 @@ final class DaytimePromptServiceTests: XCTestCase {
     func enable(_ service: DaytimePromptService) async -> Bool {
         await service.change { try $0.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now) }
     }
+    func testCommittedResetWaitsForSuspendedAddAndDiscardsQueuedOpen() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        var clock = now
+        let service = DaytimePromptService(repository: repo, client: client, now: { clock })
+        client.delivered = []
+        let enabled = await enable(service); XCTAssertTrue(enabled)
+        let prompt = try XCTUnwrap(service.ledger.prompts.first)
+        clock = prompt.intendedAt; service.promptToOpen = prompt
+        let entered = expectation(description: "OS add suspended"), queued = expectation(description: "Open queued")
+        var release: CheckedContinuation<Void, Never>?, adds = 0
+        client.onAdd = { adds += 1 }
+        client.onAddAsync = {
+            client.onAddAsync = nil
+            await withCheckedContinuation { release = $0; entered.fulfill() }
+        }
+        defer { release?.resume(); client.onAddAsync = nil; client.onAdd = nil }
+        let updating = Task { await service.reconcile() }
+        await fulfillment(of: [entered], timeout: 3)
+        let oldOpen = Task { queued.fulfill(); await service.handle(promptID: prompt.id, action: "open") }
+        await fulfillment(of: [queued], timeout: 3)
+        XCTAssertTrue(repo.clearAllData()); XCTAssertEqual(repo.dataResetGeneration, 1)
+        let cleanup = service.beginDataResetCleanup()
+        let early = expectation(description: "Cleanup must wait for the outstanding OS add"); early.isInverted = true
+        var watching = true
+        let result = Task { let verified = await cleanup.value; if watching { early.fulfill() }; return verified }
+        let refresh = Task { await service.reconcile() }
+        await fulfillment(of: [early], timeout: 0.1)
+        watching = false
+        let held = try XCTUnwrap(release); release = nil; held.resume()
+        await updating.value; await oldOpen.value; await refresh.value
+        let verified = await result.value; XCTAssertTrue(verified)
+        XCTAssertEqual(adds, 1, "The invalidated pass must not add its remaining old requests")
+        XCTAssertEqual(try repo.daytimePrompts(), DaytimePromptLedger())
+        XCTAssertEqual(service.ledger, DaytimePromptLedger())
+        XCTAssertTrue(client.requests.isEmpty); XCTAssertEqual(client.delivered, [])
+        XCTAssertNil(service.promptToOpen); XCTAssertNil(service.nextReminderAt); XCTAssertNil(service.scheduledThrough)
+        XCTAssertTrue(service.sleepSuppressionReasons.isEmpty); XCTAssertNil(service.sleepEvidenceCheckedAt)
+        XCTAssertFalse(service.isBusy)
+    }
+    func testCommittedResetVerifiesOwnedPendingAndDeliveredAndAllowsFreshRoutine() async throws {
+        for mode in ["success", "pending retained", "delivered retained", "delivered unavailable"] {
+            let repo = SessionRepository(storage: .inMemory()), client = Client()
+            let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+            let enabled = await enable(service); XCTAssertTrue(enabled)
+            let oldSchedule = service.ledger.current?.id
+            let base = DaytimePromptService.requestID, ownedDelivered = base + "." + UUID().uuidString
+            let others: Set<String> = [base + "_other", "dosetap_dose2_alarm", SupplyReminderService.requestID]
+            for id in others.union([base]) {
+                client.requests[id] = UNNotificationRequest(identifier: id, content: UNMutableNotificationContent(), trigger: nil)
+            }
+            client.delivered = others.union([base, ownedDelivered])
+            client.removed = []
+            client.ignoresRemovals = mode == "pending retained"
+            client.ignoresDeliveredRemovals = mode == "delivered retained"
+            if mode == "delivered unavailable" { client.delivered = nil }
+            XCTAssertTrue(repo.clearAllData())
+            let verified = await service.beginDataResetCleanup().value
+            XCTAssertEqual(verified, mode == "success", mode)
+            XCTAssertTrue(others.isSubset(of: Set(client.requests.keys)), mode)
+            XCTAssertTrue(others.isDisjoint(with: client.removed), mode)
+            if let delivered = client.delivered { XCTAssertTrue(others.isSubset(of: delivered), mode) }
+            XCTAssertEqual(try repo.daytimePrompts(), DaytimePromptLedger(), mode)
+            XCTAssertNil(service.promptToOpen); XCTAssertNil(service.scheduledThrough); XCTAssertFalse(service.isBusy)
+            if mode == "success" {
+                XCTAssertEqual(Set(client.requests.keys), others); XCTAssertEqual(client.delivered, others)
+                let fresh = await enable(service); XCTAssertTrue(fresh)
+                XCTAssertNotEqual(service.ledger.current?.id, oldSchedule)
+                XCTAssertFalse(client.requests.keys.filter(DaytimePromptService.owns).isEmpty)
+                XCTAssertTrue(others.isSubset(of: Set(client.requests.keys)))
+            }
+        }
+    }
+    func testNewResetDuringSuspendedCleanupGetsItsOwnVerifiedGeneration() async throws {
+        let repo = SessionRepository(storage: .inMemory()), client = Client()
+        let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+        let base = DaytimePromptService.requestID
+        let owned: Set<String> = [base, base + "." + UUID().uuidString]
+        let others: Set<String> = ["unrelated-owner", base + "_other", "dosetap_dose2_alarm", SupplyReminderService.requestID]
+        for id in owned.union(others) {
+            client.requests[id] = UNNotificationRequest(identifier: id, content: UNMutableNotificationContent(), trigger: nil)
+        }
+        client.delivered = owned.union(others)
+        let entered = expectation(description: "First reset pending read suspended")
+        var release: CheckedContinuation<Void, Never>?
+        client.onPendingAsync = {
+            client.onPendingAsync = nil
+            await withCheckedContinuation { release = $0; entered.fulfill() }
+        }
+        defer { release?.resume(); client.onPendingAsync = nil }
+        XCTAssertTrue(repo.clearAllData())
+        let first = service.beginDataResetCleanup()
+        await fulfillment(of: [entered], timeout: 3)
+        let held = try XCTUnwrap(release)
+        XCTAssertTrue(repo.clearAllData()); XCTAssertEqual(repo.dataResetGeneration, 2)
+        let second = service.beginDataResetCleanup()
+        release = nil; held.resume()
+        let obsolete = await first.value, latest = await second.value
+        XCTAssertFalse(obsolete, "The first reset cannot verify a later generation")
+        XCTAssertTrue(latest, "The second reset requires a fresh cleanup pass")
+        XCTAssertEqual(Set(client.requests.keys), others)
+        XCTAssertEqual(client.delivered, others)
+        XCTAssertTrue(others.isDisjoint(with: client.removed))
+        XCTAssertEqual(service.status, "Local reminders cleared")
+        XCTAssertEqual(service.ledger, DaytimePromptLedger()); XCTAssertFalse(service.isBusy)
+    }
+    func testFailedDatabaseResetPreservesDaytimePresentationAndBothQueues() async throws {
+        for point: MedicationStorageFaultPoint in [.begin, .delete, .commit] {
+            let storage = EventStorage.inMemory(), client = Client()
+            let repo = SessionRepository(storage: storage)
+            let service = DaytimePromptService(repository: repo, client: client, now: { self.now })
+            let enabled = await enable(service); XCTAssertTrue(enabled)
+            service.promptToOpen = try XCTUnwrap(service.ledger.prompts.first)
+            client.delivered = Set(client.requests.keys)
+            let ledger = service.ledger, pending = Set(client.requests.keys), delivered = client.delivered
+            let status = service.status, opened = service.promptToOpen?.id, checked = service.lastCheckedAt
+            let next = service.nextReminderAt, through = service.scheduledThrough, removed = client.removed
+            storage.medicationFaultInjector = { candidate in
+                candidate == point ? .init(code: .io, sqliteCode: SQLITE_IOERR, detail: "Synthetic reset failure") : nil
+            }
+            let committed = repo.clearAllData()
+            if committed { _ = await service.beginDataResetCleanup().value }
+            XCTAssertFalse(committed); XCTAssertEqual(repo.dataResetGeneration, 0)
+            XCTAssertEqual(try repo.daytimePrompts(), ledger); XCTAssertEqual(service.ledger, ledger)
+            XCTAssertEqual(Set(client.requests.keys), pending); XCTAssertEqual(client.delivered, delivered)
+            XCTAssertEqual(client.removed, removed); XCTAssertEqual(service.status, status)
+            XCTAssertEqual(service.promptToOpen?.id, opened); XCTAssertEqual(service.lastCheckedAt, checked)
+            XCTAssertEqual(service.nextReminderAt, next); XCTAssertEqual(service.scheduledThrough, through)
+            storage.medicationFaultInjector = nil
+        }
+    }
     func testRandomizedWakeQueuesStableWindowsAndManualCheckInCancelsOnlyCurrentWindow() async throws {
         var clock = now
         let repo = SessionRepository(storage: .inMemory(), clock: { clock }), client = Client()
