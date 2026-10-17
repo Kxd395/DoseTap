@@ -260,6 +260,8 @@ struct MorningCheckInMorningFunctioningSection: View {
             MorningCheckInSectionCard(title: "Mental Clarity", icon: "lightbulb.max.fill") {
                 MorningCheckInScoreSlider(
                     value: $viewModel.mentalClarity,
+                    questionLabel: "Mental clarity",
+                    accessibilityID: "morning-mental-clarity",
                     range: 1...5,
                     accentColor: .yellow,
                     lowLabel: "Foggy",
@@ -317,6 +319,8 @@ struct MorningCheckInMorningFunctioningSection: View {
             MorningCheckInSectionCard(title: "Readiness For The Day", icon: "figure.walk") {
                 MorningCheckInScoreSlider(
                     value: $viewModel.readinessForDay,
+                    questionLabel: "Readiness for the day",
+                    accessibilityID: "morning-readiness-for-day",
                     range: 1...5,
                     accentColor: .green,
                     lowLabel: "Barely",

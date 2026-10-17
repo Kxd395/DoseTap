@@ -5,6 +5,10 @@ Last verified: 2026-09-30
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
 
+Morning Check-In keeps one Complete Check-In action in the bottom safe area while
+answers scroll. History retains Review History Answers and its separate explicit
+confirmation. The keyboard must not cover the action; Close/Cancel never submits.
+
 On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Optional bottle-opening recording remains available in Pre-Sleep Check. Tonight's Bottle & supply card exposes amount and unopened-stock status plus direct quantity setup/review; it does not record an opening or dose merely by being opened. All five tabs share a native toolbar with theme at the leading edge and current-page capture at the trailing edge. Timeline exposes capture in both Live and Review, even without records. Its separate review-summary capture stays within Review content. Global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
 
 Take Dose 1 presents a native review sheet with occurrence, reminder presets and

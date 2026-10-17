@@ -233,6 +233,7 @@
 		TLR003 /* TimelineReviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = TLR103 /* TimelineReviewSupport.swift */; };
 		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
 		DYPU001 /* DaytimePromptUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DYPU101 /* DaytimePromptUITests.swift */; };
+		QNAU001 /* QuestionnaireAccessibilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = QNAU101 /* QuestionnaireAccessibilityUITests.swift */; };
 		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
@@ -529,6 +530,7 @@
 		TLR103 /* TimelineReviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewSupport.swift; sourceTree = "<group>"; };
 		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
 		DYPU101 /* DaytimePromptUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimePromptUITests.swift; sourceTree = "<group>"; };
+		QNAU101 /* QuestionnaireAccessibilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionnaireAccessibilityUITests.swift; sourceTree = "<group>"; };
 		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
@@ -984,6 +986,7 @@
 				UI_DP01F /* DosePatternDashboardUITests.swift */,
 				UI_F01 /* DoseTapUITests.swift */,
 				DYPU101 /* DaytimePromptUITests.swift */,
+				QNAU101 /* QuestionnaireAccessibilityUITests.swift */,
 				CTX003F /* ContextMorningOutcomesUITests.swift */,
 				NAP007F /* SleepNapsUITests.swift */,
 				PHRT001 /* PhysicianReviewUITests.swift */,
@@ -1440,6 +1443,7 @@
 				80D996632F5CFA280092DB29 /* Formatters.swift in Sources */,
 				UI_B01 /* DoseTapUITests.swift in Sources */,
 				DYPU001 /* DaytimePromptUITests.swift in Sources */,
+				QNAU001 /* QuestionnaireAccessibilityUITests.swift in Sources */,
 				CTX003B /* ContextMorningOutcomesUITests.swift in Sources */,
 				NAP007B /* SleepNapsUITests.swift in Sources */,
 				PHRT1001 /* PhysicianReviewUITests.swift in Sources */,
@@ -1471,7 +1475,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 108;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1514,7 +1518,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 108;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1789,7 +1793,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 108;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1837,7 +1841,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 107;
+				CURRENT_PROJECT_VERSION = 108;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;

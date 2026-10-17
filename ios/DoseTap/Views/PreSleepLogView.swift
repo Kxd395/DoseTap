@@ -14,6 +14,7 @@ import SwiftUI
 struct PreSleepLogView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @State private var currentCard = 0
     @State private var answers: PreSleepLogAnswers
     @State private var showMoreDetails = false
@@ -27,6 +28,7 @@ struct PreSleepLogView: View {
     @State private var overrideWake = Date()
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
+    @ObservedObject private var settings = UserSettingsManager.shared
     
     let existingLog: StoredPreSleepLog?
     let historyNight: String?
@@ -38,6 +40,10 @@ struct PreSleepLogView: View {
     private static let rememberLastSettingsKey = "preSleepLog.rememberLastSettings"
     static let maxDoseAmountMg = 20_000
     static let nightlyDoseWarningThresholdMg = 9_000
+
+    private var pageAnimation: Animation? {
+        settings.reducedMotion || systemReduceMotion ? nil : .easeInOut(duration: 0.3)
+    }
     
     init(
         existingLog: StoredPreSleepLog? = nil,
@@ -109,14 +115,14 @@ struct PreSleepLogView: View {
                     .tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut(duration: 0.3), value: currentCard)
+                .animation(pageAnimation, value: currentCard)
                 
                 // Navigation buttons
                 HStack(spacing: 16) {
                     // Back button (hidden on first card)
                     if currentCard > 0 {
                         Button {
-                            withAnimation { currentCard -= 1 }
+                            withAnimation(pageAnimation) { currentCard -= 1 }
                         } label: {
                             HStack {
                                 Image(systemName: "chevron.left")
@@ -126,6 +132,7 @@ struct PreSleepLogView: View {
                             .foregroundColor(.secondary)
                         }
                         .accessibilityLabel("Back")
+                        .accessibilityIdentifier("pre-sleep-back")
                     } else {
                         Spacer()
                     }
@@ -135,7 +142,7 @@ struct PreSleepLogView: View {
                     // Next/Done button
                     if currentCard < totalCards - 1 {
                         Button {
-                            withAnimation { currentCard += 1 }
+                            withAnimation(pageAnimation) { currentCard += 1 }
                         } label: {
                             HStack {
                                 Text("Next")
@@ -148,6 +155,7 @@ struct PreSleepLogView: View {
                             .background(Color.blue)
                             .cornerRadius(12)
                         }
+                        .accessibilityIdentifier("pre-sleep-next")
                     } else {
                         Button {
                             saveAndComplete()
@@ -307,7 +315,7 @@ struct PreSleepLogView: View {
     }
 
     private func toggleRememberLastSettings() {
-        withAnimation {
+        withAnimation(pageAnimation) {
             rememberLastSettings.toggle()
         }
         UserDefaults.standard.set(rememberLastSettings, forKey: Self.rememberLastSettingsKey)

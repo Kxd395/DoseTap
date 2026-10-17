@@ -3,7 +3,7 @@
 Status: Current behavior authority
 Last verified: 2026-10-10
 SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (107)
+App version defined in this revision's Xcode project: 0.4.19 (108)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -19,6 +19,17 @@ keeps the dose and exposes retry. A separately saved usual choice may be No alar
 global notifications and medication timing windows do not change. Restart and
 History correction must not automatically recreate opted-out reminders. Explicit
 alarm changes may re-enable them for the still-active dose.
+
+## Questionnaire accessibility and completion (DOSETAP-81)
+
+Shared morning/bedtime choices expose selected state to assistive technology and
+show a non-color selection indicator. Morning driving-confidence and daytime-
+sleepiness sliders identify their question and current score without changing
+their existing scales or self-report meaning. Bedtime page changes honor either
+the app or system Reduce Motion preference while retaining the same answers.
+Morning completion remains reachable below the scrolling form and above the
+keyboard. One submission owner retains save failures, retry, reminder warnings
+and explicit History confirmation; closing alone still does not save a draft.
 
 ## Daytime check-in access (DOSETAP-58)
 

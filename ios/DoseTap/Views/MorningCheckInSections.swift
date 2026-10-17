@@ -52,19 +52,19 @@ struct MorningCheckInSubmitSection: View {
     @ObservedObject var viewModel: MorningCheckInViewModel
     let dismissAction: () -> Void
     let onComplete: () -> Void
+    var statusMaximumHeight: CGFloat? = nil
     @State private var showReminderWarning = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let submissionErrorMessage = viewModel.submissionErrorMessage {
-                Label(submissionErrorMessage, systemImage: "externaldrive.badge.exclamationmark")
-                    .font(.callout)
-                    .foregroundColor(.red)
-                    .accessibilityIdentifier("morning-check-in-storage-error")
-            }
-            if let warning = viewModel.reminderCancellationWarning {
-                Label(warning, systemImage: "bell.badge")
-                    .font(.callout).foregroundStyle(.orange)
+            if viewModel.submissionErrorMessage != nil || viewModel.reminderCancellationWarning != nil {
+                if let statusMaximumHeight {
+                    ScrollView { submissionStatus }
+                        .frame(maxHeight: statusMaximumHeight)
+                        .accessibilityIdentifier("morning-check-in-status")
+                } else {
+                    submissionStatus
+                }
             }
 
             Button {
@@ -95,6 +95,8 @@ struct MorningCheckInSubmitSection: View {
                 .cornerRadius(16)
             }
             .disabled(viewModel.isSubmitting)
+            .accessibilityIdentifier("morning-check-in-submit")
+            .layoutPriority(1)
         }
         .padding(.top, 8)
         .alert("Check-in saved; check dose reminder", isPresented: $showReminderWarning) {
@@ -102,6 +104,24 @@ struct MorningCheckInSubmitSection: View {
         } message: {
             Text(viewModel.reminderCancellationWarning ?? "Check DoseTap's alarm status in Settings.")
         }
+    }
+
+    private var submissionStatus: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let submissionErrorMessage = viewModel.submissionErrorMessage {
+                Label(submissionErrorMessage, systemImage: "externaldrive.badge.exclamationmark")
+                    .font(.callout)
+                    .foregroundColor(.red)
+                    .accessibilityIdentifier("morning-check-in-storage-error")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let warning = viewModel.reminderCancellationWarning {
+                Label(warning, systemImage: "bell.badge")
+                    .font(.callout).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -163,9 +183,11 @@ struct MorningCheckInRestedPicker: View {
 
 struct MorningCheckInGrogginessPicker: View {
     @ObservedObject var viewModel: MorningCheckInViewModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 12) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
+                                 count: dynamicTypeSize.isAccessibilitySize ? 1 : GrogginessLevel.allCases.count), spacing: 12) {
             ForEach(GrogginessLevel.allCases, id: \.self) { level in
                 Button {
                     viewModel.grogginess = level
@@ -173,15 +195,21 @@ struct MorningCheckInGrogginessPicker: View {
                     VStack(spacing: 4) {
                         Image(systemName: level.icon)
                             .font(.title2)
+                            .accessibilityHidden(true)
                         Text(level.rawValue)
                             .font(.caption2)
+                        QuestionnaireSelectionMark(isSelected: viewModel.grogginess == level)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                     .background(viewModel.grogginess == level ? Color.orange.opacity(0.2) : Color.clear)
-                    .foregroundColor(viewModel.grogginess == level ? .orange : .secondary)
+                    .foregroundColor(viewModel.grogginess == level ? .primary : .secondary)
                     .cornerRadius(8)
                 }
+                .accessibilityLabel(Text("Grogginess: \(level.rawValue)"))
+                .accessibilityValue(viewModel.grogginess == level ? "Selected" : "Not selected")
+                .accessibilityAddTraits(viewModel.grogginess == level ? .isSelected : [])
+                .accessibilityIdentifier("morning-grogginess-\(level.rawValue)")
             }
         }
     }
@@ -215,6 +243,8 @@ struct MorningCheckInThroatPicker: View {
 
 struct MorningCheckInScoreSlider: View {
     @Binding var value: Int
+    let questionLabel: LocalizedStringKey
+    let accessibilityID: String
     let range: ClosedRange<Int>
     let accentColor: Color
     let lowLabel: String
@@ -222,6 +252,9 @@ struct MorningCheckInScoreSlider: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            Text(questionLabel)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
             HStack {
                 Text(lowLabel)
                     .font(.caption)
@@ -243,6 +276,9 @@ struct MorningCheckInScoreSlider: View {
                 step: 1
             )
             .tint(accentColor)
+            .accessibilityLabel(Text(questionLabel))
+            .accessibilityValue(Text("\(value) out of \(range.upperBound)"))
+            .accessibilityIdentifier(accessibilityID)
         }
     }
 }

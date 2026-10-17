@@ -75,14 +75,21 @@ public struct MorningCheckInView: View {
                     MorningCheckInNarcolepsySection(viewModel: viewModel)
                     MorningCheckInNotesSection(viewModel: viewModel)
                     if !viewModel.isHistory { MorningCheckInRememberSettingsSection(viewModel: viewModel) }
-                    MorningCheckInSubmitSection(
-                        viewModel: viewModel,
-                        dismissAction: { dismiss() },
-                        onComplete: onComplete
-                    )
                 }
                 .padding()
                 .frame(width: geometry.size.width)
+            }
+            .accessibilityIdentifier("morning-check-in-scroll")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                MorningCheckInSubmitSection(
+                    viewModel: viewModel,
+                    dismissAction: { dismiss() },
+                    onComplete: onComplete,
+                    statusMaximumHeight: geometry.size.height / 4
+                )
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .background(.bar)
             }
             }
             .background(Color(.systemGroupedBackground))
