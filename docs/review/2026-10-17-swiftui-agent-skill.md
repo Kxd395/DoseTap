@@ -1,6 +1,6 @@
 # Repository-local SwiftUI Pro installation
 
-Status: Local installation validated; Plane registration and closeout blocked by connection refusal.
+Status: Local installation validated; the initial Plane outage was reconciled under DOSETAP-82 after the owner restored service.
 Date: 2026-10-17
 
 ## Scope and source
@@ -28,3 +28,9 @@ Local command logs are under ignored `.build/swiftui-skill-review/`. Automatic c
 An equivalent-item search through the existing Plane helper failed before implementation with `ECONNREFUSED` at `plane.localhost:3301`. No work item was identified or created, and no tracker state or workpad update was applied. Local installation is preserved, but the task is not fully closed under the repository's Plane definition of done.
 
 When Plane is reachable, search for the existing equivalent item, create one only if absent, and use its exact `DOSETAP-N` identifier for preflight, start, structured closeout and independent verify. Do not attach this tooling task to an unrelated application issue or infer a successful tracker update from these files.
+
+## Plane recovery reconciliation — 2026-10-17
+
+After the owner restored local Plane, an equivalent-item search found no existing tooling task. DOSETAP-82 was created, read with `preflight`, and moved from Todo to In Progress with verified readback. This is retrospective tracking; no claim is made that the original installation had a successful preflight. The repository-local skill has now been explicitly loaded and applied to the questionnaire review and fixes in DOSETAP-81. Global installation and automatic discovery in other worktrees remain outside this task.
+
+The 17-file SHA-256 manifest was rechecked after recovery. Fresh SwiftPM validation passed 1,203 XCTest and 43 Swift Testing cases; the Plane workflow check passed 15 tests and 80 assertions. The structured DOSETAP-82 closeout records repository-local installation acceptance independently of the application and device gates in DOSETAP-81.
