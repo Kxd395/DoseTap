@@ -1,6 +1,6 @@
 # SwiftUI Pro application review
 
-Status: Source review recorded; application fixes and live UI acceptance are not performed. Plane registration is blocked.
+Status: Historical source review. Findings are remediated in build 108; current validation, tracker recovery and remaining acceptance gates are recorded in the [implementation evidence](2026-10-17-questionnaire-accessibility.md).
 Date: 2026-10-17
 Reviewed source: `0150bf05e757b1943d166a37e626d42fc11974d9`, `feat/sleep-chart-inspection`.
 
