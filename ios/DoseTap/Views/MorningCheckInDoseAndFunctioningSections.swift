@@ -265,7 +265,8 @@ struct MorningCheckInMorningFunctioningSection: View {
                     range: 1...5,
                     accentColor: .yellow,
                     lowLabel: "Foggy",
-                    highLabel: "Clear"
+                    highLabel: "Clear",
+                    showsQuestionLabel: false
                 )
             }
 
@@ -324,7 +325,8 @@ struct MorningCheckInMorningFunctioningSection: View {
                     range: 1...5,
                     accentColor: .green,
                     lowLabel: "Barely",
-                    highLabel: "Ready"
+                    highLabel: "Ready",
+                    showsQuestionLabel: false
                 )
             }
 

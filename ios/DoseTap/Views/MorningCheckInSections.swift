@@ -249,12 +249,15 @@ struct MorningCheckInScoreSlider: View {
     let accentColor: Color
     let lowLabel: String
     let highLabel: String
+    var showsQuestionLabel = true
 
     var body: some View {
         VStack(spacing: 8) {
-            Text(questionLabel)
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if showsQuestionLabel {
+                Text(questionLabel)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             HStack {
                 Text(lowLabel)
                     .font(.caption)
