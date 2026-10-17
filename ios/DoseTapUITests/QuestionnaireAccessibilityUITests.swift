@@ -58,9 +58,10 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
             let status = app.scrollViews["morning-check-in-status"]
             XCTAssertTrue(status.isHittable)
             status.swipeUp()
-            capture("Full failure message scrolls above completion")
+            capture("Failure status scrolls above completion")
             XCTAssertTrue(submit.isEnabled)
-            try reveal(notes)
+            // Reading retained draft state does not require moving the focused field
+            // into the smaller viewport occupied by the keyboard and failure status.
             XCTAssertEqual(notes.value as? String, "Questionnaire accessibility check")
             return
         }
