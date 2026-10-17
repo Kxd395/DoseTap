@@ -42,7 +42,8 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
         capture("Morning initial completion control")
         if !failSave { try verifyMorningControls() }
         let notes = app.descendants(matching: .any).matching(identifier: "morning-check-in-notes").firstMatch
-        try reveal(notes); notes.tap(); notes.typeText("Questionnaire accessibility check")
+        try reveal(notes, scrollLimit: largeText ? 50 : 35)
+        notes.tap(); notes.typeText("Questionnaire accessibility check")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(submit.isHittable, "Completion must remain reachable above the keyboard")
         XCTAssertLessThanOrEqual(submit.frame.maxY, app.keyboards.firstMatch.frame.minY + 1)
@@ -147,8 +148,8 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Card 1 of 3"].waitForExistence(timeout: 5))
     }
 
-    private func reveal(_ element: XCUIElement, upward: Bool = false) throws {
-        for _ in 0..<35 {
+    private func reveal(_ element: XCUIElement, upward: Bool = false, scrollLimit: Int = 35) throws {
+        for attempt in 0...scrollLimit {
             let morningScroll = app.scrollViews["morning-check-in-scroll"]
             let bedtimeScroll = app.scrollViews["pre-sleep-timing-scroll"]
             let scroll = morningScroll.exists ? morningScroll : (bedtimeScroll.exists ? bedtimeScroll : app.scrollViews.firstMatch)
@@ -162,7 +163,7 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
             // Hittable can be true while a control's activation point is behind the footer.
             if element.exists && element.isHittable && (element.frame.height > height - 16 ||
                 (element.frame.minY >= top + 8 && element.frame.maxY <= bottom - 8)) { return }
-            guard height > 60 else { break }
+            guard height > 60, attempt < scrollLimit else { break }
             let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < top + height / 2 : upward
             let x = viewport.midX - app.frame.minX
             let startY = top + height * (towardTop ? 0.25 : 0.8) - app.frame.minY
@@ -172,7 +173,7 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
                 thenDragTo: origin.withOffset(CGVector(dx: x, dy: endY)))
         }
         _ = try XCTUnwrap(Optional<XCUIElement>.none,
-                          "Could not fully reveal \(element.identifier) within 35 scrolls")
+                          "Could not fully reveal \(element.identifier) within \(scrollLimit) scrolls")
     }
 
     private func assertSelected(_ element: XCUIElement, _ selected: Bool) {
