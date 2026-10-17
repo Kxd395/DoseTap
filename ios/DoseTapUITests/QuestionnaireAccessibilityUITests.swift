@@ -40,30 +40,7 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
         XCTAssertTrue(submit.waitForExistence(timeout: 5))
         XCTAssertTrue(submit.isHittable, "Completion must be reachable before scrolling")
         capture("Morning initial completion control")
-        let mild = app.buttons["morning-grogginess-Mild"]
-        let severe = app.buttons["morning-grogginess-Severe"]
-        try reveal(mild); mild.tap(); assertSelected(mild, true)
-        try reveal(severe); severe.tap(); assertSelected(severe, true)
-        try reveal(mild, upward: true); assertSelected(mild, false)
-        for (identifier, label, initial) in [("morning-mental-clarity", "Mental clarity", 5),
-            ("morning-readiness-for-day", "Readiness for the day", 3),
-            ("morning-driving-confidence", "Driving confidence", 3),
-            ("morning-daytime-sleepiness", "Daytime sleepiness", 3)] {
-            if identifier == "morning-driving-confidence" {
-                let work = app.switches["Add work / safety context"].firstMatch
-                try reveal(work)
-                if work.value as? String != "1" { work.tap() }
-            }
-            let slider = app.sliders[identifier]
-            try reveal(slider)
-            XCTAssertEqual(slider.label, label)
-            XCTAssertEqual(slider.value as? String, "\(initial) out of 5")
-            slider.adjust(toNormalizedSliderPosition: 0)
-            assertValue(slider, "1 out of 5")
-            slider.adjust(toNormalizedSliderPosition: 1)
-            assertValue(slider, "5 out of 5")
-        }
-        capture("Distinct accessible morning sliders")
+        if !failSave { try verifyMorningControls() }
         let notes = app.descendants(matching: .any).matching(identifier: "morning-check-in-notes").firstMatch
         try reveal(notes); notes.tap(); notes.typeText("Questionnaire accessibility check")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
@@ -88,6 +65,34 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
         }
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.navigationBars["Morning Check-In"].exists)
+    }
+
+    private func verifyMorningControls() throws {
+        let mild = app.buttons["morning-grogginess-Mild"]
+        let severe = app.buttons["morning-grogginess-Severe"]
+        try reveal(mild); mild.tap(); assertSelected(mild, true)
+        try reveal(severe); severe.tap(); assertSelected(severe, true)
+        try reveal(mild, upward: true); assertSelected(mild, false)
+        for (identifier, label, initial) in [("morning-mental-clarity", "Mental clarity", 5),
+            ("morning-readiness-for-day", "Readiness for the day", 3),
+            ("morning-driving-confidence", "Driving confidence", 3),
+            ("morning-daytime-sleepiness", "Daytime sleepiness", 3)] {
+            if identifier == "morning-driving-confidence" {
+                let work = app.switches["Add work / safety context"].firstMatch
+                try reveal(work)
+                if work.value as? String != "1" { work.tap() }
+                assertValue(work, "1")
+            }
+            let slider = app.sliders[identifier]
+            try reveal(slider)
+            XCTAssertEqual(slider.label, label)
+            XCTAssertEqual(slider.value as? String, "\(initial) out of 5")
+            slider.adjust(toNormalizedSliderPosition: 0)
+            assertValue(slider, "1 out of 5")
+            slider.adjust(toNormalizedSliderPosition: 1)
+            assertValue(slider, "5 out of 5")
+        }
+        capture("Distinct accessible morning sliders")
     }
 
     private func bedtime(largeText: Bool) throws {
@@ -149,11 +154,13 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
             let scroll = morningScroll.exists ? morningScroll : (bedtimeScroll.exists ? bedtimeScroll : app.scrollViews.firstMatch)
             let viewport = (scroll.exists ? scroll.frame : app.frame).intersection(app.frame)
             let footer = app.buttons["morning-check-in-submit"]
-            let bottom = footer.exists ? min(viewport.maxY, footer.frame.minY) : viewport.maxY
+            var bottom = footer.exists ? min(viewport.maxY, footer.frame.minY) : viewport.maxY
+            let status = app.scrollViews["morning-check-in-status"]
+            if status.exists { bottom = min(bottom, status.frame.minY) }
             let top = max(viewport.minY, app.frame.minY + 100)
             let height = bottom - top
-            // A partially clipped slider can be hittable while its thumb cannot be dragged.
-            if element.exists && element.isHittable && (element.elementType != .slider ||
+            // Hittable can be true while a control's activation point is behind the footer.
+            if element.exists && element.isHittable && (element.frame.height > height - 16 ||
                 (element.frame.minY >= top + 8 && element.frame.maxY <= bottom - 8)) { return }
             guard height > 60 else { break }
             let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < top + height / 2 : upward
@@ -164,8 +171,8 @@ final class QuestionnaireAccessibilityUITests: XCTestCase {
             origin.withOffset(CGVector(dx: x, dy: startY)).press(forDuration: 0.05,
                 thenDragTo: origin.withOffset(CGVector(dx: x, dy: endY)))
         }
-        _ = try XCTUnwrap(element.exists && element.isHittable ? element : nil,
-                          "Could not reveal \(element.identifier) within 35 scrolls")
+        _ = try XCTUnwrap(Optional<XCUIElement>.none,
+                          "Could not fully reveal \(element.identifier) within 35 scrolls")
     }
 
     private func assertSelected(_ element: XCUIElement, _ selected: Bool) {
