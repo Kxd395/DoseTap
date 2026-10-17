@@ -14,6 +14,16 @@ Before changing behavior or architecture, read:
 
 Preserve the existing dirty worktree. Never reset, stash, overwrite, commit, or reclassify unrelated user changes.
 
+## SwiftUI skill
+
+For SwiftUI implementation or review, read the repo-local [SwiftUI Pro skill](.agents/skills/swiftui-pro/SKILL.md) and load only the references relevant to the task. Read its [DoseTap integration and provenance notes](.agents/skills/swiftui-pro/UPSTREAM.md) before applying recommendations. Users can explicitly invoke it with `$swiftui-pro`.
+
+- The skill supplements this file, the constitution, SSOT and required validation; those project requirements take precedence over generic skill advice.
+- Preserve deployment targets, Swift language settings, existing architecture and the `Views → SessionRepository → EventStorage → SQLite` boundary. Keep `DoseCore` platform-free and retain injected time sources; neither `Date.now` nor `Date()` replaces injected time in core logic.
+- Verify newer APIs against the installed SDK/compiler and supported runtime before adopting them. A runtime availability check cannot make a declaration compile with an older SDK.
+- Keep presentation localization in its appropriate layer; do not incidentally alter persisted diary values or questionnaire wording.
+- Installing or using this skill does not authorize unrelated modernization, dependency additions, persistence migrations or changes to the state/concurrency model. Preserve required UI, simulator and physical acceptance gates.
+
 ## Plane is the work-status authority
 
 The local Plane project defined in `.agents/plane-workflow.yml` owns priority, assignment, work state, and completion. Markdown plans are evidence and navigation, not a substitute tracker.

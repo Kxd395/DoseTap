@@ -34,6 +34,8 @@ A near-term DoseTap feature is planned to bring WHOOP sleep and recovery context
 
 ## Quick Start
 
+Agent-assisted SwiftUI work uses the repo-local [SwiftUI Pro skill](.agents/skills/swiftui-pro/SKILL.md). Start with `$swiftui-pro` followed by the task, for example: `$swiftui-pro Review the daytime check-in for accessibility and unnecessary steps.` See its [DoseTap integration notes](.agents/skills/swiftui-pro/UPSTREAM.md) for compatibility and update guidance.
+
 ```bash
 # Build core logic + run tests
 swift build
