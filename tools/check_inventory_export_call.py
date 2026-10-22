@@ -15,6 +15,7 @@ CALL = re.compile(
     r"^\s*(?:(?:let|var)\s+\w+\s*=\s*|return\s+)?"
     r"try\s+repo\.inventoryExportRecords\s*\(", re.MULTILINE
 )
+REGEX_START = re.compile(r"(\#+)/")
 STRING_START = re.compile(r'(\#*)("""|")')
 
 
@@ -38,11 +39,31 @@ def comment_end(source, index):
     return index
 
 
+def regex_end(source, match):
+    """Skip unambiguous extended regex literals (SE-0354), not slash operators."""
+    terminator = "/" + match.group(1)
+    index = match.end()
+    multiline = re.match(r"[ \t]*\r?\n", source[index:]) is not None
+    while index < len(source):
+        if source[index] == "\\":
+            index += 2
+        elif source.startswith(terminator, index):
+            line_start = source.rfind("\n", 0, index) + 1
+            if not multiline or not source[line_start:index].strip():
+                return index + len(terminator)
+            index += len(terminator)
+        else:
+            index += 1
+    raise ValueError("unterminated extended regex literal")
+
+
 def interpolation_end(source, index):
     depth = 1
     while index < len(source):
         if source.startswith(("//", "/*"), index):
             index = comment_end(source, index)
+        elif (match := REGEX_START.match(source, index)) is not None:
+            index = regex_end(source, match)
         elif (match := STRING_START.match(source, index)) is not None:
             index = string_end(source, match)
         else:
@@ -81,6 +102,8 @@ def code_only(source):
         start = index
         if source.startswith(("//", "/*"), index):
             index = comment_end(source, index)
+        elif (match := REGEX_START.match(source, index)) is not None:
+            index = regex_end(source, match)
         elif (match := STRING_START.match(source, index)) is not None:
             index = string_end(source, match)
         else:

@@ -89,8 +89,25 @@ class InventoryGuardTests(unittest.TestCase):
                 result = self.run_guard()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_regex_literal_cannot_satisfy_required_call(self):
+        for hashes in ["#", "##", "###"]:
+            with self.subTest(hashes=hashes):
+                self.write(EXPORT, f"let ignored = {hashes}/\n"
+                           "try repo.inventoryExportRecords(.+)\n"
+                           f"/{hashes}\nlet rows = []\n")
+                self.assert_rejected("must use the throwing repository inventoryExportRecords")
+
+    def test_real_call_after_regex_literal_passes(self):
+        for literal in ["#/abc/#", "##/slash /# remains literal/##",
+                        r"#/escaped \/# remains literal/#",
+                        "#/\n[/*] a quote \"\n/#"]:
+            with self.subTest(literal=literal):
+                self.write(EXPORT, "let pattern = " + literal + "\n" + self.export)
+                result = self.run_guard()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_unterminated_comment_or_string_fails_closed(self):
-        for prefix in ["/*\n", 'let text = """\n']:
+        for prefix in ["/*\n", 'let text = """\n', "let pattern = #/\n"]:
             with self.subTest(prefix=prefix):
                 self.write(EXPORT, prefix + self.export)
                 self.assert_rejected("must use the throwing repository inventoryExportRecords")
