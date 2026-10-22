@@ -105,7 +105,10 @@ The inventory guard recognizes the checked, uncapped repository export reader
 and the raw dashboard snapshot inside EventStorage's read transaction. Its
 isolated rejection fixtures protect against capped export reads, optional or
 forced `try`, unreviewed storage access, leaked table names and derived/legacy
-sources. This textual guard does not analyze surrounding `do`/`catch` or prove
+sources. The required-call check excludes line/block comments (including nested
+blocks) and string literal contents, including raw and multiline strings. String
+interpolation is conservatively excluded with its literal. This lexical check
+does not analyze surrounding `do`/`catch` or prove
 error propagation. The iOS export and dashboard snapshot tests establish runtime
 read-failure propagation, row fidelity and transaction behavior.
 

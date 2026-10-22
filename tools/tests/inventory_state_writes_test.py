@@ -20,6 +20,8 @@ class InventoryGuardTests(unittest.TestCase):
         self.root = pathlib.Path(self.temporary.name)
         (self.root / "tools").mkdir()
         shutil.copyfile(GUARD, self.root / "tools/check_inventory_state_writes.sh")
+        shutil.copyfile(ROOT / "tools/check_inventory_export_call.py",
+                        self.root / "tools/check_inventory_export_call.py")
         self.export = "let rows = try repo.inventoryExportRecords().map { row in row }\n"
         self.write(EXPORT, self.export)
         self.write("ios/DoseTap/Storage/SessionRepositoryQueries.swift",
@@ -60,6 +62,38 @@ class InventoryGuardTests(unittest.TestCase):
     def test_missing_checked_read_is_rejected(self):
         self.write(EXPORT, "// try repo.inventoryExportRecords()\nlet rows = []\n")
         self.assert_rejected("must use the throwing repository inventoryExportRecords")
+
+    def test_commented_or_literal_read_cannot_satisfy_required_call(self):
+        examples = [
+            "/*\n" + self.export + "*/\n",
+            "/* outer\n/* nested */\n" + self.export + "*/\n",
+            'let example = """\n' + self.export + '"""\n',
+            'let example = #"""\n' + self.export + '"""#\n',
+            'let example = """\n\\(format("label"))\n' + self.export + '"""\n',
+        ]
+        for example in examples:
+            with self.subTest(example=example):
+                self.write(EXPORT, example + "let rows = []\n")
+                self.assert_rejected("must use the throwing repository inventoryExportRecords")
+
+    def test_real_call_after_comments_and_strings_passes(self):
+        examples = [
+            "/* outer /* nested */ still comment */\n",
+            'let url = "https://example.invalid/*not-a-comment*/"\n',
+            'let example = #"quote: \" /* still a raw string */"#\n',
+            'let example = """\n/* literal text */\n"""\n',
+        ]
+        for example in examples:
+            with self.subTest(example=example):
+                self.write(EXPORT, example + self.export)
+                result = self.run_guard()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_unterminated_comment_or_string_fails_closed(self):
+        for prefix in ["/*\n", 'let text = """\n']:
+            with self.subTest(prefix=prefix):
+                self.write(EXPORT, prefix + self.export)
+                self.assert_rejected("must use the throwing repository inventoryExportRecords")
 
     def test_optional_or_forced_try_is_rejected(self):
         for operator in ["try?", "try!"]:

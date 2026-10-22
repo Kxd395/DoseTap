@@ -55,7 +55,7 @@ STUDIO_EXPORT="ios/DoseTap/SettingsStudioExport.swift"
 STATEMENT_PREFIX='^[[:space:]]*((let|var)[[:space:]]+[[:alnum:]_]+[[:space:]]*=[[:space:]]*|return[[:space:]]+)?try[[:space:]]+'
 REPOSITORY_EXPORT="${STATEMENT_PREFIX}"'repo\.inventoryExportRecords[[:space:]]*\('
 STORAGE_EXPORT="${STATEMENT_PREFIX}"'storage\.inventoryExportRecords[[:space:]]*\('
-if ! rg -q "$REPOSITORY_EXPORT" "$STUDIO_EXPORT"; then
+if ! python3 tools/check_inventory_export_call.py "$STUDIO_EXPORT"; then
   fail "Studio export must use the throwing repository inventoryExportRecords reader"
 fi
 
