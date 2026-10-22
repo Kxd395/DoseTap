@@ -41,6 +41,7 @@ TABLE_LITERAL_HITS="$(
   scan_app_swift 'inventory_snapshots' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Schema.swift:' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Exports.swift:' \
+    | grep -v '^ios/DoseTap/Storage/EventStorage+DashboardSnapshot.swift:' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Maintenance.swift:' || true
 )"
 if [[ -n "$TABLE_LITERAL_HITS" ]]; then
@@ -49,8 +50,10 @@ fi
 
 STUDIO_EXPORT="ios/DoseTap/SettingsStudioExport.swift"
 
-if ! rg -q 'repo.listInventorySnapshots' "$STUDIO_EXPORT"; then
-  fail "Studio export must read inventory through SessionRepository.listInventorySnapshots"
+# Exports require the uncapped, throwing reader. The compatibility list is capped
+# and can return an empty array on failure, so it cannot establish export truth.
+if ! python3 tools/check_inventory_export_call.py ios/DoseTap; then
+  fail "Studio export must use the throwing repository inventoryExportRecords reader through reviewed owners"
 fi
 
 EXPORT_DERIVED_SOURCE_HITS="$(
@@ -71,7 +74,8 @@ fi
 
 if [[ "$violations" -ne 0 ]]; then
   echo ""
-  echo "Inventory must flow: MedicationSettingsView -> SessionRepository -> EventStorage.inventory_snapshots -> SettingsStudioExport."
+  echo "Inventory reads/writes must remain behind SessionRepository and approved EventStorage owners."
+  echo "Studio inventory export must use the uncapped throwing repository reader."
   echo "Do not derive current inventory from dose logs, setup wizard bottle capacity, or legacy Core Data."
   exit 1
 fi
