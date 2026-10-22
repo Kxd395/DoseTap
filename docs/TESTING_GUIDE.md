@@ -92,12 +92,22 @@ bash tools/doc_lint.sh
 bash tools/ssot_check.sh
 bash tools/check_architecture_boundaries.sh
 bash tools/check_dose_state_writes.sh
+bash tools/check_inventory_state_writes.sh
+python3 tools/tests/inventory_state_writes_test.py
 bash tools/check_legacy_safety_paths.sh
 bash tools/check_companion_targets.sh
 bash tools/check_repository_hygiene.sh
 ```
 
 Run `bash tools/release_preflight.sh` for a release candidate. The tagged form has stricter pin and version requirements.
+
+The inventory guard recognizes the checked, uncapped repository export reader
+and the raw dashboard snapshot inside EventStorage's read transaction. Its
+isolated rejection fixtures protect against capped export reads, optional or
+forced `try`, unreviewed storage access, leaked table names and derived/legacy
+sources. This textual guard does not analyze surrounding `do`/`catch` or prove
+error propagation. The iOS export and dashboard snapshot tests establish runtime
+read-failure propagation, row fidelity and transaction behavior.
 
 ## Time and timezone tests
 

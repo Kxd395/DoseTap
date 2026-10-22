@@ -41,6 +41,7 @@ TABLE_LITERAL_HITS="$(
   scan_app_swift 'inventory_snapshots' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Schema.swift:' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Exports.swift:' \
+    | grep -v '^ios/DoseTap/Storage/EventStorage+DashboardSnapshot.swift:' \
     | grep -v '^ios/DoseTap/Storage/EventStorage+Maintenance.swift:' || true
 )"
 if [[ -n "$TABLE_LITERAL_HITS" ]]; then
@@ -49,8 +50,36 @@ fi
 
 STUDIO_EXPORT="ios/DoseTap/SettingsStudioExport.swift"
 
-if ! rg -q 'repo.listInventorySnapshots' "$STUDIO_EXPORT"; then
-  fail "Studio export must read inventory through SessionRepository.listInventorySnapshots"
+# Exports require the uncapped, throwing reader. The compatibility list is capped
+# and can return an empty array on failure, so it cannot establish export truth.
+STATEMENT_PREFIX='^[[:space:]]*((let|var)[[:space:]]+[[:alnum:]_]+[[:space:]]*=[[:space:]]*|return[[:space:]]+)?try[[:space:]]+'
+REPOSITORY_EXPORT="${STATEMENT_PREFIX}"'repo\.inventoryExportRecords[[:space:]]*\('
+STORAGE_EXPORT="${STATEMENT_PREFIX}"'storage\.inventoryExportRecords[[:space:]]*\('
+if ! rg -q "$REPOSITORY_EXPORT" "$STUDIO_EXPORT"; then
+  fail "Studio export must use the throwing repository inventoryExportRecords reader"
+fi
+
+while IFS= read -r hit; do
+  [[ -z "$hit" ]] && continue
+  file="${hit%%:*}"
+  statement="${hit#*:}"
+  statement="${statement#*:}"
+  case "$file" in
+    ios/DoseTap/SettingsStudioExport.swift) expected="$REPOSITORY_EXPORT" ;;
+    ios/DoseTap/Storage/SessionRepositoryQueries.swift) expected="$STORAGE_EXPORT" ;;
+    *)
+      fail "inventory export read outside reviewed repository/export owners" "  $hit"
+      continue
+      ;;
+  esac
+  if ! printf '%s\n' "$statement" | rg -q "$expected"; then
+    fail "unchecked inventory export read; use ordinary try and the reviewed receiver" "  $hit"
+  fi
+done < <(scan_app_swift '\.inventoryExportRecords[[:space:]]*\(')
+
+CAPPED_EXPORT_HITS="$(rg -n '\.listInventorySnapshots[[:space:]]*\(' "$STUDIO_EXPORT" || true)"
+if [[ -n "$CAPPED_EXPORT_HITS" ]]; then
+  fail "Studio export must not use a capped inventory listing" "$CAPPED_EXPORT_HITS"
 fi
 
 EXPORT_DERIVED_SOURCE_HITS="$(
@@ -71,7 +100,8 @@ fi
 
 if [[ "$violations" -ne 0 ]]; then
   echo ""
-  echo "Inventory must flow: MedicationSettingsView -> SessionRepository -> EventStorage.inventory_snapshots -> SettingsStudioExport."
+  echo "Inventory reads/writes must remain behind SessionRepository and approved EventStorage owners."
+  echo "Studio inventory export must use the uncapped throwing repository reader."
   echo "Do not derive current inventory from dose logs, setup wizard bottle capacity, or legacy Core Data."
   exit 1
 fi
