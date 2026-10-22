@@ -75,3 +75,13 @@ The current product version is unchanged; this is source integration, not a
 phone installation or release. The merge includes already-reviewed upstream
 main changes; the hook's documented large-commit option is needed for that
 integration, with all normal build and guard hooks still enabled.
+
+## Hosted guard correction
+
+The first hosted run on `ad6cc19` rejected SettingsActions at 101 lines against
+its existing 100-line ceiling. A local invocation had also failed, but its
+nonzero status was obscured by later commands in the same shell invocation; the
+earlier architecture-pass claim was incorrect. The reset-warning coordinator
+was moved unchanged into `DataResetPresentation.swift` and added to the Xcode
+source list. A full reference scan and fail-fast architecture check now pass.
+The ceiling is unchanged. Final hosted validation must use the correction commit.
