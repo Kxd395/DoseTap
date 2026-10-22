@@ -106,13 +106,17 @@ and the raw dashboard snapshot inside EventStorage's read transaction. Its
 isolated rejection fixtures protect against capped export reads, optional or
 forced `try`, unreviewed storage access, leaked table names and derived/legacy
 sources. Required-call presence and every accessor occurrence use the same
-code-only scan, including multiple statements per line. Method references,
+code-only scan, including multiple statements per line. Every executable
+`listInventorySnapshots` occurrence in Studio is rejected, including captured
+references and comment-separated calls; harmless mentions are ignored. Method references,
 unqualified calls and noncanonical accessor spellings are rejected; only direct
 ordinary-`try` calls and declarations in the two reviewed storage files are
 accepted. This accessor scan excludes line/block comments (including nested
 blocks), extended regex literals (`#/.../#`, including multiline and additional
 hashes), and string literal contents, including raw and multiline strings. String
-interpolation is conservatively excluded with its literal. Interpolation-like
+interpolation is excluded from required-call presence, but guarded inventory
+accessor tokens inside its executable expressions cause an explicit rejection;
+move those reads to reviewed standalone statements. Interpolation-like
 backslash/hash/parenthesis sequences in extended regexes fail with an explicit
 guard-review diagnostic instead of being interpreted as Swift expressions.
 Bare slash syntax inside

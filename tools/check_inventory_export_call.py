@@ -12,6 +12,7 @@ import sys
 
 
 ACCESSOR = re.compile(r"(?<![\w`])`?inventoryExportRecords`?(?![\w`])")
+CAPPED = re.compile(r"(?<![\w`])`?listInventorySnapshots`?(?![\w`])")
 OWNERS = {
     "SettingsStudioExport.swift": "repo",
     "Storage/SessionRepositoryQueries.swift": "storage",
@@ -83,6 +84,8 @@ def interpolation_end(source, index):
         elif (match := STRING_START.match(source, index)) is not None:
             index = string_end(source, match)
         else:
+            if ACCESSOR.match(source, index) or CAPPED.match(source, index):
+                raise ValueError("guarded inventory accessor inside interpolation requires a standalone call")
             if source[index] == "/":
                 # Slash operators and bare regexes need Swift parser context.
                 # Refuse this unsupported syntax rather than count regex tokens.
@@ -144,10 +147,15 @@ def check_sources(app_root):
     required_call = False
     for path in sorted(app_root.rglob("*.swift")):
         source = path.read_text(encoding="utf-8")
-        if "inventoryExportRecords" not in source:
+        if "inventoryExportRecords" not in source and "listInventorySnapshots" not in source:
             continue
         relative = path.relative_to(app_root).as_posix()
         code = code_only(source)
+        if relative == STUDIO:
+            for match in CAPPED.finditer(code):
+                line = code.count("\n", 0, match.start()) + 1
+                print(f"FAIL: Studio export must not use a capped inventory listing: {path}:{line}")
+                violations = True
         calls = approved_calls(code, OWNERS[relative]) if relative in OWNERS else set()
         if relative == STUDIO and calls:
             required_call = True

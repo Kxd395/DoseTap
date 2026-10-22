@@ -204,6 +204,34 @@ class InventoryGuardTests(unittest.TestCase):
         result = self.run_guard()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_executable_interpolation_cannot_hide_guarded_accessors(self):
+        for owner in [EXPORT, "ios/DoseTap/Views/Unexpected.swift"]:
+            for call in ["try? repo.inventoryExportRecords()", "try! repo.inventoryExportRecords()",
+                         "try storage.inventoryExportRecords()", "repo.listInventorySnapshots()"]:
+                for hashes in ["", "#", "##"]:
+                    with self.subTest(owner=owner, call=call, hashes=hashes):
+                        self.write(EXPORT, self.export)
+                        self.write("ios/DoseTap/Views/Unexpected.swift", "")
+                        self.write(owner, (self.export if owner == EXPORT else "") +
+                                   f'let text = {hashes}"\\{hashes}({call})"{hashes}\n')
+                        self.assert_rejected("guarded inventory accessor inside interpolation")
+
+    def test_capped_references_and_comment_separated_calls_are_rejected(self):
+        for expression in ["repo.listInventorySnapshots", "repo.listInventorySnapshots /* note */ (limit: 500)",
+                           "repo.`listInventorySnapshots`(limit: 500)", "listInventorySnapshots(limit: 500)"]:
+            with self.subTest(expression=expression):
+                self.write(EXPORT, self.export + "let other = " + expression + "\n")
+                self.assert_rejected("capped inventory listing")
+
+    def test_inert_capped_accessor_mentions_pass(self):
+        for mention in ['// repo.listInventorySnapshots()\n',
+                        'let note = "repo.listInventorySnapshots() is capped"\n',
+                        'let note = #"repo.listInventorySnapshots()"#\n']:
+            with self.subTest(mention=mention):
+                self.write(EXPORT, self.export + mention)
+                result = self.run_guard()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_optional_or_forced_try_is_rejected(self):
         for operator in ["try?", "try!"]:
             with self.subTest(operator=operator):

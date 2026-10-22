@@ -56,11 +56,6 @@ if ! python3 tools/check_inventory_export_call.py ios/DoseTap; then
   fail "Studio export must use the throwing repository inventoryExportRecords reader through reviewed owners"
 fi
 
-CAPPED_EXPORT_HITS="$(rg -n '\.listInventorySnapshots[[:space:]]*\(' "$STUDIO_EXPORT" || true)"
-if [[ -n "$CAPPED_EXPORT_HITS" ]]; then
-  fail "Studio export must not use a capped inventory listing" "$CAPPED_EXPORT_HITS"
-fi
-
 EXPORT_DERIVED_SOURCE_HITS="$(
   rg -n 'DoseTapUserConfig|dosesPerBottle|bottleMgTotal|LegacyPersistentStore|(^|[^[:alnum:]_])InventorySnapshot([^[:alnum:]_]|$)' "$STUDIO_EXPORT" 2>/dev/null || true
 )"
