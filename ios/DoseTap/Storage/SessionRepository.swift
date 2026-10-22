@@ -64,6 +64,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Emits whenever session data changes (for observers that need explicit signal)
     public let sessionDidChange = PassthroughSubject<Void, Never>()
     var supplyGeneration: UInt = 0
+    private(set) var dataResetGeneration: UInt = 0
     
     // MARK: - Phase Tracking (for diagnostic logging)
     /// Tracks last known phase to detect transitions at edges
@@ -1407,6 +1408,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     @discardableResult
     public func clearAllData() -> Bool {
         guard storage.clearAllData() else { return false }
+        dataResetGeneration &+= 1
         supplyGeneration &+= 1
         notificationScheduler.cancelNotifications(withIdentifiers: [SupplyReminderService.requestID])
         cancelPendingNotifications()

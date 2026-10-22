@@ -8,17 +8,17 @@ struct DashboardRoot: View {
     @ObservedObject var connection: NearbyReportingSession
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var section = "Overview"
-    @State private var days = 180
+    @State private var range: DashboardReportingRange = .sixMonths
     @State private var selectedNight: DashboardReportDoseDay?
     @State private var medicationSearch = ""
     private let sections = ["Overview", "Dose timing", "Apple Health evidence", "Sleep & check-ins", "Wake & sleepiness", "Medications", "Night review", "Report contents", "Connection"]
     private var diaryPoints: [DashboardDiaryPoint] {
-        let dates = Set(model.questionnaires?.selected(count: days, timeZone: .current).map(\.treatmentDate) ?? [])
+        let dates = Set(model.questionnaires?.selected(range: range, timeZone: .current).map(\.treatmentDate) ?? [])
         return model.diary?.points.filter { dates.contains($0.treatmentDate) } ?? []
     }
     private var nights: [DashboardReportDoseDay] {
         guard let report = model.report else { return [] }
-        return DashboardReportStatistics.selected(report.doseDays, count: days,
+        return DashboardReportStatistics.selected(report.doseDays, range: range,
             capturedAt: report.capturedAt, timeZone: .current)
     }
 
@@ -46,13 +46,14 @@ struct DashboardRoot: View {
                         else {
                             if typeSize.isAccessibilitySize { rangePicker.pickerStyle(.menu) }
                             else { rangePicker.pickerStyle(.segmented) }
-                            Text("Treatment-night ranges use the 6 p.m. rollover at report capture in \(TimeZone.current.identifier). Refresh to include later records.")
+                            Text(rangeDescription(capturedAt: report.capturedAt))
                                 .font(.caption).foregroundStyle(.secondary)
+                                .accessibilityIdentifier("dashboard-report-range-span")
                             if section == "Overview" { ReportOverview(report: report, nights: nights, diaryPoints: diaryPoints) { section = $0 } }
                             else if section == "Dose timing" { DoseTimingOverview(nights: nights) { selectedNight = $0 } }
                             else if section == "Wake & sleepiness" { DiaryOverview(points: diaryPoints, generation: model.diary?.sequence ?? 0) }
                             else if section == "Sleep & check-ins", let answers = model.questionnaires {
-                                QuestionnaireOverview(days: answers.selected(count: days, timeZone: .current),
+                                QuestionnaireOverview(days: answers.selected(range: range, timeZone: .current),
                                                       unassignedSourceRowCount: answers.unassignedSourceRowCount)
                             } else { nightList }
                         }
@@ -66,11 +67,20 @@ struct DashboardRoot: View {
             .sheet(item: $selectedNight) { DoseNightDetail(night: $0) }
     }
     private var rangePicker: some View {
-        Picker("Treatment dates", selection: $days) {
-            ForEach([7, 14, 30, 90, 180, 365, 0], id: \.self) { value in
-                Text(value == 0 ? "All time" : value == 180 ? "6 months" : "\(value) days").tag(value)
+        Picker("Treatment dates", selection: $range) {
+            ForEach(DashboardReportingRange.allCases) { value in
+                Text(value.rawValue).tag(value).accessibilityLabel(value.label)
             }
+        }.accessibilityIdentifier("dashboard-report-range")
+    }
+    private func rangeDescription(capturedAt: Date) -> String {
+        let zone = TimeZone.current
+        guard let window = range.window(asOf: capturedAt, timeZone: zone) else {
+            return "Treatment-date range unavailable for this report."
         }
+        let dates = window.firstTreatmentDate.map { "\($0) through \(window.lastTreatmentDate)" }
+            ?? "All available dates through \(window.lastTreatmentDate)"
+        return "Treatment dates: \(dates) · \(zone.identifier) · 18:00 rollover at report capture. Refresh to include later records."
     }
     private var nightList: some View {
         LazyVStack(alignment: .leading, spacing: 14) {

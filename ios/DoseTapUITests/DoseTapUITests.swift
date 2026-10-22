@@ -11,6 +11,9 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testResetCleanupWarningSurvivesSetupAndRelaunch") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-reset-cleanup-warning"]
+        }
         if name.contains("testSupply") || name.contains("testCompactLayout") {
             app.launchArguments += ["--uitesting-bottle-tracking-reset", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
@@ -1209,11 +1212,11 @@ final class DoseTapUITests: XCTestCase {
         let theme = app.navigationBars["Dashboard"].buttons["Theme quick switch"]
         XCTAssertTrue(theme.waitForExistence(timeout: 10))
         theme.press(forDuration: 1); app.buttons["Dark"].tap()
-        app.segmentedControls["dashboard-range-picker"].buttons["6 Months (180 dates)"].tap()
+        app.segmentedControls["dashboard-range-picker"].buttons["6 Months"].tap()
         captureDashboard("Dashboard readable dark overview")
         theme.tap()
         XCTAssertEqual(theme.value as? String, "Night Mode")
-        XCTAssertTrue(app.segmentedControls["dashboard-range-picker"].buttons["6 Months (180 dates)"].isSelected)
+        XCTAssertTrue(app.segmentedControls["dashboard-range-picker"].buttons["6 Months"].isSelected)
         captureDashboard("Dashboard readable Night Mode overview")
         app.segmentedControls["dashboard-section-picker"].buttons["Trends"].tap()
         revealDashboardText("Interactive Trends")
@@ -1243,8 +1246,8 @@ final class DoseTapUITests: XCTestCase {
         let picker = app.buttons["dashboard-range-picker"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         picker.tap()
-        app.buttons["6 Months (180 dates)"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months (180 dates)")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["6 Months"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Six month range at largest text")
     }
 
@@ -1252,8 +1255,8 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Dashboard"].tap()
         let range = app.segmentedControls["dashboard-range-picker"]
         XCTAssertTrue(range.waitForExistence(timeout: 10))
-        range.buttons["6 Months (180 dates)"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months (180 dates)")).firstMatch.waitForExistence(timeout: 5))
+        range.buttons["6 Months"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "6 Months")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Six month dashboard range")
         app.segmentedControls["dashboard-section-picker"].buttons["Data"].tap()
         revealDashboardText("Data Coverage")
@@ -2287,6 +2290,34 @@ final class DoseTapUITests: XCTestCase {
     }
 
     // MARK: - Settings Screen
+
+    func testResetCleanupWarningSurvivesSetupAndRelaunch() throws {
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let clear = app.buttons["Clear All Data"]
+        for _ in 0..<15 where !clear.isHittable { app.swipeUp() }
+        XCTAssertTrue(clear.isHittable)
+        clear.tap()
+        app.alerts["Clear All Data"].buttons["Clear All"].tap()
+        let warning = app.alerts["Reset Status"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 10),
+            "Cleanup warning must survive Settings being replaced by setup")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "reset-warning-over-setup"
+        shot.lifetime = .keepAlways
+        add(shot)
+        app.terminate()
+        app.launchArguments = ["--uitesting"]
+        app.launch()
+        XCTAssertTrue(warning.waitForExistence(timeout: 10), "Unacknowledged warning must survive restart")
+        warning.buttons["OK"].tap()
+        XCTAssertTrue(app.staticTexts["Sleep Schedule"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Sleep Schedule"].waitForExistence(timeout: 10))
+        XCTAssertFalse(warning.exists, "Acknowledged warning must stay dismissed")
+    }
 
     func testSettingsScreenLoads() throws {
         let settingsTab = app.buttons["Settings"]

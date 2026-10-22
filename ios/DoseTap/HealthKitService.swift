@@ -20,7 +20,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     private let authorizationTimeoutSeconds: UInt64 = 15
     
     // MARK: - Published State
-    @Published var isAuthorized = false
+    @Published var isAuthorized = false {
+        didSet { if oldValue && !isAuthorized { DashboardProviderAccess.shared.invalidate(.health) } }
+    }
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
     
     // MARK: - Initialization
@@ -723,8 +725,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     }
 
     /// Read-only dashboard history. Does not change the TTFW baseline or dose suggestions.
-    func dashboardSleepHistory(days: Int, through now: Date) async throws -> [SleepNightSummary] {
-        let calendar = Calendar.current
+    func dashboardSleepHistory(days: Int, through now: Date, calendar: Calendar = .current) async throws -> [SleepNightSummary] {
         let count = max(1, min(days, 730))
         let start = calendar.date(byAdding: .day, value: -count, to: now)!
         let segments = try await fetchSleepSegments(from: start, to: now)

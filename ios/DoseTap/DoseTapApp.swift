@@ -39,6 +39,7 @@ struct DoseTapApp: App {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var container = AppContainer()
     @AppStorage(SetupWizardService.setupCompletedKey) private var isSetupComplete: Bool = false
+    @AppStorage(DataResetPresentation.warningKey) private var resetCleanupWarning = ""
     
     /// Track when app went to background for duration logging
     @State private var backgroundedAt: Date?
@@ -53,6 +54,10 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-reset-cleanup-warning") {
+            UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
+            UserDefaults.standard.removeObject(forKey: DataResetPresentation.warningKey)
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-bottle-tracking-reset") {
             try? SessionRepository.shared.saveSupply(SupplyBackup())
         }
@@ -200,6 +205,14 @@ struct DoseTapApp: App {
                 ReviewedDoseSleepFixtureView()
             }
             #endif
+            .alert("Reset Status", isPresented: Binding(
+                get: { !resetCleanupWarning.isEmpty },
+                set: { if !$0 { resetCleanupWarning = "" } }
+            )) {
+                Button("OK", role: .cancel) { resetCleanupWarning = "" }
+            } message: {
+                Text(resetCleanupWarning)
+            }
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
                 Task { await SupplyReminderService.shared.reconcile() }

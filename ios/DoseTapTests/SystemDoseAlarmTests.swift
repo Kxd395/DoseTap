@@ -91,6 +91,10 @@ final class SystemDoseAlarmTests: XCTestCase {
 
     private var domains: [String] = []
     func testSkipCancellationWarningExplicitlySaysNotTaken() async throws {
+        let settings = UserSettingsManager.shared
+        let previousPrep = settings.prepTimeMinutes
+        settings.prepTimeMinutes = 18 * 60
+        defer { settings.prepTimeMinutes = previousPrep }
         struct Clock: DateProviding { let date: Date; func now() -> Date { date } }
         let native = Native(), first = Date(timeIntervalSince1970: 1_800_000_000)
         let now = first.addingTimeInterval(170 * 60), storage = EventStorage.inMemory()

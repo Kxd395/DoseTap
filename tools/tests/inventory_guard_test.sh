@@ -4,7 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/dosetap-inventory-guard.XXXXXX")"
 trap 'rm -rf "$SCRATCH"' EXIT
 mkdir -p "$SCRATCH/tools" "$SCRATCH/ios/DoseTap/Storage"
-cp "$ROOT/tools/check_inventory_state_writes.sh" "$SCRATCH/tools/"
+cp "$ROOT/tools/check_inventory_state_writes.sh" "$ROOT/tools/check_inventory_export_call.py" "$SCRATCH/tools/"
 cp "$ROOT/ios/DoseTap/SettingsStudioExport.swift" "$SCRATCH/ios/DoseTap/"
 cp "$ROOT/ios/DoseTap/Storage/EventStorage+DashboardSnapshot.swift" "$SCRATCH/ios/DoseTap/Storage/"
 CHECK="$SCRATCH/tools/check_inventory_state_writes.sh"
@@ -24,7 +24,7 @@ expect_rejection 'legacy Core Data inventory'
 rm "$SCRATCH/ios/DoseTap/BadView.swift"
 printf '%s\n' 'let records = repo.listInventorySnapshots()' > "$SCRATCH/ios/DoseTap/SettingsStudioExport.swift"
 expect_rejection 'unchecked export accessor'
-printf '%s\n' 'let records = repo.inventoryExportRecords()' 'let quantity = DoseTapUserConfig.shared.dosesPerBottle' > "$SCRATCH/ios/DoseTap/SettingsStudioExport.swift"
+printf '%s\n' 'let records = try repo.inventoryExportRecords()' 'let quantity = DoseTapUserConfig.shared.dosesPerBottle' > "$SCRATCH/ios/DoseTap/SettingsStudioExport.swift"
 expect_rejection 'derived setup quantity'
 cp "$ROOT/ios/DoseTap/SettingsStudioExport.swift" "$SCRATCH/ios/DoseTap/"
 bash "$CHECK" >/dev/null

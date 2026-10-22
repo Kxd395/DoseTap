@@ -49,6 +49,12 @@ public struct DashboardReportStatistics: Sendable {
             Bucket(hour: hour, count: values.filter { min(6, Int(min($0 / 60, 6))) == hour }.count)
         }
     }
+    public static func selected(_ days: [DashboardReportDoseDay], range: DashboardReportingRange,
+                                capturedAt: Date, timeZone: TimeZone) -> [DashboardReportDoseDay] {
+        guard let window = range.window(asOf: capturedAt, timeZone: timeZone) else { return [] }
+        return days.filter { window.contains($0.treatmentDate) }
+    }
+
     /// Anchor the frozen report at capture, using the same 18:00 rule as phone.
     /// Timezone is explicit because the v1 envelope does not carry a source zone.
     public static func selected(_ days: [DashboardReportDoseDay], count: Int,

@@ -541,6 +541,11 @@ final class StorageResetFailureTests: XCTestCase {
         }
         XCTAssertFalse(repository.clearAllData())
         XCTAssertTrue(try XCTUnwrap(repository.lastDataResetFailure).rollbackFailed)
+        let initialFailure = repository.lastDataResetFailure
+        XCTAssertFalse(repository.clearAllData(), "An unavailable handle cannot be reset again")
+        XCTAssertEqual(repository.lastDataResetFailure, initialFailure,
+            "Repeated attempts must retain the unresolved rollback failure and restart guidance")
+        XCTAssertTrue(repository.lastDataResetFailure?.localizedDescription.contains("Restart") == true)
         XCTAssertNil(storage.db)
         XCTAssertNotNil(storage.databaseInitializationFailure)
         XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
@@ -565,6 +570,29 @@ final class StorageResetFailureTests: XCTestCase {
         XCTAssertEqual(publications, 1)
         XCTAssertEqual(Set(scheduler.cancelledIdentifiers), Set(SessionRepository.sessionNotificationIdentifiers + [SupplyReminderService.requestID]))
         subscription.cancel()
+    }
+
+    func test_cleanupWarningIgnoresSupersededResetAndNewSession() async throws {
+        let domain = "ResetWarningTests.\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: domain))
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let (_, repository, _) = try fixture()
+        XCTAssertTrue(repository.clearAllData())
+        let firstGeneration = repository.dataResetGeneration
+        await DataResetPresentation.finishCleanup(repository: repository, generation: firstGeneration,
+            verifyAlarms: { XCTAssertTrue(repository.clearAllData()); return false }, defaults: defaults)
+        XCTAssertNil(defaults.string(forKey: DataResetPresentation.warningKey))
+        let secondGeneration = repository.dataResetGeneration
+        await DataResetPresentation.finishCleanup(repository: repository, generation: secondGeneration,
+            verifyAlarms: { false }, defaults: defaults)
+        XCTAssertEqual(defaults.string(forKey: DataResetPresentation.warningKey), DataResetPresentation.cleanupWarning)
+        defaults.removeObject(forKey: DataResetPresentation.warningKey)
+        await DataResetPresentation.finishCleanup(repository: repository, generation: secondGeneration,
+            verifyAlarms: {
+                XCTAssertTrue(repository.setDose1Time(repository.clock()).isCommitted)
+                return false
+            }, defaults: defaults)
+        XCTAssertNil(defaults.string(forKey: DataResetPresentation.warningKey))
     }
 
     func test_failedClearMustPreserveSessionAndNotifications() throws {

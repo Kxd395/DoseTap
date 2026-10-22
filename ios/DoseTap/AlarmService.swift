@@ -894,7 +894,10 @@ public class AlarmService: NSObject, ObservableObject {
     }
 
     func verifyDataResetAlarmCancellation() async -> Bool {
-        await verifyAlarmCancellation(additionalIDs: [SupplyReminderService.requestID])
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-reset-cleanup-warning") { return false }
+        #endif
+        return await verifyAlarmCancellation(additionalIDs: [SupplyReminderService.requestID])
     }
 
     private func verifyAlarmCancellation(additionalIDs: [String]) async -> Bool {

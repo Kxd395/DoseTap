@@ -25,46 +25,65 @@ extension DashboardAnalyticsModel {
         refreshGeneration = generation
         isLoading = true
         defer { if refreshGeneration == generation { isLoading = false } }
-        errorMessage = nil
+        let asOf = now(), zone = timeZone(), range = selectedRange
+        let access = providerAccess.revision
+        refreshProviderAccess = access
+        let healthEnabled = providerQueries.healthEnabled()
+        let whoopEnabled = providerQueries.whoopEnabled(), whoopConnected = providerQueries.whoopConnected()
+        func requestIsCurrent() -> Bool {
+            !Task.isCancelled && refreshGeneration == generation && providerAccess.revision == access
+                && range == selectedRange && zone == timeZone()
+                && healthEnabled == providerQueries.healthEnabled()
+                && whoopEnabled == providerQueries.whoopEnabled() && whoopConnected == providerQueries.whoopConnected()
+        }
+        guard let requestedWindow = range.window(asOf: asOf, timeZone: zone) else {
+            errorMessage = "Reporting dates could not be determined. Check the device date and refresh."
+            return
+        }
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
+        var refreshError: String?
+        var queriedHealth = false
 
         var healthByKey: [String: HealthKitService.SleepNightSummary] = [:]
-        if includeProviders && settings.healthKitEnabled {
-            await healthKit.syncAuthorizationState()
-            if healthKit.isAuthorized {
+        if includeProviders && healthEnabled {
+            let readable = await providerQueries.prepareHealth()
+            guard requestIsCurrent() else { return }
+            if readable {
                 do {
-                    let summaries = try await healthKit.dashboardSleepHistory(days: selectedRange.healthQueryDays, through: now())
-                    guard !Task.isCancelled else { return }
+                    queriedHealth = true
+                    let summaries = try await providerQueries.healthHistory(requestedWindow)
+                    guard requestIsCurrent() else { return }
                     for summary in summaries {
-                        let key = sessionRepo.sessionDateString(for: eveningAnchorDate(for: summary.date))
+                        let key = sessionKey(for: eveningAnchorDate(for: summary.date, timeZone: zone), timeZone: zone)
                         if healthByKey[key] == nil { healthByKey[key] = summary }
                     }
                 } catch {
-                    guard !Task.isCancelled else { return }
-                    errorMessage = "Apple Health sleep could not refresh. Local records are still available. Try Refresh again."
+                    guard requestIsCurrent() else { return }
+                    refreshError = "Apple Health sleep could not refresh. Local records are still available. Try Refresh again."
                 }
             } else if let lastError = healthKit.lastError, !lastError.isEmpty {
-                errorMessage = lastError
+                refreshError = lastError
             }
         }
 
         var whoopByKey: [String: WHOOPNightSummary] = [:]
-        if includeProviders && WHOOPService.isEnabled && settings.whoopEnabled && whoop.isConnected {
+        if includeProviders && whoopEnabled && whoopConnected {
             do {
                 let fetchDays = min(days, 30)
-                let endDate = Date()
-                let startDate = Calendar.current.date(byAdding: .day, value: -fetchDays, to: endDate) ?? endDate
-                let summaries = try await whoop.fetchNightSummaries(from: startDate, to: endDate)
-                guard !Task.isCancelled else { return }
-                if let warning = whoop.lastError { errorMessage = warning }
+                let endDate = asOf
+                let startDate = calendar.date(byAdding: .day, value: -fetchDays, to: endDate) ?? endDate
+                let summaries = try await providerQueries.whoopHistory(startDate, endDate)
+                guard requestIsCurrent() else { return }
+                if let warning = whoop.lastError { refreshError = warning }
                 for summary in summaries {
-                    let key = sessionRepo.sessionDateString(for: summary.date)
+                    let key = sessionKey(for: summary.date, timeZone: zone)
                     if summary.totalSleepMinutes > (whoopByKey[key]?.totalSleepMinutes ?? -1) {
                         whoopByKey[key] = summary
                     }
                 }
             } catch {
-                guard !Task.isCancelled else { return }
-                errorMessage = "WHOOP sleep could not refresh. Local records are still available. Try Refresh again."
+                guard requestIsCurrent() else { return }
+                refreshError = "WHOOP sleep could not refresh. Local records are still available. Try Refresh again."
             }
         }
 
@@ -72,7 +91,7 @@ extension DashboardAnalyticsModel {
             .union(healthByKey.keys).union(whoopByKey.keys).sorted(by: >)
         var aggregates: [DashboardNightAggregate] = []
         for key in sessionKeys {
-            guard !Task.isCancelled else { return }
+            guard requestIsCurrent() else { return }
             let derivedDose = Self.deriveDoseMetrics(from: sessionRepo.fetchDoseEvents(forSessionDate: key))
             let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
             let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
@@ -98,10 +117,14 @@ extension DashboardAnalyticsModel {
             await Task.yield()
         }
 
-        guard !Task.isCancelled, refreshGeneration == generation else { return }
+        guard requestIsCurrent() else { return }
+        publishedProviderAccess = access
+        reportingAsOf = asOf; reportingTimeZone = zone
+        healthQueryWindow = queriedHealth ? requestedWindow : nil
+        errorMessage = refreshError
         nights = aggregates.sorted { $0.sessionDate > $1.sessionDate }
         integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
-        lastRefresh = Date()
+        lastRefresh = asOf
         isLoading = false
     }
 
@@ -137,8 +160,8 @@ extension DashboardAnalyticsModel {
             detail: settings.healthKitEnabled
                 ? (healthKit.isAuthorized
                     ? (hasReadableHealthData
-                        ? "\(healthMatches) nights with Apple Health sleep summaries loaded (up to \(selectedRange.healthQueryDays) days)"
-                        : "No readable summaries returned from the last \(selectedRange.healthQueryDays) days. Apple Health intentionally makes denied access and an empty result indistinguishable.")
+                        ? "\(healthMatches) nights with Apple Health sleep summaries loaded (up to \(healthQueryWindow?.healthQueryDays ?? 0) days)"
+                        : "No readable summaries returned from the last \(healthQueryWindow?.healthQueryDays ?? 0) days. Apple Health intentionally makes denied access and an empty result indistinguishable.")
                     : (healthKit.lastError ?? "Request read access for sleep analysis in Settings"))
                 : "Enable in Settings to ingest sleep stages automatically.",
             color: settings.healthKitEnabled

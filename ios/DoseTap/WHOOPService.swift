@@ -53,7 +53,9 @@ final class WHOOPService: NSObject, ObservableObject {
     
     // MARK: - Published State
     
-    @Published var isConnected: Bool = false
+    @Published var isConnected: Bool = false {
+        didSet { if oldValue && !isConnected { DashboardProviderAccess.shared.invalidate(.whoop) } }
+    }
     @Published var isLoading: Bool = false
     @Published var lastError: String?
     @Published var userProfile: WHOOPProfile?
@@ -114,7 +116,11 @@ final class WHOOPService: NSObject, ObservableObject {
         super.init()
         loadTokensFromKeychain()
         updateConnectionState()
-        UserDefaults.standard.set(isConnected, forKey: "whoop_enabled")
+        // SwiftUI may create this service while rendering. Publish settings afterward.
+        Task { @MainActor [weak self] in
+            guard let self, UserSettingsManager.shared.whoopEnabled != self.isConnected else { return }
+            UserSettingsManager.shared.whoopEnabled = self.isConnected
+        }
     }
     
     // MARK: - Public API
@@ -188,7 +194,7 @@ final class WHOOPService: NSObject, ObservableObject {
         updateConnectionState()
         
         // Auto-enable WHOOP integration in user settings on successful connect
-        UserDefaults.standard.set(true, forKey: "whoop_enabled")
+        UserSettingsManager.shared.whoopEnabled = true
         
         // Track analytics
         AnalyticsService.shared.track(.whoopConnected)
@@ -208,7 +214,7 @@ final class WHOOPService: NSObject, ObservableObject {
         updateConnectionState()
         
         // Auto-disable WHOOP integration in user settings on disconnect
-        UserDefaults.standard.set(false, forKey: "whoop_enabled")
+        UserSettingsManager.shared.whoopEnabled = false
         
         AnalyticsService.shared.track(.whoopDisconnected)
     }
@@ -311,6 +317,8 @@ final class WHOOPService: NSObject, ObservableObject {
         
         let tokenResponse = try JSONDecoder().decode(WHOOPTokenResponse.self, from: data)
         
+        // Replace the connection epoch before credentials; the caller resumes after an await.
+        DashboardProviderAccess.shared.invalidate(.whoop)
         // Store tokens
         accessToken = tokenResponse.accessToken
         refreshToken = tokenResponse.refreshToken
@@ -472,6 +480,7 @@ final class WHOOPService: NSObject, ObservableObject {
     /// Fetch user profile
     func fetchUserProfile() async throws {
         let profile: WHOOPProfile = try await apiRequest("/developer/v2/user/profile/basic", type: WHOOPProfile.self)
+        if userProfile?.userId != profile.userId { DashboardProviderAccess.shared.invalidate(.whoop) }
         userProfile = profile
         
         if let userId = profile.userId {

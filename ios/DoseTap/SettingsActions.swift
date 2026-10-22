@@ -7,6 +7,22 @@ import UIKit
 
 private let settingsActionsLog = Logger(subsystem: "com.dosetap.app", category: "SettingsView")
 
+enum DataResetPresentation {
+    static let warningKey = "data_reset_cleanup_warning"
+    static let cleanupWarning = "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them."
+
+    @MainActor
+    static func finishCleanup(repository: SessionRepository, generation: UInt,
+                              verifyAlarms: () async -> Bool, defaults: UserDefaults) async {
+        guard repository.dataResetGeneration == generation,
+              repository.activeSessionId == nil else { return }
+        let verified = await verifyAlarms()
+        guard !verified, repository.dataResetGeneration == generation,
+              repository.activeSessionId == nil else { return }
+        defaults.set(cleanupWarning, forKey: warningKey)
+    }
+}
+
 extension SettingsView {
     @MainActor
     func validateNotificationAuthorization() async {
@@ -66,15 +82,16 @@ extension SettingsView {
         }
 
         settings.resetToDefaults()
+        // Default settings are not evidence of a completed legacy setup.
+        UserDefaults.standard.set(false, forKey: SetupWizardService.setupCompletedKey)
         SavedPainPatternStore.shared.reloadFromPreferences()
         sleepPlanStore.resetToDefaults()
         SessionRepository.shared.reload()
+        let generation = SessionRepository.shared.dataResetGeneration
         Task { @MainActor in
-            guard SessionRepository.shared.activeSessionId == nil else { return }
-            let verified = await AlarmService.shared.verifyDataResetAlarmCancellation()
-            guard !verified, SessionRepository.shared.activeSessionId == nil else { return }
-            resetErrorMessage = "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them."
-            showingResetError = true
+            await DataResetPresentation.finishCleanup(repository: .shared, generation: generation,
+                verifyAlarms: { await AlarmService.shared.verifyDataResetAlarmCancellation() },
+                defaults: .standard)
         }
 
         #if DEBUG
