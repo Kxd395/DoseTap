@@ -85,3 +85,56 @@ earlier architecture-pass claim was incorrect. The reset-warning coordinator
 was moved unchanged into `DataResetPresentation.swift` and added to the Xcode
 source list. A full reference scan and fail-fast architecture check now pass.
 The ceiling is unchanged. Final hosted validation must use the correction commit.
+
+
+## Hosted UI follow-up
+
+At `183168d`, required checks, production iOS export fixtures and Studio passed.
+The iPad run passed nine model tests and three UI tests, but its normal-text
+calendar-range test timed out after five seconds on the third selection. The
+subsequent screenshot visibly contains the expected selected 6M range and exact
+April 23–October 22 dates. One unchanged-head rerun was requested; the failed
+result is retained separately rather than counted as a pass.
+
+The iPhone safety job passed four cases but failed the reset-warning case: its
+captured hierarchy showed setup without the required warning. This is retained
+as a real missing-presentation signal. The modal alert could compete with the
+reset confirmation and replaced Settings hierarchy; its binding also allowed an
+implicit dismissal to erase persistent warning state. The precise hosted
+callback sequence was not captured. The warning is now a declarative app-root
+panel, whose only acknowledgment write is its explicit button. The UI test also
+checks background/foreground persistence before restart and acknowledgment.
+
+
+The original five-case safety sequence passed locally unchanged, confirming that
+the hosted missing-warning signal was intermittent. The first panel candidate
+passed all five safety cases with the stronger background/foreground check.
+Direct agent interaction then performed another synthetic reset and verified the
+persisted warning after restarting at the largest accessibility text size.
+The panel was readable but occupied almost the whole screen, so the final layout
+reserves space above setup and uses a bounded, scrollable panel when needed.
+An initial large-text test stopped while trying to reach Clear All Data within
+its Settings-scroll budget, before warning presentation. Its failed bundle is
+retained. The focused large-text test now changes text size on restart after
+reset, directly exercising the persisted panel and reachable acknowledgment.
+
+
+A second large-text candidate could not address the fallback scroll container.
+The final panel uses an explicit scroll view with one stable identifier, a
+text-size-scaled height capped at 320 points, and reserved layout space above
+setup. Final-source standard and largest-text reset tests both passed on the
+smaller iPhone 17e / iOS 26.5 (`reset-panel-scroll.xcresult`). They verify warning
+survival through background/foreground and restart, reachable acknowledgment,
+and dismissal that survives another restart. The four other safety flows passed
+with the preceding panel candidate; the final hosted job now requires all six
+cases. Earlier local candidate failures and the original hosted failure remain
+separate evidence. No physical alarm verification is claimed.
+
+
+Final direct visual inspection on iPhone 17e confirmed the warning scrolls to a
+fully visible acknowledgment button while setup retains its own heading and
+Continue button. `reset-panel-final-largest-top.png` and
+`reset-panel-final-largest-ack.png` capture that inspection. This final visual
+check used an injected presentation value; functional persistence and dismissal
+come from the two passing reset tests, not from that injected value. Launch
+arguments were cleared afterward and the task-opened simulators shut down.

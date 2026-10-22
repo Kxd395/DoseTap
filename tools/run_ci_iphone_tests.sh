@@ -13,6 +13,7 @@ case "$mode" in
       DoseTapUITests/DoseTapUITests/testQuickLogAvailabilityBeforeDose1
       DoseTapUITests/DoseTapUITests/testQuickLogAvailabilityBeforeDose2
       DoseTapUITests/DoseTapUITests/testResetCleanupWarningSurvivesSetupAndRelaunch
+      DoseTapUITests/DoseTapUITests/testResetCleanupWarningLargestText
     ) ;;
   exports)
     scheme=DoseTap

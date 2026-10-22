@@ -150,7 +150,12 @@ struct DoseTapApp: App {
     
     var body: some Scene {
         WindowGroup {
-            Group {
+            VStack(spacing: 0) {
+                if !resetCleanupWarning.isEmpty {
+                    DataResetWarningView(message: resetCleanupWarning) {
+                        resetCleanupWarning = ""
+                    }
+                }
                 if isSetupComplete {
                     ContentView()
                         .environmentObject(urlRouter)
@@ -205,14 +210,6 @@ struct DoseTapApp: App {
                 ReviewedDoseSleepFixtureView()
             }
             #endif
-            .alert("Reset Status", isPresented: Binding(
-                get: { !resetCleanupWarning.isEmpty },
-                set: { if !$0 { resetCleanupWarning = "" } }
-            )) {
-                Button("OK", role: .cancel) { resetCleanupWarning = "" }
-            } message: {
-                Text(resetCleanupWarning)
-            }
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
                 Task { await SupplyReminderService.shared.reconcile() }

@@ -11,8 +11,9 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
-        if name.contains("testResetCleanupWarningSurvivesSetupAndRelaunch") {
-            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-reset-cleanup-warning"]
+        if name.contains("testResetCleanupWarning") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-reset-cleanup-warning",
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         }
         if name.contains("testSupply") || name.contains("testCompactLayout") {
             app.launchArguments += ["--uitesting-bottle-tracking-reset", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
@@ -2291,7 +2292,15 @@ final class DoseTapUITests: XCTestCase {
 
     // MARK: - Settings Screen
 
-    func testResetCleanupWarningSurvivesSetupAndRelaunch() throws {
+    func testResetCleanupWarningSurvivesSetupAndRelaunch() {
+        resetCleanupWarningJourney(largeText: false)
+    }
+
+    func testResetCleanupWarningLargestText() {
+        resetCleanupWarningJourney(largeText: true)
+    }
+
+    private func resetCleanupWarningJourney(largeText: Bool) {
         let settings = app.buttons["Settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 10))
         settings.tap()
@@ -2300,23 +2309,40 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(clear.isHittable)
         clear.tap()
         app.alerts["Clear All Data"].buttons["Clear All"].tap()
-        let warning = app.alerts["Reset Status"]
+        let warning = app.staticTexts["reset-cleanup-warning-message"]
         XCTAssertTrue(warning.waitForExistence(timeout: 10),
             "Cleanup warning must survive Settings being replaced by setup")
+        XCTAssertTrue(warning.label.contains("alarm cleanup could not be verified"))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(warning.waitForExistence(timeout: 10), "Backgrounding must not acknowledge the warning")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "reset-warning-over-setup"
         shot.lifetime = .keepAlways
         add(shot)
         app.terminate()
         app.launchArguments = ["--uitesting"]
+        if largeText {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
         app.launch()
         XCTAssertTrue(warning.waitForExistence(timeout: 10), "Unacknowledged warning must survive restart")
-        warning.buttons["OK"].tap()
+        let acknowledge = app.buttons["reset-cleanup-warning-acknowledge"]
+        for _ in 0..<10 where !acknowledge.isHittable {
+            app.scrollViews["reset-cleanup-warning-scroll"].swipeUp()
+        }
+        XCTAssertTrue(acknowledge.isHittable, "Warning acknowledgment must remain reachable")
+        acknowledge.tap()
         XCTAssertTrue(app.staticTexts["Sleep Schedule"].waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
         XCTAssertTrue(app.staticTexts["Sleep Schedule"].waitForExistence(timeout: 10))
         XCTAssertFalse(warning.exists, "Acknowledged warning must stay dismissed")
+        if largeText {
+            app.terminate()
+            app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+            app.launch()
+        }
     }
 
     func testSettingsScreenLoads() throws {
