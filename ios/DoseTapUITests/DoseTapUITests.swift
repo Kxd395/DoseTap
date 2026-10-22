@@ -1093,6 +1093,10 @@ final class DoseTapUITests: XCTestCase {
     }
 
     func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {
+        // This journey includes multiple launches and History questionnaire review.
+        // Hosted CI completed its assertions in 184s; retain a bounded allowance
+        // within the CI runner's existing 240s maximum for this case only.
+        executionTimeAllowance = 240
         // The seeded dose is three hours ago and can precede the 18:00
         // treatment-date boundary. Review that exact session after relaunch.
         app.launchArguments.append("--uitesting-history-active-session")
@@ -1152,12 +1156,16 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5))
         app.alerts["Answers saved"].buttons["OK"].tap()
         diary.tap()
-        let finalWake = app.switches["Record final awakening"]
+        // SwiftUI exposes a labeled row plus its nested native switch. Target
+        // the control, since tapping the row can leave its value unchanged.
+        let finalWake = app.switches["Record final awakening"].switches.firstMatch
         for _ in 0..<4 where !finalWake.isHittable { app.swipeUp() }
-        finalWake.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
-        let sleepiness = app.switches["night-sleepiness-toggle"]
+        finalWake.tap()
+        XCTAssertEqual(finalWake.value as? String, "1", "Final awakening must be selected before saving")
+        let sleepiness = app.switches["night-sleepiness-toggle"].switches.firstMatch
         for _ in 0..<4 where !sleepiness.isHittable { app.swipeUp() }
-        sleepiness.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        sleepiness.tap()
+        XCTAssertEqual(sleepiness.value as? String, "1", "Sleepiness must be selected before testing persistence")
         app.buttons["night-outcome-save"].tap()
         XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5), "Adding a later assessment must not require a correction reason")
         app.alerts["Answers saved"].buttons["OK"].tap()

@@ -171,6 +171,8 @@ Open gates: <what this run did not prove>
 
 ### iPhone safety and Studio CI
 
+The default per-test timeout is 180 seconds, with a 240-second maximum. The multi-relaunch Dose 2 confirmation/History journey explicitly uses 240 seconds: a hosted run completed its assertions at 184 seconds but exceeded the default. Other cases retain the default; no assertions or selected cases are skipped. The journey targets the nested native switches and checks selection before saving as well as persistence after restart; the surrounding SwiftUI rows are not reliable tap targets.
+
 `ci-safety-studio.yml` runs the separate `DoseTapUITests` scheme for Dose 1 review without an alarm, Dose 2 cancel/background/explicit save, quick-log availability before each dose, and reset-cleanup warning persistence through setup, background/foreground, and restart, followed by explicit acknowledgment at standard and largest accessibility text sizes. The warning is an app-root panel so reset does not depend on a second modal being presented during confirmation dismissal. `tools/run_ci_iphone_tests.sh` requires each selected test to pass, applies execution timeouts, and retains the result bundle. These simulator checks do not establish signed-device alarm delivery or owner-observed acceptance.
 
 A separate iOS job exercises six production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.

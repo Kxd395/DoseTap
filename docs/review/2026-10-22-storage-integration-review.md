@@ -138,3 +138,45 @@ Continue button. `reset-panel-final-largest-top.png` and
 check used an injected presentation value; functional persistence and dismissal
 come from the two passing reset tests, not from that injected value. Launch
 arguments were cleared afterward and the task-opened simulators shut down.
+
+
+## Hosted safety execution allowance
+
+On `d4bed97`, the iPad, export, Studio, full app simulator and required checks
+passed. Both reset-panel tests passed on hosted iPhone 17 Pro / iOS 26.5. The
+safety result bundle reports five passed and one failed: the Dose 2 journey
+exceeded the 180-second allowance while making forward progress through History
+questionnaire review. It completed its assertions and teardown at 184.224
+seconds, but the timeout correctly kept the job red. The following case had an
+app-termination failure before XCTest restarted its runner; that case then passed.
+The failed bundle and full log are retained as `iphone-d4bed97-hosted-evidence`
+and `iphone-d4bed97-hosted-failure.log` in the ignored reconciliation directory.
+
+Only the long Dose 2 journey now requests a 240-second execution allowance,
+within the existing runner maximum. The six selected cases, other case limits, and application code remain unchanged. A fresh six-case local run
+and hosted validation are required before integration.
+
+The first local six-case follow-up failed earlier in the Dose 2 journey: the
+sleepiness switch was off after restart. The existing test used a fixed 0.93
+horizontal offset for the two switches and did not verify their selection before
+saving, so that result alone cannot distinguish a missed tap from persistence
+failure. The test now uses accessibility-element taps and asserts each selected
+value immediately, while retaining the post-restart assertion. The failed bundle
+is preserved in `safety-allowance/tests.xcresult`.
+
+A second run with plain row taps failed at the new immediate-selection assertion,
+before any save. Direct agent-device inspection then showed two accessibility
+levels: the labeled SwiftUI row and a nested native switch. Clicking the native
+controls changed both values from 0 to 1 on iPhone 17e; the rendered final-wake
+control was visibly on. The test now addresses those nested switches, keeping
+both immediate-selection checks and the restart persistence assertion. Evidence
+is retained in `safety-targeted-taps.xcresult`, `switch-native-selection.txt` and
+`switch-both-selected.txt`. No production code changed for these test repairs.
+
+The corrected complete six-case sequence passed on iPhone 17e / iOS 26.5 with
+zero failures and zero skips (`safety-native-switches.xcresult`). Dose 2 completed
+in 96.613 seconds and passed both new pre-save checks plus the retained restart
+and History assertions. Core validation also passed 879 XCTest and 43 Swift
+Testing cases; Plane workflow, documentation, SSOT, version and whitespace checks
+passed. The previous local failures remain separate evidence, not retries counted
+as passes. Hosted validation of the new commit remains the integration gate.
