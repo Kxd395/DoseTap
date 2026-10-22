@@ -52,7 +52,13 @@ extension SettingsView {
         settingsActionsLog.debug("Clearing all data")
         #endif
 
-        SessionRepository.shared.clearAllData()
+        guard SessionRepository.shared.clearAllData() else {
+            resetErrorMessage = SessionRepository.shared.lastDataResetFailure?.localizedDescription
+                ?? "The reset could not be completed. Your session and settings were not reset."
+            showingResetError = true
+            return
+        }
+        AlarmService.shared.prepareAlarmsForDataReset()
 
         if let bundleId = Bundle.main.bundleIdentifier {
             UserDefaults.standard.removePersistentDomain(forName: bundleId)
@@ -60,9 +66,17 @@ extension SettingsView {
         }
 
         settings.resetToDefaults()
+        // Default settings are not evidence of a completed legacy setup.
+        UserDefaults.standard.set(false, forKey: SetupWizardService.setupCompletedKey)
         SavedPainPatternStore.shared.reloadFromPreferences()
         sleepPlanStore.resetToDefaults()
         SessionRepository.shared.reload()
+        let generation = SessionRepository.shared.dataResetGeneration
+        Task { @MainActor in
+            await DataResetPresentation.finishCleanup(repository: .shared, generation: generation,
+                verifyAlarms: { await AlarmService.shared.verifyDataResetAlarmCancellation() },
+                defaults: .standard)
+        }
 
         #if DEBUG
         settingsActionsLog.debug("All data cleared successfully")

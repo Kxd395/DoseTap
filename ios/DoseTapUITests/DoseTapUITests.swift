@@ -11,6 +11,10 @@ final class DoseTapUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
+        if name.contains("testResetCleanupWarning") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-reset-cleanup-warning",
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        }
         if name.contains("testSupply") || name.contains("testCompactLayout") {
             app.launchArguments += ["--uitesting-bottle-tracking-reset", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
@@ -1089,6 +1093,10 @@ final class DoseTapUITests: XCTestCase {
     }
 
     func testDose2ConfirmationCancelBackgroundAndExplicitSave() throws {
+        // This journey includes multiple launches and History questionnaire review.
+        // Hosted CI completed its assertions in 184s; retain a bounded allowance
+        // within the CI runner's existing 240s maximum for this case only.
+        executionTimeAllowance = 240
         // The seeded dose is three hours ago and can precede the 18:00
         // treatment-date boundary. Review that exact session after relaunch.
         app.launchArguments.append("--uitesting-history-active-session")
@@ -1148,12 +1156,16 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5))
         app.alerts["Answers saved"].buttons["OK"].tap()
         diary.tap()
-        let finalWake = app.switches["Record final awakening"]
+        // SwiftUI exposes a labeled row plus its nested native switch. Target
+        // the control, since tapping the row can leave its value unchanged.
+        let finalWake = app.switches["Record final awakening"].switches.firstMatch
         for _ in 0..<4 where !finalWake.isHittable { app.swipeUp() }
-        finalWake.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
-        let sleepiness = app.switches["night-sleepiness-toggle"]
+        finalWake.tap()
+        XCTAssertEqual(finalWake.value as? String, "1", "Final awakening must be selected before saving")
+        let sleepiness = app.switches["night-sleepiness-toggle"].switches.firstMatch
         for _ in 0..<4 where !sleepiness.isHittable { app.swipeUp() }
-        sleepiness.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        sleepiness.tap()
+        XCTAssertEqual(sleepiness.value as? String, "1", "Sleepiness must be selected before testing persistence")
         app.buttons["night-outcome-save"].tap()
         XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5), "Adding a later assessment must not require a correction reason")
         app.alerts["Answers saved"].buttons["OK"].tap()
@@ -2287,6 +2299,59 @@ final class DoseTapUITests: XCTestCase {
     }
 
     // MARK: - Settings Screen
+
+    func testResetCleanupWarningSurvivesSetupAndRelaunch() {
+        resetCleanupWarningJourney(largeText: false)
+    }
+
+    func testResetCleanupWarningLargestText() {
+        resetCleanupWarningJourney(largeText: true)
+    }
+
+    private func resetCleanupWarningJourney(largeText: Bool) {
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let clear = app.buttons["Clear All Data"]
+        for _ in 0..<15 where !clear.isHittable { app.swipeUp() }
+        XCTAssertTrue(clear.isHittable)
+        clear.tap()
+        app.alerts["Clear All Data"].buttons["Clear All"].tap()
+        let warning = app.staticTexts["reset-cleanup-warning-message"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 10),
+            "Cleanup warning must survive Settings being replaced by setup")
+        XCTAssertTrue(warning.label.contains("alarm cleanup could not be verified"))
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(warning.waitForExistence(timeout: 10), "Backgrounding must not acknowledge the warning")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "reset-warning-over-setup"
+        shot.lifetime = .keepAlways
+        add(shot)
+        app.terminate()
+        app.launchArguments = ["--uitesting"]
+        if largeText {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
+        XCTAssertTrue(warning.waitForExistence(timeout: 10), "Unacknowledged warning must survive restart")
+        let acknowledge = app.buttons["reset-cleanup-warning-acknowledge"]
+        for _ in 0..<10 where !acknowledge.isHittable {
+            app.scrollViews["reset-cleanup-warning-scroll"].swipeUp()
+        }
+        XCTAssertTrue(acknowledge.isHittable, "Warning acknowledgment must remain reachable")
+        acknowledge.tap()
+        XCTAssertTrue(app.staticTexts["Sleep Schedule"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Sleep Schedule"].waitForExistence(timeout: 10))
+        XCTAssertFalse(warning.exists, "Acknowledged warning must stay dismissed")
+        if largeText {
+            app.terminate()
+            app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+            app.launch()
+        }
+    }
 
     func testSettingsScreenLoads() throws {
         let settingsTab = app.buttons["Settings"]

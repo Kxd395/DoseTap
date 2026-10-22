@@ -966,3 +966,100 @@ final class EventStorageIntegrationTests: XCTestCase {
         return value
     }
 }
+
+@MainActor
+final class StorageMigrationFailureTests: XCTestCase {
+    private func withDatabase(_ operation: (String, OpaquePointer) throws -> Void) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("migration.sqlite").path
+        var handle: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(path, &handle), SQLITE_OK)
+        let db = try XCTUnwrap(handle)
+        defer { sqlite3_close(db) }
+        try operation(path, db)
+    }
+    private func execute(_ sql: String, _ db: OpaquePointer) throws {
+        guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
+            throw NSError(domain: "MigrationFixture", code: Int(sqlite3_extended_errcode(db)))
+        }
+    }
+    private func scalar(_ sql: String, _ db: OpaquePointer) throws -> String {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw NSError(domain: "MigrationFixture", code: Int(sqlite3_extended_errcode(db)))
+        }
+        defer { sqlite3_finalize(stmt) }
+        XCTAssertEqual(sqlite3_step(stmt), SQLITE_ROW)
+        return String(cString: try XCTUnwrap(sqlite3_column_text(stmt, 0)))
+    }
+    func testRejectedBackfillNormalizationOrLedgerRollsBackAllInitializationAndCanReopen() throws {
+        for target in ["dose_events", "sleep_events", "schema_migrations"] {
+            try withDatabase { path, db in
+                do { let initial = EventStorage(dbPath: path); XCTAssertNil(initial.databaseInitializationFailure) }
+                try execute("DELETE FROM schema_migrations; PRAGMA user_version = 0; INSERT INTO sleep_events(id,event_type,timestamp,session_date,session_id) VALUES('s','Lights Out','2026-09-29T22:00:00Z','2026-09-29','2026-09-29'); INSERT INTO dose_events(id,event_type,timestamp,session_date) VALUES('d','dose1','2026-09-29T22:00:00Z','2026-09-29')", db)
+                let operation = target == "schema_migrations" ? "INSERT" : "UPDATE"
+                try execute("CREATE TRIGGER reject_migration BEFORE \(operation) ON \(target) BEGIN SELECT RAISE(ABORT, 'synthetic migration failure'); END", db)
+                let failed = EventStorage(dbPath: path)
+                XCTAssertNotNil(failed.databaseInitializationFailure)
+                XCTAssertNil(failed.db, "Failed initialization must close every legacy write path")
+                XCTAssertEqual(try scalar("PRAGMA user_version", db), "0")
+                XCTAssertEqual(try scalar("SELECT count(*) FROM schema_migrations", db), "0")
+                XCTAssertEqual(try scalar("SELECT event_type FROM sleep_events WHERE id='s'", db), "Lights Out")
+                XCTAssertEqual(try scalar("SELECT count(*) FROM dose_events WHERE session_id IS NULL", db), "1")
+                try execute("DROP TRIGGER reject_migration", db)
+                let reopened = EventStorage(dbPath: path)
+                XCTAssertNil(reopened.databaseInitializationFailure)
+                XCTAssertEqual(reopened.getSchemaVersion(), EventStorage.schemaUserVersion)
+                XCTAssertEqual(try scalar("SELECT event_type FROM sleep_events WHERE id='s'", db), "lights_out")
+                XCTAssertEqual(try scalar("SELECT count(*) FROM dose_events WHERE session_id IS NULL", db), "0")
+            }
+        }
+    }
+    func testRejectedCommitAndRollbackCloseConnectionWithoutStampingVersion() throws {
+        for rejectRollback in [false, true] {
+            try withDatabase { path, db in
+                let storage = EventStorage(dbPath: path)
+                try execute("DELETE FROM schema_migrations; PRAGMA user_version = 0", db)
+                var policy: Int32 = rejectRollback ? 1 : 0
+                let initialized = withUnsafeMutablePointer(to: &policy) { context in
+                    let result = sqlite3_set_authorizer(storage.db, { context, action, operation, _, _, _ in
+                        guard action == SQLITE_TRANSACTION, let operation else { return SQLITE_OK }
+                        let name = String(cString: operation)
+                        let denyRollback = context?.assumingMemoryBound(to: Int32.self).pointee == 1
+                        return name == "COMMIT" || (name == "ROLLBACK" && denyRollback) ? SQLITE_DENY : SQLITE_OK
+                    }, context)
+                    XCTAssertEqual(result, SQLITE_OK)
+                    return storage.createTables()
+                }
+                XCTAssertFalse(initialized)
+                XCTAssertNil(storage.db)
+                XCTAssertNotNil(storage.databaseInitializationFailure)
+                XCTAssertEqual(try scalar("PRAGMA user_version", db), "0")
+                XCTAssertEqual(try scalar("SELECT count(*) FROM schema_migrations", db), "0")
+            }
+        }
+    }
+    func testLegacyColumnsExistBeforeIndexesAreCreated() throws {
+        try withDatabase { path, db in
+            try execute("CREATE TABLE dose_events(id TEXT PRIMARY KEY,event_type TEXT NOT NULL,timestamp TEXT NOT NULL,session_date TEXT NOT NULL,metadata TEXT,created_at TEXT)", db)
+            let migrated = EventStorage(dbPath: path)
+            XCTAssertNil(migrated.databaseInitializationFailure)
+            XCTAssertEqual(migrated.getSchemaVersion(), EventStorage.schemaUserVersion)
+            XCTAssertEqual(try scalar("SELECT count(*) FROM pragma_table_info('dose_events') WHERE name IN ('session_id','is_hazard')", db), "2")
+            XCTAssertEqual(try scalar("SELECT count(*) FROM sqlite_master WHERE name='idx_dose_events_session_id'", db), "1")
+        }
+    }
+    func testFutureVersionIsRefusedWithoutSchemaMutation() throws {
+        try withDatabase { path, db in
+            try execute("PRAGMA user_version = 999; CREATE TABLE future_records(id TEXT); INSERT INTO future_records VALUES('keep')", db)
+            let refused = EventStorage(dbPath: path)
+            XCTAssertNotNil(refused.databaseInitializationFailure)
+            XCTAssertNil(refused.db)
+            XCTAssertEqual(try scalar("PRAGMA user_version", db), "999")
+            XCTAssertEqual(try scalar("SELECT id FROM future_records", db), "keep")
+            XCTAssertEqual(try scalar("SELECT count(*) FROM sqlite_master WHERE name='schema_migrations'", db), "0")
+        }
+    }
+}

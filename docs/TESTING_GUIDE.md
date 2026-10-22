@@ -168,3 +168,24 @@ Evidence class: <automated, simulator runtime, signed device, external, owner ob
 Open gates: <what this run did not prove>
 ```
 
+
+### iPhone safety and Studio CI
+
+The default per-test timeout is 180 seconds, with a 240-second maximum. The multi-relaunch Dose 2 confirmation/History journey explicitly uses 240 seconds: a hosted run completed its assertions at 184 seconds but exceeded the default. Other cases retain the default; no assertions or selected cases are skipped. The journey targets the nested native switches and checks selection before saving as well as persistence after restart; the surrounding SwiftUI rows are not reliable tap targets.
+
+`ci-safety-studio.yml` runs the separate `DoseTapUITests` scheme for Dose 1 review without an alarm, Dose 2 cancel/background/explicit save, quick-log availability before each dose, and reset-cleanup warning persistence through setup, background/foreground, and restart, followed by explicit acknowledgment at standard and largest accessibility text sizes. The warning is an app-root panel so reset does not depend on a second modal being presented during confirmation dismissal. `tools/run_ci_iphone_tests.sh` requires each selected test to pass, applies execution timeouts, and retains the result bundle. These simulator checks do not establish signed-device alarm delivery or owner-observed acceptance.
+
+A separate iOS job exercises six production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.
+
+`tools/run_ci_studio_tests.sh` requires all six extracted payloads, builds Studio and runs its full suite. The iOS archive and raw-only identity round-trip tests must execute and pass; medication, stored-event, WHOOP and Apple Health fixtures also exercise their existing production-archive assertions. The two opt-in native preview tests remain a separate visual review gate.
+
+Local reproduction (choose a fresh output directory for every run):
+
+```bash
+bash tools/run_ci_iphone_tests.sh safety .build/ci-safety-local
+bash tools/run_ci_iphone_tests.sh exports .build/ci-exports-local
+xcrun xcresulttool export attachments --path .build/ci-exports-local/tests.xcresult --output-path .build/ci-attachments-local
+python3 tools/export_studio_fixtures.py .build/ci-attachments-local .build/ci-fixtures-local
+bash tools/run_ci_studio_tests.sh .build/ci-fixtures-local .build/ci-studio-local
+python3 tools/tests/studio_fixtures_test.py
+```

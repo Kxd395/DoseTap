@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DR74BF01 /* DataResetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DR74FR01 /* DataResetPresentation.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
 		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
@@ -196,6 +197,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DR74FR01 /* DataResetPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataResetPresentation.swift; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
 		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
@@ -504,6 +506,7 @@
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
 				SET101 /* SettingsSections.swift */,
 				SET102 /* SettingsActions.swift */,
+				DR74FR01 /* DataResetPresentation.swift */,
 				SET103 /* SettingsStudioExport.swift */,
 				EXCEL_FR01 /* SettingsExcelExport.swift */,
 				SVS_FR01 /* HealthKitSettingsView.swift */,
@@ -994,6 +997,7 @@
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,
 				SET002 /* SettingsActions.swift in Sources */,
+				DR74BF01 /* DataResetPresentation.swift in Sources */,
 				SET003 /* SettingsStudioExport.swift in Sources */,
 				EXCEL_BF01 /* SettingsExcelExport.swift in Sources */,
 				SVS_BF01 /* HealthKitSettingsView.swift in Sources */,
