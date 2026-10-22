@@ -108,8 +108,10 @@ forced `try`, unreviewed storage access, leaked table names and derived/legacy
 sources. The required-call check excludes line/block comments (including nested
 blocks), extended regex literals (`#/.../#`, including multiline and additional
 hashes), and string literal contents, including raw and multiline strings. String
-interpolation is conservatively excluded with its literal; extended-regex
-interpolation uses the same comment/string handling. Bare slash syntax inside
+interpolation is conservatively excluded with its literal. Interpolation-like
+backslash/hash/parenthesis sequences in extended regexes fail with an explicit
+guard-review diagnostic instead of being interpreted as Swift expressions.
+Bare slash syntax inside
 interpolation (including division or a bare regex) fails with an explicit guard
 review diagnostic, even when a real export call is present. Move such expressions
 outside interpolation or extend the guard with reviewed coverage; it does not

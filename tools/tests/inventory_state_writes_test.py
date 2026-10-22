@@ -130,15 +130,14 @@ class InventoryGuardTests(unittest.TestCase):
                 self.write(EXPORT, 'let text = "\\(' + expression + ')"\n' + self.export)
                 self.assert_rejected("bare slash inside interpolation requires guard review")
 
-    def test_real_call_after_extended_regex_interpolation_passes(self):
+    def test_regex_interpolation_like_syntax_requires_review_even_with_real_call(self):
         for hashes in ["#", "##"]:
             with self.subTest(hashes=hashes):
                 source = (f"let piece = {hashes}/safe/{hashes}\n"
                           f"let ignored = {hashes}/\n\\{hashes}(\n/*\n/{hashes}\n*/\n"
                           f"identity(({hashes}/[)]/{hashes}))\n)\n/{hashes}\n")
                 self.write(EXPORT, source + self.export)
-                result = self.run_guard()
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assert_rejected("regex interpolation-like syntax requires guard review")
 
     def test_top_level_bare_regex_fails_closed_before_scanning_its_quotes(self):
         self.write(EXPORT, 'let pattern = /["()]/\n' + self.export)

@@ -47,7 +47,7 @@ def regex_end(source, match):
     multiline = re.match(r"[ \t]*\r?\n", source[index:]) is not None
     while index < len(source):
         if source.startswith(interpolation, index):
-            index = interpolation_end(source, index + len(interpolation))
+            raise ValueError("regex interpolation-like syntax requires guard review")
         elif source[index] == "\\":
             index += 2
         elif source.startswith(terminator, index):
