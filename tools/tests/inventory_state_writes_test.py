@@ -154,6 +154,56 @@ class InventoryGuardTests(unittest.TestCase):
                 self.write(EXPORT, prefix + self.export)
                 self.assert_rejected("must use the throwing repository inventoryExportRecords")
 
+    def test_every_occurrence_on_same_line_is_checked(self):
+        for second in ["try? repo.inventoryExportRecords()",
+                       "try! repo.inventoryExportRecords()",
+                       "try storage.inventoryExportRecords()"]:
+            with self.subTest(second=second):
+                self.write(EXPORT, self.export.rstrip() + "; let second = " + second + "\n")
+                self.assert_rejected("unchecked inventory export read")
+
+    def test_two_checked_calls_on_same_line_pass(self):
+        self.write(EXPORT, self.export.rstrip() + "; let second = try repo.inventoryExportRecords()\n")
+        result = self.run_guard()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_benign_accessor_mentions_with_real_call_pass(self):
+        mentions = ['// repo.inventoryExportRecords()\n',
+                    '/* repo.inventoryExportRecords() */\n',
+                    'let text = "repo.inventoryExportRecords()"\n',
+                    'let text = #"repo.inventoryExportRecords()"#\n',
+                    'let text = """\nrepo.inventoryExportRecords()\n"""\n']
+        for mention in mentions:
+            with self.subTest(mention=mention):
+                self.write(EXPORT, self.export + mention)
+                result = self.run_guard()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_method_reference_cannot_bypass_owner(self):
+        self.write("ios/DoseTap/Views/Unexpected.swift",
+                   "let reader = repo.inventoryExportRecords\nlet rows = try reader()\n")
+        self.assert_rejected("inventory export read outside reviewed repository/export owners")
+
+    def test_method_reference_in_approved_owner_is_rejected(self):
+        self.write(EXPORT, self.export + "let reader = repo.inventoryExportRecords\n")
+        self.assert_rejected("unchecked inventory export read")
+
+    def test_alternative_accessor_spellings_cannot_hide_a_read(self):
+        for reference in ["repo.\n inventoryExportRecords", "repo.`inventoryExportRecords`",
+                          "inventoryExportRecords", "self.inventoryExportRecords"]:
+            with self.subTest(reference=reference):
+                self.write("ios/DoseTap/Views/Unexpected.swift", "let reader = " + reference + "\n")
+                self.assert_rejected("inventory export read outside reviewed repository/export owners")
+
+    def test_reviewed_accessor_declarations_are_accepted(self):
+        self.write("ios/DoseTap/Storage/SessionRepositoryQueries.swift",
+                   "func inventoryExportRecords() throws -> [Int] {\n"
+                   "return try storage.inventoryExportRecords()\n}\n")
+        self.write("ios/DoseTap/Storage/EventStorage+Exports.swift",
+                   "func inventoryExportRecords() throws -> [Int] { return [] }\n")
+        result = self.run_guard()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_optional_or_forced_try_is_rejected(self):
         for operator in ["try?", "try!"]:
             with self.subTest(operator=operator):

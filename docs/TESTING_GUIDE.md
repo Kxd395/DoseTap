@@ -105,7 +105,11 @@ The inventory guard recognizes the checked, uncapped repository export reader
 and the raw dashboard snapshot inside EventStorage's read transaction. Its
 isolated rejection fixtures protect against capped export reads, optional or
 forced `try`, unreviewed storage access, leaked table names and derived/legacy
-sources. The required-call check excludes line/block comments (including nested
+sources. Required-call presence and every accessor occurrence use the same
+code-only scan, including multiple statements per line. Method references,
+unqualified calls and noncanonical accessor spellings are rejected; only direct
+ordinary-`try` calls and declarations in the two reviewed storage files are
+accepted. This accessor scan excludes line/block comments (including nested
 blocks), extended regex literals (`#/.../#`, including multiline and additional
 hashes), and string literal contents, including raw and multiline strings. String
 interpolation is conservatively excluded with its literal. Interpolation-like

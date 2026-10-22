@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the required inventory call without accepting comments or string text.
+"""Check every inventory accessor occurrence after excluding inert source text.
 
 This is a lexical check, not Swift control-flow analysis. String interpolation
 is conservatively excluded with the containing literal; it cannot satisfy the
@@ -11,10 +11,23 @@ import re
 import sys
 
 
-CALL = re.compile(
-    r"^\s*(?:(?:let|var)\s+\w+\s*=\s*|return\s+)?"
-    r"try\s+repo\.inventoryExportRecords\s*\(", re.MULTILINE
-)
+ACCESSOR = re.compile(r"(?<![\w`])`?inventoryExportRecords`?(?![\w`])")
+OWNERS = {
+    "SettingsStudioExport.swift": "repo",
+    "Storage/SessionRepositoryQueries.swift": "storage",
+}
+DECLARATIONS = {"Storage/SessionRepositoryQueries.swift", "Storage/EventStorage+Exports.swift"}
+STUDIO = "SettingsStudioExport.swift"
+
+
+def approved_calls(code, receiver):
+    pattern = re.compile(
+        r"(?:^|[;\n])\s*(?:(?:let|var)\s+\w+\s*=\s*|return\s+)?"
+        r"try\s+" + receiver + r"\s*\.\s*(?P<name>inventoryExportRecords)\s*\("
+    )
+    return {match.start("name") for match in pattern.finditer(code)}
+
+
 REGEX_START = re.compile(r"(\#+)/")
 STRING_START = re.compile(r'(\#*)("""|")')
 
@@ -126,13 +139,43 @@ def code_only(source):
     return "".join(output)
 
 
+def check_sources(app_root):
+    violations = False
+    required_call = False
+    for path in sorted(app_root.rglob("*.swift")):
+        source = path.read_text(encoding="utf-8")
+        if "inventoryExportRecords" not in source:
+            continue
+        relative = path.relative_to(app_root).as_posix()
+        code = code_only(source)
+        calls = approved_calls(code, OWNERS[relative]) if relative in OWNERS else set()
+        if relative == STUDIO and calls:
+            required_call = True
+        declarations = set()
+        if relative in DECLARATIONS:
+            declarations = {match.start("name") for match in re.finditer(
+                r"\bfunc\s+(?P<name>inventoryExportRecords)\s*\(", code)}
+        for match in ACCESSOR.finditer(code):
+            if match.start() in calls or match.start() in declarations:
+                continue
+            line = code.count("\n", 0, match.start()) + 1
+            if relative not in OWNERS:
+                reason = "inventory export read outside reviewed repository/export owners"
+            else:
+                reason = "unchecked inventory export read; require a direct ordinary-try call"
+            print(f"FAIL: {reason}: {path}:{line}")
+            violations = True
+    if not required_call:
+        print("FAIL: Studio export must use the throwing repository inventoryExportRecords reader")
+    return 1 if violations or not required_call else 0
+
+
 def main():
     if len(sys.argv) != 2:
-        print("Usage: check_inventory_export_call.py <Swift export file>", file=sys.stderr)
+        print("Usage: check_inventory_export_call.py <app Swift directory>", file=sys.stderr)
         return 2
     try:
-        source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-        return 0 if CALL.search(code_only(source)) else 1
+        return check_sources(pathlib.Path(sys.argv[1]))
     except (OSError, UnicodeError, ValueError) as error:
         print(f"Inventory export source check failed: {error}", file=sys.stderr)
         return 2

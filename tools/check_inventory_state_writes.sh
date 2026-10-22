@@ -52,30 +52,9 @@ STUDIO_EXPORT="ios/DoseTap/SettingsStudioExport.swift"
 
 # Exports require the uncapped, throwing reader. The compatibility list is capped
 # and can return an empty array on failure, so it cannot establish export truth.
-STATEMENT_PREFIX='^[[:space:]]*((let|var)[[:space:]]+[[:alnum:]_]+[[:space:]]*=[[:space:]]*|return[[:space:]]+)?try[[:space:]]+'
-REPOSITORY_EXPORT="${STATEMENT_PREFIX}"'repo\.inventoryExportRecords[[:space:]]*\('
-STORAGE_EXPORT="${STATEMENT_PREFIX}"'storage\.inventoryExportRecords[[:space:]]*\('
-if ! python3 tools/check_inventory_export_call.py "$STUDIO_EXPORT"; then
-  fail "Studio export must use the throwing repository inventoryExportRecords reader"
+if ! python3 tools/check_inventory_export_call.py ios/DoseTap; then
+  fail "Studio export must use the throwing repository inventoryExportRecords reader through reviewed owners"
 fi
-
-while IFS= read -r hit; do
-  [[ -z "$hit" ]] && continue
-  file="${hit%%:*}"
-  statement="${hit#*:}"
-  statement="${statement#*:}"
-  case "$file" in
-    ios/DoseTap/SettingsStudioExport.swift) expected="$REPOSITORY_EXPORT" ;;
-    ios/DoseTap/Storage/SessionRepositoryQueries.swift) expected="$STORAGE_EXPORT" ;;
-    *)
-      fail "inventory export read outside reviewed repository/export owners" "  $hit"
-      continue
-      ;;
-  esac
-  if ! printf '%s\n' "$statement" | rg -q "$expected"; then
-    fail "unchecked inventory export read; use ordinary try and the reviewed receiver" "  $hit"
-  fi
-done < <(scan_app_swift '\.inventoryExportRecords[[:space:]]*\(')
 
 CAPPED_EXPORT_HITS="$(rg -n '\.listInventorySnapshots[[:space:]]*\(' "$STUDIO_EXPORT" || true)"
 if [[ -n "$CAPPED_EXPORT_HITS" ]]; then
