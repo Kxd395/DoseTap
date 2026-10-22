@@ -73,7 +73,7 @@ while IFS= read -r hit; do
       ;;
   esac
   if ! printf '%s\n' "$statement" | rg -q "$expected"; then
-    fail "unchecked inventory export read; propagate errors through the reviewed owner" "  $hit"
+    fail "unchecked inventory export read; use ordinary try and the reviewed receiver" "  $hit"
   fi
 done < <(scan_app_swift '\.inventoryExportRecords[[:space:]]*\(')
 
