@@ -43,9 +43,12 @@ def regex_end(source, match):
     """Skip unambiguous extended regex literals (SE-0354), not slash operators."""
     terminator = "/" + match.group(1)
     index = match.end()
+    interpolation = "\\" + match.group(1) + "("
     multiline = re.match(r"[ \t]*\r?\n", source[index:]) is not None
     while index < len(source):
-        if source[index] == "\\":
+        if source.startswith(interpolation, index):
+            index = interpolation_end(source, index + len(interpolation))
+        elif source[index] == "\\":
             index += 2
         elif source.startswith(terminator, index):
             line_start = source.rfind("\n", 0, index) + 1
@@ -67,6 +70,10 @@ def interpolation_end(source, index):
         elif (match := STRING_START.match(source, index)) is not None:
             index = string_end(source, match)
         else:
+            if source[index] == "/":
+                # Slash operators and bare regexes need Swift parser context.
+                # Refuse this unsupported syntax rather than count regex tokens.
+                raise ValueError("bare slash inside interpolation requires guard review")
             if source[index] == "(":
                 depth += 1
             elif source[index] == ")":
@@ -107,6 +114,10 @@ def code_only(source):
         elif (match := STRING_START.match(source, index)) is not None:
             index = string_end(source, match)
         else:
+            if source[index] == "/" and source[index + 1:index + 2] not in (" ", "\t"):
+                # SE-0354 bare regexes cannot begin with space/tab. Only retain
+                # this unambiguous spaced operator form; all others need review.
+                raise ValueError("bare regex or unspaced slash requires guard review")
             index += 1
             continue
         for position in range(start, index):

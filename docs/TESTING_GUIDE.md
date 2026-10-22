@@ -108,7 +108,14 @@ forced `try`, unreviewed storage access, leaked table names and derived/legacy
 sources. The required-call check excludes line/block comments (including nested
 blocks), extended regex literals (`#/.../#`, including multiline and additional
 hashes), and string literal contents, including raw and multiline strings. String
-interpolation is conservatively excluded with its literal. This lexical check
+interpolation is conservatively excluded with its literal; extended-regex
+interpolation uses the same comment/string handling. Bare slash syntax inside
+interpolation (including division or a bare regex) fails with an explicit guard
+review diagnostic, even when a real export call is present. Move such expressions
+outside interpolation or extend the guard with reviewed coverage; it does not
+guess slash/operator semantics. Outside interpolation, only a slash followed by
+a space or tab is accepted as an operator; use extended delimiters for regexes.
+This lexical check
 does not analyze surrounding `do`/`catch` or prove
 error propagation. The iOS export and dashboard snapshot tests establish runtime
 read-failure propagation, row fidelity and transaction behavior.

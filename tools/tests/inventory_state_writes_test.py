@@ -106,6 +106,49 @@ class InventoryGuardTests(unittest.TestCase):
                 result = self.run_guard()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_regex_interpolation_comment_cannot_supply_call(self):
+        for hashes in ["#", "##", "###"]:
+            for expression in ["piece", "identity((piece))"]:
+                with self.subTest(hashes=hashes, expression=expression):
+                    source = (f"let piece = {hashes}/safe/{hashes}\n"
+                              f"let ignored = {hashes}/\n\\{hashes}(\n/*\n/{hashes}\n"
+                              "try repo.inventoryExportRecords()\n*/\n"
+                              f"{expression}\n)\n/{hashes}\n")
+                    self.write(EXPORT, source + "let rows = []\n")
+                    self.assert_rejected("must use the throwing repository inventoryExportRecords")
+
+    def test_bare_regex_in_interpolation_cannot_expose_nested_string(self):
+        source = ('let ignored = """\n\\(\n'
+                  'String(describing: /[)]/ as Regex<Substring>) + """\n'
+                  'try repo.inventoryExportRecords()\n"""\n)\n"""\n')
+        self.write(EXPORT, source + "let rows = []\n")
+        self.assert_rejected("must use the throwing repository inventoryExportRecords")
+
+    def test_ambiguous_slash_interpolation_fails_even_with_real_call(self):
+        for expression in ["1 / 2", "String(describing: /[)]/)"]:
+            with self.subTest(expression=expression):
+                self.write(EXPORT, 'let text = "\\(' + expression + ')"\n' + self.export)
+                self.assert_rejected("bare slash inside interpolation requires guard review")
+
+    def test_real_call_after_extended_regex_interpolation_passes(self):
+        for hashes in ["#", "##"]:
+            with self.subTest(hashes=hashes):
+                source = (f"let piece = {hashes}/safe/{hashes}\n"
+                          f"let ignored = {hashes}/\n\\{hashes}(\n/*\n/{hashes}\n*/\n"
+                          f"identity(({hashes}/[)]/{hashes}))\n)\n/{hashes}\n")
+                self.write(EXPORT, source + self.export)
+                result = self.run_guard()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_top_level_bare_regex_fails_closed_before_scanning_its_quotes(self):
+        self.write(EXPORT, 'let pattern = /["()]/\n' + self.export)
+        self.assert_rejected("bare regex or unspaced slash requires guard review")
+
+    def test_spaced_division_outside_interpolation_passes(self):
+        self.write(EXPORT, "let minutes = seconds / 60\n" + self.export)
+        result = self.run_guard()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_unterminated_comment_or_string_fails_closed(self):
         for prefix in ["/*\n", 'let text = """\n', "let pattern = #/\n"]:
             with self.subTest(prefix=prefix):
