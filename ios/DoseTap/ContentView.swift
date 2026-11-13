@@ -154,29 +154,45 @@ struct ContentView: View {
 
     private var compactBody: some View {
         ZStack(alignment: .bottom) {
-            // Swipeable Page View
+            // A plain container keeps each navigation controller inside its own
+            // page host when appearance changes during a paging transition.
             TabView(selection: $urlRouter.selectedTab) {
-                LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState, coordinator: doseCoordinator)
-                    .environmentObject(themeManager)
-                    .environmentObject(undoState)
-                    .tag(AppTab.tonight)
+                ZStack {
+                    Color.clear
+                    LegacyTonightView(core: core, eventLogger: eventLogger, undoState: undoState, coordinator: doseCoordinator)
+                        .environmentObject(themeManager)
+                        .environmentObject(undoState)
+                }
+                .tag(AppTab.tonight)
                 
-                DetailsView(core: core, eventLogger: eventLogger)
-                    .environmentObject(themeManager)
-                    .environmentObject(undoState)
-                    .tag(AppTab.timeline)
+                ZStack {
+                    Color.clear
+                    DetailsView(core: core, eventLogger: eventLogger)
+                        .environmentObject(themeManager)
+                        .environmentObject(undoState)
+                }
+                .tag(AppTab.timeline)
                 
-                HistoryView()
-                    .environmentObject(themeManager)
-                    .tag(AppTab.history)
+                ZStack {
+                    Color.clear
+                    HistoryView()
+                        .environmentObject(themeManager)
+                }
+                .tag(AppTab.history)
 
-                DashboardTabView(core: core, eventLogger: eventLogger)
-                    .environmentObject(themeManager)
-                    .tag(AppTab.dashboard)
+                ZStack {
+                    Color.clear
+                    DashboardTabView(core: core, eventLogger: eventLogger)
+                        .environmentObject(themeManager)
+                }
+                .tag(AppTab.dashboard)
                 
-                SettingsView()
-                    .environmentObject(themeManager)
-                    .tag(AppTab.settings)
+                ZStack {
+                    Color.clear
+                    SettingsView()
+                        .environmentObject(themeManager)
+                }
+                .tag(AppTab.settings)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .safeAreaInset(edge: .bottom) {

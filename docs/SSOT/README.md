@@ -462,6 +462,8 @@ The shared theme control cycles appearance on tap and offers the three named
 appearances through a native menu on long press. Choosing an appearance and then
 switching tabs must preserve the navigation headers and the running app; theme
 selection does not change medication records or reminders.
+Each compact tab retains its own navigation identity across appearance updates;
+changing appearance must not transfer a navigation item between tab controllers.
 
 ### Automatic Night Mode (DOSETAP-48)
 
