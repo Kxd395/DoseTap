@@ -77,6 +77,14 @@ Use a destination that exists on the machine running the test. Do not change pro
 
 Key app suites currently include storage integration, medication transaction failure injection, session repository behavior, export, Apple Health and API adapters, notifications and timeline, UI state, URL routing, and WHOOP decoding. Discover exact file names rather than copying an old list.
 
+Every UI launch pins an explicit text-size category, including relaunches after
+accessibility cases. Dashboard header checks use the shipped shortened Data title
+at accessibility size and the current range-control identifier.
+
+Dashboard UI fixtures pin initial Dark appearance and disable automatic night appearance
+in launch defaults. A preceding interrupted theme test must not choose the next
+test's legend. The Night Mode journey changes appearance through visible controls.
+
 ## DoseTap Studio
 
 ```bash
@@ -147,3 +155,7 @@ Evidence class: <automated, simulator runtime, signed device, external, owner ob
 Open gates: <what this run did not prove>
 ```
 
+
+Supply preparation UI fixtures start from a cleared synthetic night so a preceding completed-night journey cannot hide the pre-dose controls. This reset is restricted to the simulator test launch path.
+
+Preset UI journeys explicitly select portrait and their intended text size before launch; launch-performance configuration must not leak landscape or a prior accessibility size into the next test class. Weekly-planner test gestures begin above the pinned Save footer, including at maximum text size.

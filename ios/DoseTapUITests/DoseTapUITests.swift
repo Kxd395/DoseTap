@@ -14,6 +14,9 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testSupply") || name.contains("testCompactLayout") {
             app.launchArguments += ["--uitesting-bottle-tracking-reset", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
+        if name.contains("testSupplyBottleIsFirst") || name.contains("testSupplyReceiptReminder") {
+            app.launchArguments.append("--uitesting-auto-night-reset")
+        }
         if name.contains("testSupplyTracked") {
             app.launchArguments += ["--uitesting-auto-night-reset", "-UIPreferredContentSizeCategoryName",
                 name.contains("LargeText") ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
@@ -55,7 +58,10 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testCompactLayout") { app.launchArguments += ["--uitesting-layout", "-setup_completed_v2", "YES"] }
         if name.contains("testSupply") || name.contains("testSystemAlarm") || name.contains("testPreSleep") || name.contains("testMorningSavedPain") { app.launchArguments += ["-setup_completed_v2", "YES"] }
         if name.contains("testDashboardReplay") { app.launchArguments.append("--uitesting-replay") }
-        if name.contains("testDashboard") { app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES"] }
+        if name.contains("testDashboard") {
+            app.launchArguments += ["--uitesting-dashboard", "-setup_completed_v2", "YES",
+                "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO"]
+        }
         if name.contains("testWeeklySchedule") {
             app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", name.contains("LargeText") ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
@@ -82,21 +88,42 @@ final class DoseTapUITests: XCTestCase {
         }
         if name.contains("testDaytimeTrendLargestText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         if name.contains("testDaytimeFailure") { app.launchArguments += ["--uitesting-durable-log", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
-        app.launch()
+        launchApp()
         app.launchArguments.removeAll { $0 == "--uitesting-bottle-tracking-reset" }
+    }
+
+    /// Pin every launch's text size, including relaunches after a largest-text case.
+    /// Keep the last explicit category when a journey changes its launch arguments.
+    private func launchApp() {
+        let key = "-UIPreferredContentSizeCategoryName"
+        let original = app.launchArguments
+        var normalized: [String] = []
+        var category = "UICTContentSizeCategoryL"
+        var index = 0
+        while index < original.count {
+            if original[index] == key, index + 1 < original.count {
+                category = original[index + 1]
+                index += 2
+            } else {
+                normalized.append(original[index])
+                index += 1
+            }
+        }
+        app.launchArguments = normalized + [key, category]
+        app.launch()
     }
 
     override func tearDownWithError() throws {
         if (name.contains("testSupplyTracked") && name.contains("LargeText")) || name.contains("testDose1ReviewLargeText") || name.contains("testMorningRecordedDoseInWindowLargeText") {
             app.terminate()
             app.launchArguments = ["--uitesting", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
-            app.launch()
+            launchApp()
         }
         if name.contains("testPreSleepPainPatternsLargeText") || name.contains("testPreSleepAutomaticSetupLargeText") || name.contains("testReviewedDoseSleepMetricsLargeText") || name.contains("testMorningSavedPainLargeText") || name.contains("testPreSleepRoomSetupLargeText") || name.contains("testMorningSleepingLargeText") {
             app.terminate()
             app.launchArguments.removeAll { $0 == "-UIPreferredContentSizeCategoryName" || $0.hasPrefix("UICTContentSizeCategory") }
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
-            app.launch()
+            launchApp()
         }
         app = nil
     }
@@ -124,7 +151,7 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Simple home retains range after records and replay")
         app.terminate()
         app.launchArguments += ["--dashboard-empty"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["No recorded pairs in this period"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "dashboard-interval-points").firstMatch.exists)
@@ -139,7 +166,7 @@ final class DoseTapUITests: XCTestCase {
         app.terminate()
         app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "-selectedTheme", largeText ? "Night Mode" : "Dark", "-automaticNightModeEnabled", "NO"]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
         app.buttons["dashboard-timing-mode"].tap()
@@ -170,7 +197,7 @@ final class DoseTapUITests: XCTestCase {
         app.terminate()
         app.launchArguments.removeAll { $0 == "--uitesting-dashboard" }
         app.launchArguments += ["-dashboard-dose-pattern-overlap-uitest", "-setup_completed_v2", "YES", "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
         app.buttons["dashboard-timing-mode"].tap(); app.buttons["Sleep vs spacing"].tap()
@@ -207,7 +234,7 @@ final class DoseTapUITests: XCTestCase {
         app.terminate()
         app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "--uitesting-reported-context",
             "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO"]
-        app.launch(); app.buttons["Dashboard"].tap()
+        launchApp(); app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
         app.buttons["dashboard-timing-mode"].tap(); app.buttons["Sleep vs spacing"].tap()
         XCTAssertTrue(app.buttons["dashboard-timing-context-basis"].label.contains("Morning check-in"))
@@ -236,7 +263,7 @@ final class DoseTapUITests: XCTestCase {
         app.launchArguments += ["--uitesting-timing", "--uitesting-replay", "--uitesting-reported-context",
             "-selectedTheme", "Dark", "-automaticNightModeEnabled", "NO",
             "-UIPreferredContentSizeCategoryName", largeText ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
-        app.launch(); app.buttons["Dashboard"].tap()
+        launchApp(); app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Dose timing"].waitForExistence(timeout: 10))
         app.buttons["dashboard-timing-mode"].tap(); app.buttons["Sleep vs spacing"].tap()
         let filter = app.buttons["dashboard-reported-night-filter"]
@@ -284,7 +311,7 @@ final class DoseTapUITests: XCTestCase {
         app.terminate()
         app.launchArguments = ["--uitesting", "--uitesting-dashboard", "-setup_completed_v2", "YES",
             "-UIPreferredContentSizeCategoryName", size]
-        app.launch()
+        launchApp()
         let start = Date()
         app.buttons["Dashboard"].tap()
         let heading = app.staticTexts["Dose timing"]
@@ -338,7 +365,7 @@ final class DoseTapUITests: XCTestCase {
         let grams = app.textFields["quantity-grams"]
         XCTAssertTrue(grams.waitForExistence(timeout: 5)); grams.tap(); grams.typeText("45")
         let reason = app.textFields["quantity-reason"]
-        reason.tap(); reason.typeText("Confirmed current amount")
+        reason.tap(); reason.typeText("Confirmed current amount\n")
         tap("quantity-save")
         XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
         let balance = app.staticTexts["bottle-remaining-grams"]
@@ -347,7 +374,7 @@ final class DoseTapUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         app.navigationBars.buttons["Done"].tap()
         XCTAssertEqual(app.staticTexts["bottle-card-unopened"].label, "Unopened bottles: not recorded")
-        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; app.launch()
+        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; launchApp()
         XCTAssertTrue(app.staticTexts["bottle-card-remaining-grams"].waitForExistence(timeout: 15))
         XCTAssertEqual(app.staticTexts["bottle-card-remaining-grams"].label, "Estimated in bottle: 45 g")
         XCTAssertEqual(app.staticTexts["bottle-card-unopened"].label, "Unopened bottles: not recorded")
@@ -423,7 +450,7 @@ final class DoseTapUITests: XCTestCase {
         tap("bottle-card-amounts")
         XCTAssertTrue(app.navigationBars["Amounts & preparations"].waitForExistence(timeout: 8))
         app.navigationBars.buttons["Done"].tap()
-        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; app.launch()
+        app.terminate(); app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }; launchApp()
         openQuantities(); reveal(balance, down: true)
         XCTAssertEqual(balance.label, "Estimated in bottle: 81 g")
         reveal(unresolved); XCTAssertEqual(unresolved.label, "Unresolved preparations: 1")
@@ -436,11 +463,17 @@ final class DoseTapUITests: XCTestCase {
         func reveal(_ element: XCUIElement, down: Bool = false) {
             let interior = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.18)
             var previousFrame: CGRect?
-            for _ in 0..<14 {
+            var searchTowardTop = down
+            for _ in 0..<40 {
                 if element.exists && element.isHittable && (interior.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) || previousFrame == element.frame) { break }
                 // At a form's scroll limit, a reachable final row need not reach its center.
                 previousFrame = element.exists ? element.frame : nil
-                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : down
+                // Form rows outside the viewport may not exist in the AX tree.
+                // Once the first section is visible, search downward instead of
+                // repeatedly pulling beyond the top for an offscreen later row.
+                let firstSection = app.staticTexts.matching(NSPredicate(format: "label ==[c] %@", "Current supply")).firstMatch
+                if searchTowardTop && firstSection.exists && firstSection.isHittable { searchTowardTop = false }
+                let towardTop = element.exists && !element.frame.isEmpty ? element.frame.midY < interior.minY : searchTowardTop
                 if towardTop { app.swipeDown() } else { app.swipeUp() }
             }
             XCTAssertTrue(element.exists); XCTAssertTrue(element.isHittable)
@@ -476,7 +509,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(app.buttons["dose-primary-action"].label, doseBefore)
         app.terminate()
         app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }
-        app.launch(); openSupply(); count(2)
+        launchApp(); openSupply(); count(2)
         startBottle(); count(1)
         startBottle(); count(0)
         reveal(app.staticTexts["bottle-refill-notice"], down: true)
@@ -664,7 +697,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testMedicationQuickLogHistoryLargeText") {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
-        app.launch()
+        launchApp()
         app.buttons["History"].firstMatch.tap()
         let medications = app.buttons["history-medications"]
         XCTAssertTrue(medications.waitForExistence(timeout: 10)); medications.tap()
@@ -762,13 +795,13 @@ final class DoseTapUITests: XCTestCase {
             XCTAssertTrue(app.buttons["\(event) event button"].exists, "Quick Log must remain available")
         }
         app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
         expectation(for: night, evaluatedWith: theme)
         waitForExpectations(timeout: 10)
         app.terminate()
         app.launchArguments.append("--uitesting-auto-night-wake")
-        app.launch()
+        launchApp()
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
         expectation(for: NSPredicate(format: "value == %@", "Dark"), evaluatedWith: theme)
         waitForExpectations(timeout: 25)
@@ -785,7 +818,7 @@ final class DoseTapUITests: XCTestCase {
         theme.tap()
         XCTAssertEqual(theme.value as? String, "Light")
         app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" }
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
         XCTAssertEqual(theme.value as? String, "Light")
         captureDashboard("Manual appearance override survives restart")
@@ -829,12 +862,15 @@ final class DoseTapUITests: XCTestCase {
         var headerHeights: [String: CGFloat] = [:]
         for title in ["Tonight", "Timeline", "History", "Dashboard", "Settings"] {
             app.buttons[title].tap()
-            let header = app.navigationBars[title]
+            let isLargest = app.launchArguments.contains("UICTContentSizeCategoryAccessibilityXXXL")
+            let header = app.navigationBars[title == "Dashboard" && isLargest ? "Data" : title]
             XCTAssertTrue(header.waitForExistence(timeout: 10))
             headerHeights[title] = header.frame.height
             XCTAssertLessThan(header.frame.minY, 100, "The header should start just below the status bar")
             if title == "Timeline" || title == "Dashboard" {
-                let picker = app.segmentedControls.firstMatch
+                let picker = title == "Dashboard"
+                    ? app.descendants(matching: .any).matching(identifier: "dashboard-range-picker").firstMatch
+                    : app.segmentedControls.firstMatch
                 XCTAssertTrue(picker.exists)
                 XCTAssertLessThanOrEqual(picker.frame.minY - header.frame.maxY, 40, "The first control should follow the header without an extra spacer")
             }
@@ -848,7 +884,7 @@ final class DoseTapUITests: XCTestCase {
     func testCompactLayoutSecondaryHeadersLargeText() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchApp()
         try testCompactLayoutSecondaryHeaders()
     }
 
@@ -901,10 +937,29 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(theme.value as? String, "Dark")
     }
 
+    func testCompactLayoutThemeSwipeNavigation() throws {
+        let theme = app.navigationBars["Tonight"].buttons["Theme quick switch"]
+        XCTAssertTrue(theme.waitForExistence(timeout: 10))
+        theme.press(forDuration: 1)
+        app.buttons["Dark"].tap()
+        theme.tap()
+        for title in ["Timeline", "History"] {
+            app.swipeLeft()
+            let control = app.navigationBars[title].buttons["Theme quick switch"]
+            XCTAssertTrue(control.waitForExistence(timeout: 10))
+            XCTAssertEqual(control.value as? String, "Night Mode")
+        }
+        for title in ["Timeline", "Tonight"] {
+            app.swipeRight()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 10))
+        }
+        captureDashboard("Night Mode swipe navigation retains Tonight")
+    }
+
     func testCompactLayoutLargeTextKeepsContentReachable() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 15))
         captureDashboard("Tonight largest accessibility text top")
         let weekly = app.descendants(matching: .any).matching(identifier: "tonight-weekly-insights").firstMatch
@@ -917,6 +972,12 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(second.frame.minY, first.frame.minY, "Large text must stack metrics instead of squeezing four columns")
         captureDashboard("History largest accessibility text metrics")
+        let title = app.staticTexts["Your Insights"].firstMatch
+        let count = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Recorded nights:")).firstMatch
+        XCTAssertTrue(title.exists)
+        XCTAssertTrue(count.exists)
+        XCTAssertLessThanOrEqual(title.frame.maxY, count.frame.minY,
+                                "At accessibility sizes, the insight title and count need separate rows to avoid fragmented words")
     }
 
     func testHistoryManualEntriesCorrectionsAndRestart() throws {
@@ -962,7 +1023,7 @@ final class DoseTapUITests: XCTestCase {
         choose("Dose 2 — missed / not taken"); enterReason(); save()
         choose("Bathroom"); enterReason(); save()
         captureDashboard("Manual history entry for a night older than 24 hours")
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(app.buttons["History"].waitForExistence(timeout: 15)); app.buttons["History"].tap()
         XCTAssertTrue(manage.waitForExistence(timeout: 10)); manage.tap()
         XCTAssertTrue(app.buttons["history-record-dose1"].waitForExistence(timeout: 5))
@@ -1042,7 +1103,7 @@ final class DoseTapUITests: XCTestCase {
         reveal(notes); notes.tap(); notes.typeText("Remembered morning")
         let submit = app.buttons["Review History Answers"]
         reveal(submit); submit.tap(); confirmSaved()
-        app.terminate(); app.launch(); openHistory()
+        app.terminate(); launchApp(); openHistory()
         XCTAssertTrue(app.staticTexts["history-no-doses"].exists, "Neither questionnaire creates doses after restart")
         openQuestionnaire("history-morning-questionnaire")
         reveal(sleepingConfirmation)
@@ -1163,7 +1224,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(reviewedRange.contains("UTC:"))
         captureDashboard("Reviewed night bounds before explicit save")
         app.buttons["night-outcome-save"].tap(); acknowledge("Answers saved")
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(diary.waitForExistence(timeout: 15)); diary.tap(); reveal(enabled)
         XCTAssertEqual(enabled.value as? String, "1")
         reveal(app.staticTexts["night-window-saved"])
@@ -1253,11 +1314,11 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(app.buttons["dose1-retry-alarm"].exists, "Verified intentional off is not an alarm failure")
         captureDashboard("Dose 1 saved with No alarm")
         app.buttons["dose1-close-review"].tap()
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(primary.waitForExistence(timeout: 15))
         XCTAssertFalse(primary.label.contains("Dose 1"))
         XCTAssertTrue(app.staticTexts["tonight-no-alarm"].exists)
-        app.terminate(); app.launchArguments.append("--uitesting-layout"); app.launch()
+        app.terminate(); app.launchArguments.append("--uitesting-layout"); launchApp()
         XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1Choice(primary); primary.tap()
         XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8))
         revealDose1Choice(noAlarm)
@@ -1285,11 +1346,11 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(app.buttons["dose1-confirm-record"].exists)
         primary.tap(); XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(interval); revealDose1(interval); interval.tap()
         confirmDose1ReviewIfPresent()
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(primary.waitForExistence(timeout: 15))
         XCTAssertFalse(primary.label.contains("Dose 1"), "Saved Dose 1 survives restart")
         captureDashboard("Dose 1 and alarm status after restart")
-        app.terminate(); app.launchArguments.append("--uitesting-layout"); app.launch()
+        app.terminate(); app.launchArguments.append("--uitesting-layout"); launchApp()
         XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1(primary); primary.tap()
         XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(app.buttons["dose1-interval-165"])
         XCTAssertEqual(app.buttons["dose1-interval-165"].value as? String, "Selected", "Tonight-only interval must not change usual preference")
@@ -1319,7 +1380,7 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["dose1-close-review"].tap()
         app.terminate()
         app.launchArguments.removeAll { $0.hasPrefix("--uitesting-dose1-review") || $0 == "--uitesting-auto-night-reset" }
-        app.launchArguments.append("--uitesting-layout"); app.launch()
+        app.launchArguments.append("--uitesting-layout"); launchApp()
         XCTAssertTrue(primary.waitForExistence(timeout: 15)); revealDose1(primary); primary.tap()
         XCTAssertTrue(app.buttons["dose1-confirm-record"].waitForExistence(timeout: 8)); revealDose1(interval)
         XCTAssertEqual(interval.value as? String, "Selected", "Explicit usual preference survives restart")
@@ -1366,7 +1427,7 @@ final class DoseTapUITests: XCTestCase {
         let committed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: action)
         wait(for: [committed], timeout: 5)
         app.terminate()
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.buttons["Tonight"].waitForExistence(timeout: 15))
         XCTAssertFalse(action.exists, "Confirmed Dose 2 must survive process restart without reseeding")
         captureDashboard("Dose 2 confirmed record restored after relaunch")
@@ -1395,7 +1456,7 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["night-outcome-save"].tap()
         XCTAssertTrue(app.alerts["Answers saved"].waitForExistence(timeout: 5), "Adding a later assessment must not require a correction reason")
         app.alerts["Answers saved"].buttons["OK"].tap()
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(diary.waitForExistence(timeout: 15))
         expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: diary)
         waitForExpectations(timeout: 10)
@@ -1445,7 +1506,7 @@ final class DoseTapUITests: XCTestCase {
     func testDashboardTrendsPairsProductionRefreshWithoutManualMatches() {
         app.terminate()
         app.launchArguments = ["--uitesting", "-dashboard-auto-pair-uitest", "-setup_completed_v2", "YES"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         selectDashboardPage("dashboard-trends-open", title: "Trends")
         revealDashboardText("Dose pairs: 1 · Sleep records: 1 · Paired: 1")
@@ -1485,7 +1546,11 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Dashboard readable Night Mode overview")
         selectDashboardMeasure("Recorded trends")
         revealDashboardText("Interactive Trends")
-        revealDashboardText("Circles: inside; diamonds: outside. Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription.")
+        let spacingLegend = app.staticTexts.matching(NSPredicate(format:
+            "label CONTAINS %@ AND label CONTAINS %@", "Single dose: 1 at zero.",
+            "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription.")).firstMatch
+        revealDashboardElement(spacingLegend, title: "Current spacing and night-context legend")
+        XCTAssertTrue(spacingLegend.label.contains("warm colors in Night Mode"))
         captureDashboard("Night Mode spacing symbols and legend")
         let chartPicker = app.buttons["dashboard-trend-picker"]
         for _ in 0..<5 where chartPicker.frame.minY < app.navigationBars["Dashboard"].frame.maxY + 12 {
@@ -1506,7 +1571,7 @@ final class DoseTapUITests: XCTestCase {
     func testDashboardSixMonthLargeTextMenu() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         let picker = app.buttons["dashboard-range-picker"]
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
@@ -1520,7 +1585,7 @@ final class DoseTapUITests: XCTestCase {
     func testDashboardProviderAssociationConfirmationAndUnlink() throws {
         app.terminate()
         app.launchArguments = ["--uitesting", "-dashboard-provider-match-uitest", "-setup_completed_v2", "YES"]
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.buttons["Dashboard"].waitForExistence(timeout: 15)); app.buttons["Dashboard"].tap()
         selectDashboardPage("dashboard-data-open", title: "Review Data")
         let open = app.buttons["dashboard-provider-match-open"]
@@ -1744,7 +1809,7 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Saved exact sleep identity retains unknown main-sleep boundaries")
     }
     func testDashboardWorkPopulatedEventPhaseMatrix() throws {
-        app.terminate(); app.launchArguments.append("--uitesting-work-events"); app.launch()
+        app.terminate(); app.launchArguments.append("--uitesting-work-events"); launchApp()
         app.buttons["Dashboard"].tap(); selectDashboardPage("dashboard-work-block", title: "Work Block & Sleep")
         app.buttons["work-comparison-controls"].tap()
         app.buttons["work-display"].tap(); app.buttons["Block matrix"].tap(); app.buttons["Done"].tap()
@@ -1857,7 +1922,7 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Dashboard readable recent nights")
         app.terminate()
         app.launchArguments += ["--dashboard-empty", "--dashboard-partial"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["No session or provider observations in this range"].waitForExistence(timeout: 10))
         captureDashboard("Dashboard empty and provider error")
@@ -1909,7 +1974,7 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Build14 parity Data per-night coverage")
         selectDashboardPage("dashboard-data-open", title: "Review Data")
         let colors = app.buttons["Colors & missing data"]
-        for _ in 0..<18 where !colors.isHittable { app.swipeDown(velocity: .slow) }
+        for _ in 0..<18 where !colors.isHittable { app.scrollViews["dashboard-data-review"].swipeUp(velocity: .slow) }
         XCTAssertTrue(colors.isHittable); colors.tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Blue values:")).firstMatch.waitForExistence(timeout: 5))
         captureDashboard("Build14 parity color key")
@@ -1977,7 +2042,7 @@ final class DoseTapUITests: XCTestCase {
         }
         app.terminate()
         app.launchArguments += ["--dashboard-sparse"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
@@ -1991,7 +2056,7 @@ final class DoseTapUITests: XCTestCase {
         captureDashboard("Sparse dashboard explains prerequisites")
         app.terminate()
         app.launchArguments += ["--dashboard-empty"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["No session or provider observations in this range"].waitForExistence(timeout: 10))
         selectDashboardPage("dashboard-data-open", title: "Review Data")
@@ -2057,7 +2122,7 @@ final class DoseTapUITests: XCTestCase {
         revealDashboardElement(element, title: title)
     }
     private func revealDashboardElement(_ element: XCUIElement, title: String, scrollAtEdge: Bool = false) {
-        for _ in 0..<18 {
+        for _ in 0..<60 {
             if element.exists && element.isHittable { return }
             let data = app.scrollViews["dashboard-data-review"]
             let viewport = data.exists ? data : app.scrollViews.firstMatch
@@ -2070,7 +2135,7 @@ final class DoseTapUITests: XCTestCase {
             let downward = element.exists && element.frame.midY < bounds.minY + height / 2
             let origin = app.coordinate(withNormalizedOffset: .zero)
             let center = bounds.minY + height / 2
-            let distance = element.exists ? min(height * 0.35, max(12, abs(element.frame.midY - center))) : height * 0.70
+            let distance = element.exists ? min(height * 0.75, max(12, abs(element.frame.midY - center))) : height * 0.70
             let dragX = scrollAtEdge ? bounds.maxX - 8 : bounds.midX
             let upper = origin.withOffset(CGVector(dx: dragX - app.frame.minX,
                 dy: center - distance / 2 - app.frame.minY))
@@ -2089,7 +2154,7 @@ final class DoseTapUITests: XCTestCase {
     func testDashboardLargeTextAndLandscape() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchApp()
         app.buttons["Dashboard"].tap()
         selectDashboardMeasure("Recorded summary")
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
@@ -2166,13 +2231,18 @@ final class DoseTapUITests: XCTestCase {
     func testWeeklyScheduleLargeText() { weeklyScheduleJourney() }
     private func weeklyScheduleJourney() {
         func reveal(_ control: XCUIElement, down: Bool = false) {
-            for _ in 0..<35 {
+            for _ in 0..<60 {
                 let top = app.navigationBars.firstMatch.frame.maxY
                 let bottom = app.buttons["weekly-save"].exists ? app.buttons["weekly-save"].frame.minY - 60 : app.frame.maxY - 110
                 if control.exists && control.isHittable && control.frame.minY > top && control.frame.maxY < bottom { return }
-                let goDown = control.exists ? control.frame.midY < top : down
-                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: goDown ? 0.4 : 0.6))
-                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: goDown ? 0.6 : 0.4))
+                let goDown = control.exists && !control.frame.isEmpty ? control.frame.midY < top : down
+                // The pinned Save footer occupies much of the screen at AX5.
+                // Begin the gesture inside the list, above that footer.
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                let upper = top + (bottom - top) * 0.25
+                let lower = top + (bottom - top) * (app.buttons["weekly-save"].exists ? 0.65 : 0.85)
+                let start = origin.withOffset(CGVector(dx: app.frame.midX, dy: goDown ? upper : lower))
+                let end = origin.withOffset(CGVector(dx: app.frame.midX, dy: goDown ? lower : upper))
                 start.press(forDuration: 0.1, thenDragTo: end)
             }
             XCTFail("Schedule control not reachable: \(control)")
@@ -2181,7 +2251,10 @@ final class DoseTapUITests: XCTestCase {
             let settings = app.buttons["Settings"].firstMatch
             XCTAssertTrue(settings.waitForExistence(timeout: 10)); settings.tap()
             let link = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Weekly Schedule")).firstMatch
-            reveal(link); link.tap()
+            // Opening the Settings link requires its tappable portion, not
+            // the full-row visibility used for the planner's switches.
+            for _ in 0..<60 where !link.isHittable { app.swipeUp() }
+            XCTAssertTrue(link.isHittable); link.tap()
         }
         func set(_ id: String, _ on: Bool, down: Bool = false) {
             let control = app.switches[id]; reveal(control, down: down)
@@ -2200,7 +2273,7 @@ final class DoseTapUITests: XCTestCase {
         let save = app.buttons["weekly-save"]
         XCTAssertTrue(save.isEnabled); XCTAssertTrue(save.isHittable); save.tap()
         XCTAssertTrue(app.alerts["Schedule saved"].waitForExistence(timeout: 5)); app.alerts.buttons["OK"].tap()
-        app.terminate(); app.launch(); open()
+        app.terminate(); launchApp(); open()
         let monday = app.switches["weekly-required-2"]; reveal(monday)
         XCTAssertEqual(monday.value as? String, "0")
         XCTAssertTrue(app.staticTexts["No required wake time"].exists)
@@ -2212,7 +2285,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertEqual(thursday.value as? String, "1")
         captureDashboard("Weekly schedule after restart")
         // An unsaved edit must not leak into next opening.
-        thursday.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap(); app.terminate(); app.launch(); open()
+        thursday.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap(); app.terminate(); launchApp(); open()
         reveal(thursday); XCTAssertEqual(thursday.value as? String, "1")
         XCTAssertFalse(app.staticTexts["Quick Weekly Setup"].exists)
     }
@@ -2373,7 +2446,7 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Back"].tap()
         XCTAssertEqual(saved.label, savedLabel)
         app.terminate()
-        app.launch()
+        launchApp()
         XCTAssertTrue(dose.waitForExistence(timeout: 15))
         XCTAssertEqual(dose.label, doseBefore)
         for _ in 0..<5 where !check.isHittable { app.swipeUp() }
@@ -2386,7 +2459,7 @@ final class DoseTapUITests: XCTestCase {
     func testPreSleepRoomSetupLargeText() throws {
         app.terminate()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchApp()
         let check = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Pre-sleep")).firstMatch
         XCTAssertTrue(check.waitForExistence(timeout: 15)); check.tap()
         app.buttons["Use room setup"].tap()
@@ -2427,7 +2500,7 @@ final class DoseTapUITests: XCTestCase {
         if automatic.value as? String == "On" { automatic.tap() }
         automatic.tap(); XCTAssertEqual(automatic.value as? String, "On")
         captureDashboard("Automatic sleeping setup enabled")
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         openSetup()
         reveal(arrangement)
         XCTAssertEqual(arrangement.value as? String, "Alone in the room")
@@ -2437,10 +2510,10 @@ final class DoseTapUITests: XCTestCase {
         reveal(automatic); XCTAssertEqual(automatic.value as? String, "On")
         captureDashboard("New draft reuses setup; tonight remains editable")
         // This launch creates another unsaved draft; preferences must retain Alone.
-        app.terminate(); app.launch(); openSetup(); reveal(arrangement)
+        app.terminate(); launchApp(); openSetup(); reveal(arrangement)
         XCTAssertEqual(arrangement.value as? String, "Alone in the room")
         reveal(automatic); automatic.tap(); XCTAssertEqual(automatic.value as? String, "Off")
-        app.terminate(); app.launch(); openSetup(); reveal(arrangement)
+        app.terminate(); launchApp(); openSetup(); reveal(arrangement)
         XCTAssertEqual(arrangement.value as? String, "Not recorded")
         captureDashboard("Automatic reuse off leaves new draft unanswered")
     }
@@ -2449,7 +2522,7 @@ final class DoseTapUITests: XCTestCase {
         app.terminate()
         app.launchArguments.removeAll { $0 == "--uitesting-expired-session" }
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.buttons["Finish"].firstMatch.waitForExistence(timeout: 15)); app.buttons["Finish"].firstMatch.tap()
         let confirmation = app.buttons["morning-sleeping-confirmation"]
         for _ in 0..<14 where !confirmation.isHittable { app.swipeUp() }
@@ -2599,7 +2672,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(feet.label.contains("Throbbing"))
         app.terminate()
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
-        app.launch(); openCheck()
+        launchApp(); openCheck()
         XCTAssertFalse(back.exists, "Remembering is not a nightly observation")
         XCTAssertFalse(feet.exists)
         let useFeetFirst = app.buttons["use-pain-ankle_foot|both"]
@@ -2629,10 +2702,18 @@ final class DoseTapUITests: XCTestCase {
         useBack.tap()
         let tonightIntensity = app.sliders["pain-intensity"]
         XCTAssertTrue(tonightIntensity.isHittable, "Saved pain should expose tonight's level without scrolling")
+        let displayedIntensity = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^(10|[0-9])/10$")).firstMatch
+        let previousIntensity = displayedIntensity.label
         tonightIntensity.adjust(toNormalizedSliderPosition: 0.6)
+        // XCTest's slider position is approximate and varies with track width.
+        // Verify persistence against the value visibly selected before saving.
+        let selectedIntensity = displayedIntensity.label
+        XCTAssertFalse(selectedIntensity.isEmpty)
+        XCTAssertNotEqual(selectedIntensity, previousIntensity)
+        captureDashboard("Selected pain intensity before saving")
         app.navigationBars.buttons["Save"].tap()
         XCTAssertTrue(back.exists)
-        XCTAssertTrue(back.label.contains("6/10"))
+        XCTAssertTrue(back.label.contains(selectedIntensity))
         XCTAssertEqual(app.buttons["remember-pain-mid_back|both"].label, "Update saved pattern")
         XCTAssertFalse(feet.exists, "Selecting one pattern must not add the other")
         let proof = XCTAttachment(screenshot: app.screenshot())
@@ -2711,7 +2792,7 @@ final class DoseTapUITests: XCTestCase {
         proof.lifetime = .keepAlways
         add(proof)
         app.terminate()
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 15))
         openSupply()
         expectation(for: scheduled, evaluatedWith: app.staticTexts["supplyReminderStatus"])
@@ -2765,7 +2846,7 @@ final class DoseTapUITests: XCTestCase {
         app.terminate()
         app.launchArguments += ["--uitesting-expired-session", "-morningCheckIn.rememberSettings", "NO"]
         if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
-        app.launch()
+        launchApp()
         let finish = app.buttons["Finish"].firstMatch
         XCTAssertTrue(finish.waitForExistence(timeout: 15)); finish.tap()
         let physical = app.buttons["Physical Symptoms"].firstMatch; reveal(physical); physical.tap()
@@ -2906,7 +2987,7 @@ final class DoseTapUITests: XCTestCase {
             if name.contains("LargeText") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
             if name.contains("Failure") { app.launchArguments.append("--uitesting-dose1-review-failure") }
         }
-        app.launch()
+        launchApp()
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 15))
     }
 
@@ -2999,16 +3080,15 @@ final class DoseTapUITests: XCTestCase {
     // MARK: - Memory & Stability
 
     func testRepeatedTabSwitchingDoesNotCrash() throws {
-        let tabLabels = ["Tonight", "Details", "Settings"]
+        let tabLabels = ["Tonight", "Timeline", "History", "Dashboard", "Settings"]
         for _ in 0..<10 {
             for label in tabLabels {
                 let tab = app.buttons[label]
-                if tab.exists {
-                    tab.tap()
-                }
+                XCTAssertTrue(tab.waitForExistence(timeout: 5), "Every current tab must participate in the stress journey")
+                tab.tap()
             }
         }
-        // If we survived 30 tab switches, the app is stable
+        // This bounded journey verifies 50 switches without claiming general stability.
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3))
     }
 }
@@ -3051,7 +3131,7 @@ extension DoseTapUITests {
         let savedID = String(saved.identifier.dropFirst("daytime-saved-observation-".count))
         XCTAssertNotNil(UUID(uuidString: savedID))
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Independent daytime observation"; screenshot.lifetime = .keepAlways; self.add(screenshot)
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
         reveal(app.staticTexts["Custom sleepiness: 4/10"].firstMatch)
         reveal(app.buttons["Daytime trends"], down: true); app.buttons["Daytime trends"].tap()
@@ -3159,7 +3239,7 @@ extension DoseTapUITests {
         let saved = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "daytime-saved-observation-")).firstMatch
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         let id = saved.identifier
-        app.terminate(); app.launch()
+        app.terminate(); launchApp()
         XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15)); app.buttons["History"].firstMatch.tap(); app.buttons["history-daytime"].tap()
         XCTAssertTrue(app.staticTexts[id].waitForExistence(timeout: 5))
         let links = app.buttons["Saved source links (1)"]
