@@ -132,7 +132,7 @@ struct DashboardAdditionalMeasuresView: View {
                             rawText("Saved note", record.notes)
                         }
                         if let record = night.preSleepLog {
-                            Text("Pre-sleep record ID: \(record.id); saved session ID: \(record.sessionId)")
+                            Text("Pre-sleep record ID: \(record.id); saved session ID: \(record.sessionId ?? "Not stored")")
                             Text("Stored timestamp: \(record.createdAtUtc); completion: \(record.completionState)")
                             if let answers = record.answers {
                                 Text(verbatim: encodedAnswers(answers)).font(.caption.monospaced()).textSelection(.enabled)

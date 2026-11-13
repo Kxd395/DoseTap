@@ -9,9 +9,9 @@ struct DaytimeTrendsView: View {
     let sharedInspection: Binding<DaytimeInspectionState>?
     let refreshShared: (() -> Void)?
     let now: () -> Date
-    init(repository: SessionRepository = .shared, sharedSelection: DaytimeTrendSelection? = nil,
+    @MainActor init(repository: SessionRepository? = nil, sharedSelection: DaytimeTrendSelection? = nil,
          sharedInspection: Binding<DaytimeInspectionState>? = nil, refreshShared: (() -> Void)? = nil, now: @escaping () -> Date = Date.init) {
-        self.sharedInspection = sharedInspection; self.repository = repository; self.sharedSelection = sharedSelection; self.refreshShared = refreshShared; self.now = now
+        self.sharedInspection = sharedInspection; self.repository = repository ?? .shared; self.sharedSelection = sharedSelection; self.refreshShared = refreshShared; self.now = now
         let initial = sharedSelection?.asOf ?? now(); _start = State(initialValue: initial); _end = State(initialValue: initial)
     }
     @State private var range: Range = .fourWeeks

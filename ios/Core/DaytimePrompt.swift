@@ -291,7 +291,7 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
                 else { throw DaytimeDiaryError.invalid }
             }
             guard schedules.contains(where: { $0.id == prompt.scheduleID }),
-                  [prompt.intendedAt, prompt.nextAttemptAt, prompt.openedAt, prompt.assessedAt, prompt.respondedAt].compactMap { $0 }.allSatisfy({ $0.timeIntervalSince1970.isFinite }),
+                  [prompt.intendedAt, prompt.nextAttemptAt, prompt.openedAt, prompt.assessedAt, prompt.respondedAt].compactMap({ $0 }).allSatisfy({ $0.timeIntervalSince1970.isFinite }),
                   (prompt.assessedAt ?? .distantPast) <= (prompt.respondedAt ?? .distantFuture),
                   prompt.status != .responded || (prompt.assessmentID != nil && prompt.assessedAt != nil && prompt.respondedAt != nil)
             else { throw DaytimeDiaryError.invalid }
