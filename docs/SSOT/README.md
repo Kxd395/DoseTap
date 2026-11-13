@@ -445,6 +445,10 @@ Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and r
 
 All five tabs use native navigation headers, with inline titles on compact screens. The shared toolbar places the theme quick switch at the leading edge and current-page capture at the trailing edge. Capture is available in Timeline Live and Review, including empty states. History's record editor and Dashboard's refresh/sync controls remain contextual actions beside capture. Timeline's separate review-summary capture stays in the Review content. Tonight keeps its session date and dose/alarm information below the header. Titles remain below the system status area, and scrolling stays available for larger text.
 
+At accessibility text sizes, the insights summary places its heading and recorded-night
+count on separate, leading-aligned rows so neither competes for horizontal space.
+Standard text retains the horizontal header and existing metric layout.
+
 Code references:
 - `ios/DoseTap/ContentView.swift` (adaptive root)
 - `ios/DoseTap/Views/AdaptiveLayouts.swift` (environment key, sidebar, helpers)

@@ -717,6 +717,12 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 10))
         XCTAssertGreaterThan(second.frame.minY, first.frame.minY, "Large text must stack metrics instead of squeezing four columns")
         captureDashboard("History largest accessibility text metrics")
+        let title = app.staticTexts["Your Insights"].firstMatch
+        let count = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Recorded nights:")).firstMatch
+        XCTAssertTrue(title.exists)
+        XCTAssertTrue(count.exists)
+        XCTAssertLessThanOrEqual(title.frame.maxY, count.frame.minY,
+                                "At accessibility sizes, the insight title and count need separate rows to avoid fragmented words")
     }
 
     func testHistoryManualEntriesCorrectionsAndRestart() throws {
