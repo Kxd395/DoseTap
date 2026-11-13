@@ -320,10 +320,13 @@ struct InsightsSummaryCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            let headerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                : AnyLayout(HStackLayout())
+            headerLayout {
                 Text(title)
                     .font(.headline)
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Text("Recorded nights: \(insights.totalSessions)")
                     .font(.caption)
                     .foregroundColor(.secondary)
