@@ -77,6 +77,16 @@ Use a destination that exists on the machine running the test. Do not change pro
 
 Key app suites currently include storage integration, medication transaction failure injection, session repository behavior, export, Apple Health and API adapters, notifications and timeline, UI state, URL routing, and WHOOP decoding. Discover exact file names rather than copying an old list.
 
+UI launches must explicitly select their content-size category. The main UI
+journeys normalize repeated launch arguments to the last requested category and
+default to standard Large; a preceding accessibility-size journey must not choose
+the next test's layout. Dashboard header checks target the range picker by its
+identifier because its accessibility-size presentation is a menu. The
+Debug/simulator automatic-night reset fixture also clears the current night's
+saved wake override. Its wake-boundary journey verifies that a subsequent fresh
+fixture can enter Automatic Night Mode again. These are test-fixture rules, not
+changes to saved user schedules or shipping appearance behavior.
+
 ## DoseTap Studio
 
 ```bash

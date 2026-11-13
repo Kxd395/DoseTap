@@ -8,6 +8,9 @@ final class MedicationPresetSettingsUITests: XCTestCase {
         if name.contains("LargeText") {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
+        if !app.launchArguments.contains("-UIPreferredContentSizeCategoryName") {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        }
         app.launch()
     }
     private func reveal(_ element: XCUIElement) {

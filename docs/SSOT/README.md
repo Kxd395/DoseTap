@@ -454,6 +454,11 @@ Code references:
 
 ## Appearance
 
+The shared theme control cycles appearance on tap and offers the three named
+appearances through a native menu on long press. Choosing an appearance and then
+switching tabs must preserve the navigation headers and the running app; theme
+selection does not change medication records or reminders.
+
 ### Automatic Night Mode (DOSETAP-48)
 
 - Automatic Night Mode is enabled by default and can be disabled in Settings → Theme. It changes DoseTap's appearance only, not device brightness, Focus, alarms, or medication state.
