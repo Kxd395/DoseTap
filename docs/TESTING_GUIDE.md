@@ -86,6 +86,10 @@ Debug/simulator automatic-night reset fixture also clears the current night's
 saved wake override. Its wake-boundary journey verifies that a subsequent fresh
 fixture can enter Automatic Night Mode again. These are test-fixture rules, not
 changes to saved user schedules or shipping appearance behavior.
+Dashboard fixtures also pin their initial appearance to Dark with automatic night
+appearance disabled in the launch defaults. A preceding interrupted theme test
+must not select the next test's legend. The dedicated Night Mode journey still
+switches Dark/Night/Dark through the visible control and checks retained selection.
 
 ## DoseTap Studio
 
@@ -199,3 +203,7 @@ python3 tools/export_studio_fixtures.py .build/ci-attachments-local .build/ci-fi
 bash tools/run_ci_studio_tests.sh .build/ci-fixtures-local .build/ci-studio-local
 python3 tools/tests/studio_fixtures_test.py
 ```
+
+Supply preparation UI fixtures start from a cleared synthetic night so a preceding completed-night journey cannot hide the pre-dose controls. This reset is restricted to the simulator test launch path.
+
+Preset UI journeys explicitly select portrait and their intended text size before launch; launch-performance configuration must not leak landscape or a prior accessibility size into the next test class. Weekly-planner test gestures begin above the pinned Save footer, including at maximum text size.

@@ -4,6 +4,7 @@ final class MedicationPresetSettingsUITests: XCTestCase {
     private var app = XCUIApplication()
     override func setUpWithError() throws {
         continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
         app.launchArguments = ["--uitesting", "-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         if name.contains("LargeText") {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
