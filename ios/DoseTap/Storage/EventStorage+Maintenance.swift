@@ -39,7 +39,10 @@ extension EventStorage {
         public let rollbackFailed: Bool
 
         public var errorDescription: String? {
-            rollbackFailed
+            if stage == "unsupportedSchema", !rollbackFailed {
+                return "This database contains collections this version of DoseTap cannot reset. Open it in the version that created them."
+            }
+            return rollbackFailed
                 ? "The reset could not finish and storage is unavailable. Restart DoseTap before trying again."
                 : "Your local records could not be cleared. Your session and settings were not reset. Please try again."
         }
@@ -77,6 +80,18 @@ extension EventStorage {
         do {
             try execute("BEGIN IMMEDIATE", at: .begin)
             began = true
+            // Another build can use the same user_version and own additional collections.
+            // Inspect inside the write transaction before deleting any reviewed collection.
+            let existing: [String] = try readExportRows(
+                "SELECT name FROM main.sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*'"
+            ) { row in
+                guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
+                return String(cString: name)
+            }
+            let supported = Set(tables + ["schema_migrations", "cloudkit_tombstones"])
+            guard Set(existing).isSubset(of: supported) else {
+                throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
+            }
             for table in tables { try execute("DELETE FROM \(table)", at: .delete) }
             try execute("COMMIT", at: .commit)
             storageLog.info("Local clinical database reset committed")

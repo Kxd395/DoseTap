@@ -6,6 +6,7 @@ Plane: DOSETAP-39
 ## Explicit local reset
 
 - Clear All Data deletes the app-owned clinical SQLite collections in one checked transaction. It retains schema and migration metadata. The existing staging tombstone queue and external stores remain outside this bounded reset; the confirmation discloses the retained data rather than claiming a full account purge.
+- Clear All Data first checks the tables in the write transaction. If another build created additional tables, even under the same schema version, the reset stops before deleting records. Reopen the database with the build that understands those collections.
 - A failed database preflight, BEGIN, DELETE or COMMIT reports a structured reset failure. A successfully rolled-back reset leaves all source records, the active session, preferences and reminder intent unchanged. No success notification or UI publication occurs.
 - A failed rollback makes the database handle unavailable to later writes. The UI reports unresolved storage and asks the user to restart; it must not claim that every record was preserved or erased. Repeated reset attempts on that unavailable handle retain the original failure and restart guidance.
 - Only a committed reset can clear in-memory session state, reset preferences, and request cancellation of app-owned notifications and system wake alarms. Alarm cleanup is a separate post-commit result; an unverified cancellation cannot undo deletion or be presented as verified cancellation.
