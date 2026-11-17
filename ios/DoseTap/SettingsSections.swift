@@ -2,7 +2,7 @@ import SwiftUI
 import DoseCore
 
 extension SettingsView {
-    var settingsContent: some View {
+    private var settingsList: some View {
         List {
             Section {
                 targetIntervalPicker
@@ -251,111 +251,9 @@ extension SettingsView {
                 Text("Connect with Apple Health to sync sleep data and view integrated insights.")
             }
 
-            Section {
-                NavigationLink(destination: DashboardTransferView()) {
-                    Label("Connect iPad Dashboard", systemImage: "ipad.and.iphone")
-                }.accessibilityIdentifier("settings.dashboardConnection")
-                Button {
-                    requestedExportFormat = .excelWorkbook
-                    showingFullExportReview = true
-                } label: {
-                    Label("Export Full Excel Workbook", systemImage: "tablecells")
-                }
-                .disabled(isExporting)
-                .accessibilityIdentifier("settings.exportExcel")
+            dataManagementSection
 
-                Button {
-                    requestedExportFormat = .studioBundle
-                    showingFullExportReview = true
-                } label: {
-                    Label("Export Full Studio Bundle", systemImage: "square.and.arrow.up")
-                }
-                .disabled(isExporting)
-                .accessibilityIdentifier("settings.exportStudio")
-
-                if isExporting {
-                    ProgressView(exportStatus)
-                        .accessibilityIdentifier("settings.exportProgress")
-                }
-
-                Toggle(isOn: Binding(
-                    get: { AutoExportService.shared.isEnabled },
-                    set: { AutoExportService.shared.isEnabled = $0 }
-                )) {
-                    Label("Scheduled Export", systemImage: "clock.arrow.2.circlepath")
-                }
-
-                if AutoExportService.shared.isEnabled {
-                    Picker(selection: Binding(
-                        get: { AutoExportService.shared.frequency },
-                        set: { AutoExportService.shared.frequency = $0 }
-                    )) {
-                        ForEach(AutoExportService.Frequency.allCases) { frequency in
-                            Text(frequency.rawValue).tag(frequency)
-                        }
-                    } label: {
-                        Label("Frequency", systemImage: "calendar")
-                    }
-
-                    if let lastExportDate = AutoExportService.shared.lastExportDate {
-                        HStack {
-                            Label("Last Export", systemImage: "checkmark.circle")
-                            Spacer()
-                            Text(lastExportDate, style: .relative)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-
-                NavigationLink {
-                    DiagnosticExportView()
-                } label: {
-                    Label("Export Session Diagnostics", systemImage: "doc.text.magnifyingglass")
-                }
-
-                NavigationLink {
-                    DataManagementView()
-                } label: {
-                    Label("Manage History", systemImage: "clock.arrow.circlepath")
-                }
-
-                Button(role: .destructive) {
-                    showingResetConfirmation = true
-                } label: {
-                    Label("Clear All Data", systemImage: "trash.fill")
-                }
-            } header: {
-                Label("Data Management", systemImage: "externaldrive.fill")
-            } footer: {
-                Text("Manual workbooks and Studio bundles include daytime, nap, reminder, physician-review, work-context and dashboard review records, plus available provider measurements. Scheduled ZIPs contain a subset of local records and are saved to Files > DoseTap Exports when iOS runs the task.")
-            }
-
-            Section {
-                Toggle(isOn: $settings.analyticsEnabled) {
-                    Label("Anonymous Analytics", systemImage: "chart.bar.fill")
-                }
-
-                Toggle(isOn: $settings.crashReportsEnabled) {
-                    Label("Crash Reports", systemImage: "ant.fill")
-                }
-
-                NavigationLink {
-                    DiagnosticLoggingSettingsView()
-                } label: {
-                    HStack {
-                        Label("Diagnostic Logging", systemImage: "stethoscope")
-                        Spacer()
-                        if settings.diagnosticLoggingEnabled {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                        }
-                    }
-                }
-            } header: {
-                Label("Privacy & Diagnostics", systemImage: "hand.raised.fill")
-            } footer: {
-                Text("No personal health data is ever transmitted. Diagnostic logs are stored locally for troubleshooting.")
-            }
+            privacyAndDiagnosticsSection
 
             Section {
                 HStack {
@@ -381,62 +279,176 @@ extension SettingsView {
                 Label("About", systemImage: "info.circle.fill")
             }
         }
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(isInSplitView ? .large : .inline)
-        .toolbar(.visible, for: .navigationBar)
-        .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: tabBarInsetHeight)
-        }
-        .toolbar {
-            PageToolbar { EmptyView() }
-        }
-        .alert("Clear All Data", isPresented: $showingResetConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Clear All", role: .destructive) {
-                clearAllData()
+    }
+
+    var settingsContent: some View {
+        settingsList
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(isInSplitView ? .large : .inline)
+            .toolbar(.visible, for: .navigationBar)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: tabBarInsetHeight)
             }
-        } message: {
-            Text("This permanently deletes local dose history, sleep events, and settings. Diagnostic files, exported files, connected-service credentials, and Apple Health/WHOOP records are retained. This action cannot be undone.")
-        }
-        .alert("Reset Status", isPresented: $showingResetError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(resetErrorMessage)
-        }
-        .alert("Create full export?", isPresented: $showingFullExportReview) {
-            Button("Cancel", role: .cancel) {}
-            Button("Create full export") { exportData(format: requestedExportFormat) }
-                .accessibilityIdentifier("settings.confirmFullExport")
-        } message: {
-            Text("This file may include private notes, original health and diary records, and exact timestamps. Review the file before choosing where to share it.")
-        }
-        .alert("Export Complete", isPresented: $showingExportSuccess) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Your data has been exported to the Files app.")
-        }
-        .alert("Export Failed", isPresented: $showingExportError) {
-            Button("Try Again") { exportData(format: requestedExportFormat) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(exportErrorMessage)
-        }
-        .sheet(item: $exportArchive) { archive in
-            ActivityViewController(activityItems: [archive.url])
-        }
-        .onChange(of: settings.notificationsEnabled) { enabled in
-            guard enabled else { return }
-            Task {
-                await validateNotificationAuthorization()
+            .toolbar {
+                PageToolbar { EmptyView() }
             }
-        }
-        .alert("Notifications Disabled in iOS", isPresented: $showingNotificationPermissionAlert) {
-            Button("Open Settings") {
-                openSystemNotificationSettings()
+            .alert("Clear All Data", isPresented: $showingResetConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Clear All", role: .destructive) {
+                    clearAllData()
+                }
+            } message: {
+                Text("This permanently deletes local dose history, sleep events, and settings. Diagnostic files, exported files, connected-service credentials, and Apple Health/WHOOP records are retained. This action cannot be undone.")
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(notificationPermissionMessage)
+            .alert("Reset Status", isPresented: $showingResetError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(resetErrorMessage)
+            }
+            .alert("Create full export?", isPresented: $showingFullExportReview) {
+                Button("Cancel", role: .cancel) {}
+                Button("Create full export") { exportData(format: requestedExportFormat) }
+                    .accessibilityIdentifier("settings.confirmFullExport")
+            } message: {
+                Text("This file may include private notes, original health and diary records, and exact timestamps. Review the file before choosing where to share it.")
+            }
+            .alert("Export Complete", isPresented: $showingExportSuccess) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your data has been exported to the Files app.")
+            }
+            .alert("Export Failed", isPresented: $showingExportError) {
+                Button("Try Again") { exportData(format: requestedExportFormat) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(exportErrorMessage)
+            }
+            .sheet(item: $exportArchive) { archive in
+                ActivityViewController(activityItems: [archive.url])
+            }
+            .onChange(of: settings.notificationsEnabled) { enabled in
+                guard enabled else { return }
+                Task {
+                    await validateNotificationAuthorization()
+                }
+            }
+            .alert("Notifications Disabled in iOS", isPresented: $showingNotificationPermissionAlert) {
+                Button("Open Settings") {
+                    openSystemNotificationSettings()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(notificationPermissionMessage)
+            }
+    }
+
+    private var dataManagementSection: some View {
+        Section {
+            NavigationLink(destination: DashboardTransferView()) {
+                Label("Connect iPad Dashboard", systemImage: "ipad.and.iphone")
+            }.accessibilityIdentifier("settings.dashboardConnection")
+            Button {
+                requestedExportFormat = .excelWorkbook
+                showingFullExportReview = true
+            } label: {
+                Label("Export Full Excel Workbook", systemImage: "tablecells")
+            }
+            .disabled(isExporting)
+            .accessibilityIdentifier("settings.exportExcel")
+
+            Button {
+                requestedExportFormat = .studioBundle
+                showingFullExportReview = true
+            } label: {
+                Label("Export Full Studio Bundle", systemImage: "square.and.arrow.up")
+            }
+            .disabled(isExporting)
+            .accessibilityIdentifier("settings.exportStudio")
+
+            if isExporting {
+                ProgressView(exportStatus)
+                    .accessibilityIdentifier("settings.exportProgress")
+            }
+
+            Toggle(isOn: Binding(
+                get: { AutoExportService.shared.isEnabled },
+                set: { AutoExportService.shared.isEnabled = $0 }
+            )) {
+                Label("Scheduled Export", systemImage: "clock.arrow.2.circlepath")
+            }
+
+            if AutoExportService.shared.isEnabled {
+                Picker(selection: Binding(
+                    get: { AutoExportService.shared.frequency },
+                    set: { AutoExportService.shared.frequency = $0 }
+                )) {
+                    ForEach(AutoExportService.Frequency.allCases) { frequency in
+                        Text(frequency.rawValue).tag(frequency)
+                    }
+                } label: {
+                    Label("Frequency", systemImage: "calendar")
+                }
+
+                if let lastExportDate = AutoExportService.shared.lastExportDate {
+                    HStack {
+                        Label("Last Export", systemImage: "checkmark.circle")
+                        Spacer()
+                        Text(lastExportDate, style: .relative)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            NavigationLink {
+                DiagnosticExportView()
+            } label: {
+                Label("Export Session Diagnostics", systemImage: "doc.text.magnifyingglass")
+            }
+
+            NavigationLink {
+                DataManagementView()
+            } label: {
+                Label("Manage History", systemImage: "clock.arrow.circlepath")
+            }
+
+            Button(role: .destructive) {
+                showingResetConfirmation = true
+            } label: {
+                Label("Clear All Data", systemImage: "trash.fill")
+            }
+        } header: {
+            Label("Data Management", systemImage: "externaldrive.fill")
+        } footer: {
+            Text("Manual workbooks and Studio bundles include daytime, nap, reminder, physician-review, work-context and dashboard review records, plus available provider measurements. Scheduled ZIPs contain a subset of local records and are saved to Files > DoseTap Exports when iOS runs the task.")
+        }
+    }
+
+    private var privacyAndDiagnosticsSection: some View {
+        Section {
+            Toggle(isOn: $settings.analyticsEnabled) {
+                Label("Anonymous Analytics", systemImage: "chart.bar.fill")
+            }
+
+            Toggle(isOn: $settings.crashReportsEnabled) {
+                Label("Crash Reports", systemImage: "ant.fill")
+            }
+
+            NavigationLink {
+                DiagnosticLoggingSettingsView()
+            } label: {
+                HStack {
+                    Label("Diagnostic Logging", systemImage: "stethoscope")
+                    Spacer()
+                    if settings.diagnosticLoggingEnabled {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                    }
+                }
+            }
+        } header: {
+            Label("Privacy & Diagnostics", systemImage: "hand.raised.fill")
+        } footer: {
+            Text("No personal health data is ever transmitted. Diagnostic logs are stored locally for troubleshooting.")
         }
     }
 
