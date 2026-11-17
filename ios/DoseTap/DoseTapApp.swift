@@ -78,6 +78,8 @@ struct DoseTapApp: App {
             UserSettingsManager.shared.prepTimeMinutes = (minutes + 1439) % 1440
             UserSettingsManager.shared.wakeTimeMinutes = (minutes + 60) % 1440
             UserSettingsManager.shared.soundEnabled = false
+            // A previous wake-boundary UI test may have persisted an expired override.
+            SleepPlanStore.shared.setTonightOverride(sessionKey: repository.currentSessionKey, wakeBy: nil)
             // Use the recurring schedule: Tonight prunes dated overrides for
             // non-active nights before the UI records its first dose.
             for weekday in 1...7 {

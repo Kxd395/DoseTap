@@ -9,6 +9,7 @@ struct DataManagementView: View {
     @State private var isSelecting = false
     @State private var showDeleteConfirmation = false
     @State private var showClearTonightConfirmation = false
+    @State private var showClearTonightFailure = false
     @State private var showClearAllEventsConfirmation = false
     @State private var showClearOldDataConfirmation = false
     
@@ -19,11 +20,17 @@ struct DataManagementView: View {
             // Quick Actions Section
             Section {
                 Button {
+                    showClearTonightFailure = false
                     showClearTonightConfirmation = true
                 } label: {
                     Label("Clear Tonight's Events", systemImage: "moon.stars")
                 }
                 
+                if showClearTonightFailure {
+                    Text("Couldn’t clear tonight’s sleep events. Try again.")
+                        .foregroundStyle(.primary)
+                }
+
                 Button {
                     showClearOldDataConfirmation = true
                 } label: {
@@ -135,7 +142,7 @@ struct DataManagementView: View {
                 clearTonightsEvents()
             }
         } message: {
-            Text("This will delete all events logged tonight. Dose data will be preserved.")
+            Text("This will delete tonight’s sleep and quick-log events. Your dose records and reminders will be preserved.")
         }
         // Clear All Events Confirmation
         .alert("Clear All Event History?", isPresented: $showClearAllEventsConfirmation) {
@@ -181,8 +188,10 @@ struct DataManagementView: View {
     }
     
     private func clearTonightsEvents() {
-        // Use SessionRepository to clear tonight and broadcast
-        sessionRepo.clearTonight()
+        guard sessionRepo.clearTonightsEvents() else {
+            showClearTonightFailure = true
+            return
+        }
         loadSessions()
     }
     

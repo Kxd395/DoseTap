@@ -64,3 +64,6 @@ docs/review/*.pdf
 /ipad/DoseTapDashboard.xcodeproj/
 /ipad/Generated/
 __pycache__/
+
+# Private owner-authorized physical-device preservation; never commit app data.
+/private-device-backups/

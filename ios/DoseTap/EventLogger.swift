@@ -218,9 +218,9 @@ class EventLogger: ObservableObject {
     
     /// Clear tonight's events
     func clearTonight() {
-        events.removeAll()
+        guard sessionRepo.clearTonightsEvents() else { return }
+        loadEventsFromStorage()
         cooldowns.removeAll()
-        sessionRepo.clearTonightsEvents()
     }
 
     /// Last time a given event type was logged tonight. Used for "time since" badges (P3-4).

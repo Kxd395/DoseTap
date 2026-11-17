@@ -681,9 +681,14 @@ struct QuickThemeSwitchButton: View {
     }
 
     var body: some View {
-        Button {
-            themeManager.applyTheme(nextTheme)
-            Haptics.light.play()
+        Menu {
+            ForEach(AppTheme.allCases) { theme in
+                Button {
+                    themeManager.applyTheme(theme)
+                } label: {
+                    Label(theme.rawValue, systemImage: theme.icon)
+                }
+            }
         } label: {
             if compact {
                 Image(systemName: themeManager.currentTheme.icon)
@@ -708,20 +713,14 @@ struct QuickThemeSwitchButton: View {
                         .stroke(themeManager.currentTheme.accentColor.opacity(0.35), lineWidth: 1)
                 )
             }
+        } primaryAction: {
+            themeManager.applyTheme(nextTheme)
+            Haptics.light.play()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Theme quick switch")
         .accessibilityValue(themeManager.isAutomaticNightActive ? "Automatic Night Mode" : themeManager.currentTheme.rawValue)
         .accessibilityHint("Switches to \(nextTheme.rawValue)")
-        .contextMenu {
-            ForEach(AppTheme.allCases) { theme in
-                Button {
-                    themeManager.applyTheme(theme)
-                } label: {
-                    Label(theme.rawValue, systemImage: theme.icon)
-                }
-            }
-        }
     }
 }
 

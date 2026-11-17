@@ -47,7 +47,7 @@ Notes:
 - Weekly Schedule edits one seven-day draft. Each day means the date of waking,
   with an optional required wake time and separately confirmed work status.
   Fill selected days is a draft shortcut; it never assumes Monday/Wednesday/Friday.
-  Only Save Schedule commits the draft. Leaving without saving changes no settings.
+  Go to day scrolls directly to a weekday. Only Save Schedule commits the draft. Leaving without saving changes no settings.
 - On explicit save, the existing SQLite work/wake document also owns the weekly
   planner times. Work advisories use those times and retain dated exceptions.
   Existing preference-based planner times are shown for review before this first
@@ -204,6 +204,8 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 - Pain
 
 ### Morning Check-In
+
+The section menu scrolls to sleep quality, night context, symptoms, or notes. Choosing a section preserves the current answers.
 
 - DOSETAP-51 remembered morning setup: both the saved-settings path and prior-check-in fallback may restore only the therapy device, room temperature, noise setup and sleep aid. They do not restore daily outcomes, symptoms, therapy use/compliance, stress, notes, work context or clinical answers. Room/equipment choices remain inactive until their current-morning section is selected. Remembering setup remains optional; switching it off does not clear this morning's answers.
 - Newly saved morning preferences contain only those four setup fields. Legacy preference payloads are read through the same whitelist without rewriting historical check-ins. Explicit existing-night/History editing still loads that night's answers. The existing fixed rating and Boolean defaults remain a known limitation; removing cross-night copying does not make every untouched control an unanswered observation. Optional-answer/schema work, substance defaults and caffeine unit handling remain separate follow-ups.
@@ -446,6 +448,10 @@ Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and r
 
 All five tabs use native navigation headers, with inline titles on compact screens. The shared toolbar places the theme quick switch at the leading edge and current-page capture at the trailing edge. Capture is available in Timeline Live and Review, including empty states. History's record editor and Dashboard's refresh/sync controls remain contextual actions beside capture. Timeline's separate review-summary capture stays in the Review content. Tonight keeps its session date and dose/alarm information below the header. Titles remain below the system status area, and scrolling stays available for larger text.
 
+At accessibility text sizes, the insights summary places its heading and recorded-night
+count on separate, leading-aligned rows so neither competes for horizontal space.
+Standard text retains the horizontal header and existing metric layout.
+
 Code references:
 - `ios/DoseTap/ContentView.swift` (adaptive root)
 - `ios/DoseTap/Views/AdaptiveLayouts.swift` (environment key, sidebar, helpers)
@@ -454,6 +460,13 @@ Code references:
 ---
 
 ## Appearance
+
+The shared theme control cycles appearance on tap and offers the three named
+appearances through a native menu on long press. Choosing an appearance and then
+switching tabs must preserve the navigation headers and the running app; theme
+selection does not change medication records or reminders.
+Each compact tab retains its own navigation identity across appearance updates;
+changing appearance must not transfer a navigation item between tab controllers.
 
 ### Automatic Night Mode (DOSETAP-48)
 
@@ -629,6 +642,8 @@ reads accept absolute ISO occurrences with or without fractional seconds and sor
 by the parsed instant; existing History identity and complete-read guards remain.
 
 Persistence is local SQLite via `EventStorage`.
+
+Settings → Manage History → Clear Tonight's Events removes recognized sleep and quick-log entries for the active session. It preserves doses, check-ins, reminders, historical sessions and unrecognized legacy rows. With only a date available, clearing is limited to legacy rows for that night. The change is published after the event deletions and their sync tombstones commit together. A failed clear displays a retry message.
 
 Reset failure behavior is defined in [Storage initialization and reset](storage-initialization-and-reset.md). Database deletion must commit before preferences, active-session state or alarms are cleared.
 

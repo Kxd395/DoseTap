@@ -542,17 +542,42 @@ extension EventStorage {
 
     // MARK: - Session Utilities
 
-    /// Clear all events for tonight's session
-    public func clearTonightsEvents(sessionDateOverride: String? = nil) {
-        let sessionDate = sessionDateOverride ?? currentSessionDate()
-        let sql = "DELETE FROM sleep_events WHERE session_date = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_step(stmt)
-        storageLog.info("Tonight events cleared")
+    /// Delete only known sleep observations. Older sleep-event tables can also contain dose records.
+    @discardableResult
+    public func clearTonightsEvents(sessionDateOverride: String? = nil, sessionId: String? = nil) -> Bool {
+        let date = sessionDateOverride ?? currentSessionDate()
+        let matchesLegacyDate = sessionId == nil || sessionId == date
+        let predicate = matchesLegacyDate
+            ? "session_date = ?1 AND (session_id IS NULL OR session_id = ?1)"
+            : "session_id = ?1"
+        let sleepTypes = Set(EventType.historySleepTypes)
+        do {
+            try withSQLiteTransaction {
+                let ids: [String?] = try readExportRows(
+                    "SELECT id, event_type FROM sleep_events WHERE " + predicate,
+                    binding: sessionId ?? date
+                ) { row in
+                    guard let idText = sqlite3_column_text(row, 0),
+                          let typeText = sqlite3_column_text(row, 1) else { throw ExportReadError.unreadable }
+                    let id = String(cString: idText)
+                    let type = String(cString: typeText)
+                    guard id.utf8.count == sqlite3_column_bytes(row, 0),
+                          type.utf8.count == sqlite3_column_bytes(row, 1) else { throw ExportReadError.unreadable }
+                    return sleepTypes.contains(EventType(type).canonicalString) ? id : nil
+                }
+                for case let id? in ids {
+                    try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapSleepEvent", recordName: id)
+                    try deleteRecordByIdInCurrentTransactionOrThrow(table: "sleep_events", id: id)
+                    guard sqlite3_changes(db) == 1 else {
+                        throw StorageDeleteError.stepFailed("clear sleep event", "Expected one deleted row")
+                    }
+                }
+            }
+            return true
+        } catch {
+            storageLog.error("Clearing tonight's sleep events failed")
+            return false
+        }
     }
 
     /// Get session date string for a given Date

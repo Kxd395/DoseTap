@@ -4,6 +4,7 @@ import SwiftUI
 
 // MARK: - Card 2: Body + Substances
 struct Card2BodySubstances: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Binding var answers: PreSleepLogAnswers
     let medicationSessionKey: String
     var historyReferenceTime: Date? = nil
@@ -170,7 +171,8 @@ struct Card2BodySubstances: View {
                         Text("Reuse a saved location and its sensations. Adjust tonight's level, then Save. Finish the pre-sleep check to save tonight's answers.")
                             .font(.caption).foregroundColor(.secondary)
                         ForEach(savedPainPatterns.entries) { entry in
-                            HStack {
+                            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout())
+                            layout {
                                 GranularPainEntryRow(entry: entry)
                                 VStack {
                                     Button("Use tonight") {
