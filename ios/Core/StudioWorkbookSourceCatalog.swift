@@ -17,15 +17,29 @@ struct StudioWorkbookData {
 
     init(bundleData: Data, inventoryCSV: String) throws {
         guard let root = try JSONSerialization.jsonObject(with: bundleData) as? SWObject,
-              let version = root["schemaVersion"] as? Int, [1, 2, 3, 4, 5].contains(version) else {
+              let version = root["schemaVersion"] as? Int, [1, 2, 3, 4, 5, 6].contains(version) else {
             throw StudioWorkbookProjectionError.unsupportedBundle
         }
-        if version == 5 {
+        if version >= 5 {
             struct Envelope: Decodable { let medicationPresetLedger: MedicationPresetExportSnapshot }
             medicationPresetLedger = try JSONDecoder().decode(Envelope.self, from: bundleData).medicationPresetLedger
         } else {
             guard root["medicationPresetLedger"] == nil else { throw StudioWorkbookProjectionError.unsupportedBundle }
             medicationPresetLedger = nil
+        }
+        let independent: [StudioIndependentSourceRecord]
+        if version == 6 {
+            guard SW.string(root["archiveScope"]) == "manual_full_local_records",
+                  SW.boolean(root["independentRecordsIncluded"]) == true else { throw StudioWorkbookProjectionError.unsupportedBundle }
+            struct Envelope: Decodable { let independentSourceRecords: [StudioIndependentSourceRecord] }
+            independent = try JSONDecoder().decode(Envelope.self, from: bundleData).independentSourceRecords
+        } else {
+            guard root["independentSourceRecords"] == nil else { throw StudioWorkbookProjectionError.unsupportedBundle }
+            if root["archiveScope"] != nil || root["independentRecordsIncluded"] != nil {
+                guard SW.string(root["archiveScope"]) == "local_subset", SW.boolean(root["independentRecordsIncluded"]) == false
+                else { throw StudioWorkbookProjectionError.unsupportedBundle }
+            }
+            independent = []
         }
         let groupRoot = version >= 3 ? "dateGroups" : "sessions"
         supplyState = try Self.decodeSupplyState(root)
@@ -90,6 +104,12 @@ struct StudioWorkbookData {
             records.append(SWRecord(key: baseKey + "#\(variant)", baseKey: baseKey, id: recordID, table: table,
                 representation: representation, payload: payload, fields: fields,
                 groupKeys: Set(group.map { [$0.key] } ?? []), dates: Set(group.map { [$0.date] } ?? [])))
+        }
+        let independentPayloads = SW.objects(root["independentSourceRecords"])
+        for (index, source) in independent.enumerated() {
+            register(table: source.sourceTable, id: source.recordID,
+                     fields: source.columns.mapValues(\.originalValue), payload: independentPayloads[index],
+                     representation: "Original typed SQLite row", group: nil, path: "independentSourceRecords[\(index)]")
         }
         for group in groups {
             for (index, source) in SW.objects(group.original["rawSourceRecords"]).enumerated() {
@@ -223,8 +243,10 @@ struct StudioWorkbookData {
         return groups.first { $0.key == key }
     }
     func identity(for record: SWRecord) -> String {
-        record.variantCount > 1 || record.dates.count > 1 || record.groupKeys.contains(where: { key in groups.first { $0.key == key }?.eligible != true })
-            ? "Needs record review" : "Resolved"
+        let needsReview = record.variantCount > 1 || record.dates.count > 1 || record.groupKeys.contains(where: { key in groups.first { $0.key == key }?.eligible != true })
+        if needsReview { return "Needs record review" }
+        return record.groupKeys.isEmpty && StudioIndependentSourceRecord.primaryKeys[record.table] != nil
+            ? "Independent of treatment dates" : "Resolved"
     }
     func timestampCell(_ value: Any?) -> WorkbookCell { timestamps.parse(value).map(WorkbookCell.date) ?? .blank }
     func sourceCell(_ value: Any?, key: String = "") -> WorkbookCell {

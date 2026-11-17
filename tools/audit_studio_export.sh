@@ -185,7 +185,7 @@ if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
 schema_version = bundle.get("schemaVersion")
-if type(schema_version) is not int or schema_version not in [1, 2, 3, 4, 5]:
+if type(schema_version) is not int or schema_version not in [1, 2, 3, 4, 5, 6]:
     print("FAIL: unsupported or invalid bundle schema")
     sys.exit(1)
 session_key, forbidden_key = ("dateGroups", "sessions") if schema_version >= 3 else ("sessions", "dateGroups")
@@ -198,7 +198,7 @@ if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in s
     sys.exit(2)
 
 # Payload strings retain exact decimal JSON. This structural audit never rewrites them.
-if schema_version == 5:
+if schema_version >= 5:
     from decimal import Decimal
     from uuid import UUID
     ledger = bundle.get("medicationPresetLedger")
@@ -263,17 +263,55 @@ if schema_version == 5:
                 assert isinstance(record.get("timeZoneIdentifier"), str) and record["timeZoneIdentifier"].strip()
                 assert type(record.get("utcOffsetSeconds")) is int and -64800 <= record["utcOffsetSeconds"] <= 64800
     except (AssertionError, ValueError, TypeError, KeyError):
-        issue("P1", "Schema 5 medication ledger is missing, malformed, or has inconsistent record identities")
+        issue("P1", "Medication ledger is missing, malformed, or has inconsistent record identities")
 elif "medicationPresetLedger" in bundle:
-    issue("P1", "Medication preset ledger requires schema 5")
+    issue("P1", "Medication preset ledger requires schema 5 or newer")
+
+if schema_version == 6:
+    import base64
+    keys = {"dashboard_dose_reviews": "observation_id", "dashboard_provider_associations": "episode_id",
+            "daytime_checkins": "revision_id", "daytime_events": "revision_id", "daytime_prompt_state": "id",
+            "physician_review_records": "id", "work_block_context": "id", "nap_diary": "id"}
+    try:
+        assert bundle.get("archiveScope") == "manual_full_local_records" and bundle.get("independentRecordsIncluded") is True
+        independent = bundle.get("independentSourceRecords")
+        assert isinstance(independent, list)
+        for row in independent:
+            assert isinstance(row, dict) and row.get("sourceTable") in keys
+            columns = row.get("columns")
+            assert isinstance(columns, dict) and all(isinstance(k, str) and k for k in columns)
+            for column in columns.values():
+                assert isinstance(column, dict)
+                kind = column.get("type")
+                populated = [k for k in ("text", "integer", "real", "blobBase64") if column.get(k) is not None]
+                if kind == "null": assert not populated
+                else:
+                    field = {"text": "text", "integer": "integer", "real": "real", "blob": "blobBase64"}[kind]
+                    assert populated == [field]
+                    value = column[field]
+                    if kind == "text": assert isinstance(value, str)
+                    elif kind == "integer": assert type(value) is int and -(2**63) <= value < 2**63
+                    elif kind == "real": assert type(value) in (int, float) and math.isfinite(value)
+                    else:
+                        assert isinstance(value, str)
+                        base64.b64decode(value, validate=True)
+            identity = columns[keys[row["sourceTable"]]]
+            assert (identity.get("type") == "text" and identity.get("text")) or identity.get("type") == "integer"
+    except (AssertionError, ValueError, TypeError, KeyError, OverflowError):
+        issue("P1", "Schema 6 independent source records are missing or malformed")
+elif "independentSourceRecords" in bundle:
+    issue("P1", "Independent source records require schema 6")
+elif ("archiveScope" in bundle or "independentRecordsIncluded" in bundle) and not (
+        bundle.get("archiveScope") == "local_subset" and bundle.get("independentRecordsIncluded") is False):
+    issue("P1", "Legacy scope cannot claim independent records")
 
 if schema_version >= 4:
     required_columns = "started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes,session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
     if session_columns[:len(required_columns)] != required_columns:
-        issue("P1", "Schema 4/5 requires reviewed sessions.csv columns in contract order")
+        issue("P1", "Schema 4 or newer requires reviewed sessions.csv columns in contract order")
     groups_by_date = {g.get("sessionDate"): g for g in sessions_json if isinstance(g.get("sessionDate"), str)}
     if len(groups_by_date) != len(sessions_json):
-        issue("P1", "Schema 4/5 requires unique treatment dates")
+        issue("P1", "Schema 4 or newer requires unique treatment dates")
     reasons = {"available": "available", "missing_dose_time": "missing", "dose2_explicitly_skipped": "missing",
                "identity_unresolved": "needs_review", "conflicting_dose_records": "needs_review", "nonpositive_dose_interval": "needs_review"}
     def finite_number(value):
@@ -311,12 +349,12 @@ if schema_version >= 4:
         day = row.get("session_date")
         group, review = groups_by_date.get(day), valid_reviews.get(day)
         if not group or not review or day in seen_dates:
-            issue("P1", "Schema 4 CSV date is missing, duplicate or lacks a valid review")
+            issue("P1", "Reviewed sessions.csv date is missing, duplicate or lacks a valid review")
             continue
         seen_dates.add(day)
         identity = group.get("identityResolution")
         if not isinstance(identity, dict) or not isinstance(identity.get("sessionIds"), list) or any(not isinstance(v, str) for v in identity["sessionIds"]):
-            issue("P1", "Schema 4 CSV has malformed identity evidence")
+            issue("P1", "Reviewed sessions.csv has malformed identity evidence")
             continue
         expected_outcome = "needs_review" if review["status"] == "needs_review" else "taken" if review["reason"] == "available" else "explicitly_skipped" if review["reason"] == "dose2_explicitly_skipped" else "missing"
         valid = (identity.get("status") == "resolved" and row.get("session_id") == "; ".join(identity.get("sessionIds", []))
@@ -340,9 +378,9 @@ if schema_version >= 4:
         reminder = row.get("dose2_reminder_enabled")
         valid = valid and reminder in ["", "true", "false"] and (reminder == "true" or row.get("reminder_interval_minutes") == "")
         if not valid:
-            issue("P1", "Schema 4 CSV timing, identity, reminder or historical-window contract mismatch")
+            issue("P1", "Reviewed sessions.csv timing, identity, reminder or historical-window contract mismatch")
     if any(r["reason"] in ["available", "nonpositive_dose_interval"] and day not in seen_dates for day, r in valid_reviews.items()):
-        issue("P1", "Schema 4 CSV omits a reviewed timestamp pair")
+        issue("P1", "Reviewed sessions.csv omits a reviewed timestamp pair")
 
 unique_json_dates = {
     session.get("sessionDate")
@@ -454,7 +492,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version in [2, 3, 4, 5] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3, 4, 5, 6] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):

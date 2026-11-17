@@ -48,22 +48,39 @@ struct InsightRawSourceValue: Codable, Hashable, Sendable {
 extension InsightBundle {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, exportVersion, appVersion, exportedAtUTC, timeZoneIdentifier, localOffsetMinutes
-        case consent, exportWarnings, whoopEnrichment, importMetadata, sessions, dateGroups, medicationPresetLedger
+        case consent, exportWarnings, whoopEnrichment, importMetadata, sessions, dateGroups, medicationPresetLedger, independentSourceRecords, archiveScope, independentRecordsIncluded
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
-        guard [1, 2, 3, 4, 5].contains(schemaVersion), !c.contains(schemaVersion >= 3 ? .sessions : .dateGroups) else {
+        guard [1, 2, 3, 4, 5, 6].contains(schemaVersion), !c.contains(schemaVersion >= 3 ? .sessions : .dateGroups) else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unsupported bundle schema or contradictory session layout"))
         }
-        if schemaVersion == 5 {
+        if schemaVersion >= 5 {
             medicationPresetLedger = try c.decode(MedicationPresetExportSnapshot.self, forKey: .medicationPresetLedger)
         } else {
             guard !c.contains(.medicationPresetLedger) else {
                 throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Medication ledger requires schema 5"))
             }
             medicationPresetLedger = nil
+        }
+        archiveScope = try c.decodeIfPresent(String.self, forKey: .archiveScope)
+        independentRecordsIncluded = try c.decodeIfPresent(Bool.self, forKey: .independentRecordsIncluded)
+        if schemaVersion == 6 {
+            guard archiveScope == "manual_full_local_records", independentRecordsIncluded == true else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Schema 6 requires explicit full local archive scope"))
+            }
+            independentSourceRecords = try c.decode([StudioIndependentSourceRecord].self, forKey: .independentSourceRecords)
+        } else {
+            guard !c.contains(.independentSourceRecords) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Independent source rows require schema 6"))
+            }
+            guard (!c.contains(.archiveScope) && !c.contains(.independentRecordsIncluded)) ||
+                    (archiveScope == "local_subset" && independentRecordsIncluded == false) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Legacy scope cannot claim independent records"))
+            }
+            independentSourceRecords = nil
         }
         exportVersion = try c.decodeIfPresent(String.self, forKey: .exportVersion)
         appVersion = try c.decodeIfPresent(String.self, forKey: .appVersion)
@@ -84,8 +101,15 @@ extension InsightBundle {
     }
 
     func encode(to encoder: Encoder) throws {
-        guard [1, 2, 3, 4, 5].contains(schemaVersion), (schemaVersion == 5) == (medicationPresetLedger != nil), schemaVersion < 3 || sessions.allSatisfy({ $0.identityResolution != nil }) else {
+        guard [1, 2, 3, 4, 5, 6].contains(schemaVersion), (schemaVersion >= 5) == (medicationPresetLedger != nil), (schemaVersion == 6) == (independentSourceRecords != nil), schemaVersion < 3 || sessions.allSatisfy({ $0.identityResolution != nil }) else {
             throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "Unsupported bundle schema or missing identity resolution"))
+        }
+        guard schemaVersion != 6 || (archiveScope == "manual_full_local_records" && independentRecordsIncluded == true) else {
+            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "Schema 6 requires explicit full local archive scope"))
+        }
+        guard schemaVersion == 6 || (archiveScope == nil && independentRecordsIncluded == nil) ||
+                (archiveScope == "local_subset" && independentRecordsIncluded == false) else {
+            throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "Legacy scope cannot claim independent records"))
         }
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(schemaVersion, forKey: .schemaVersion)
@@ -99,6 +123,9 @@ extension InsightBundle {
         try c.encodeIfPresent(whoopEnrichment, forKey: .whoopEnrichment)
         try c.encodeIfPresent(importMetadata, forKey: .importMetadata)
         try c.encodeIfPresent(medicationPresetLedger, forKey: .medicationPresetLedger)
+        try c.encodeIfPresent(independentSourceRecords, forKey: .independentSourceRecords)
+        try c.encodeIfPresent(archiveScope, forKey: .archiveScope)
+        try c.encodeIfPresent(independentRecordsIncluded, forKey: .independentRecordsIncluded)
         try c.encode(sessions, forKey: schemaVersion >= 3 ? .dateGroups : .sessions)
     }
 }
