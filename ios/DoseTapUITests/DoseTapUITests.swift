@@ -1612,17 +1612,18 @@ final class DoseTapUITests: XCTestCase {
         func reveal(_ control: XCUIElement, down: Bool = false) {
             for _ in 0..<60 {
                 let top = app.navigationBars.firstMatch.frame.maxY
-                let bottom = app.buttons["weekly-save"].exists ? app.buttons["weekly-save"].frame.minY - 60 : app.frame.maxY - 110
-                if control.exists && control.isHittable && control.frame.minY > top && control.frame.maxY < bottom { return }
-                let goDown = control.exists && !control.frame.isEmpty ? control.frame.midY < top : down
-                // The pinned Save footer occupies much of the screen at AX5.
-                // Begin the gesture inside the list, above that footer.
+                let bottom = app.buttons["weekly-save"].frame.minY - 60
+                let frame = control.exists ? control.frame : .zero
+                // Tap the center of the switch row. At AX5 a label can extend
+                // under the footer even while the switch itself is reachable.
+                if !frame.isEmpty, frame.midY > top, frame.midY < bottom, control.isHittable { return }
+                let goDown = frame.isEmpty ? down : frame.midY < top
                 let origin = app.coordinate(withNormalizedOffset: .zero)
                 let upper = top + (bottom - top) * 0.25
-                let lower = top + (bottom - top) * (app.buttons["weekly-save"].exists ? 0.65 : 0.85)
+                let lower = top + (bottom - top) * 0.65
                 let start = origin.withOffset(CGVector(dx: app.frame.midX, dy: goDown ? upper : lower))
                 let end = origin.withOffset(CGVector(dx: app.frame.midX, dy: goDown ? lower : upper))
-                start.press(forDuration: 0.1, thenDragTo: end)
+                start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             }
             XCTFail("Schedule control not reachable: \(control)")
         }
