@@ -1624,8 +1624,8 @@ final class DoseTapUITests: XCTestCase {
                 let origin = app.coordinate(withNormalizedOffset: .zero)
                 let upper = top + (bottom - top) * 0.25
                 let lower = top + (bottom - top) * 0.65
-                // The compact time picker can consume drags starting inside its row.
-                let scrollX = app.frame.width - 10
+                // Drag over the label, clear of the date picker and the List scroll indicator.
+                let scrollX = app.frame.width * 0.25
                 let start = origin.withOffset(CGVector(dx: scrollX, dy: goDown ? upper : lower))
                 let end = origin.withOffset(CGVector(dx: scrollX, dy: goDown ? lower : upper))
                 start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
