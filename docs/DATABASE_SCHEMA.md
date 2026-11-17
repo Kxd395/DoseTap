@@ -79,6 +79,7 @@ Single-row projection for the active session.
 | `session_end_utc` | `TEXT` |
 | `updated_at` | `TEXT DEFAULT CURRENT_TIMESTAMP` |
 | `terminal_state` | `TEXT` added by migration |
+| `pending_alarm_event_id` | Nullable original reviewed Dose 1 event ID awaiting initial alarm handoff |
 
 The transactional consistency rules between this projection and `dose_events` are in `docs/SSOT/dose-state-persistence.md`.
 
