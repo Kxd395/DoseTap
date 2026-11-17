@@ -9,9 +9,13 @@ public extension SessionRepository {
         storage.linkPreSleepLogToSession(sessionId: sessionId, sessionDate: sessionDate)
     }
 
-    /// Clear tonight's events (for session reset).
-    func clearTonightsEvents() {
-        storage.clearTonightsEvents(sessionDateOverride: activeSessionDate ?? currentSessionKey)
+    /// Clear sleep observations while preserving the active session and its reminders.
+    @discardableResult
+    func clearTonightsEvents() -> Bool {
+        guard storage.clearTonightsEvents(sessionDateOverride: activeSessionDate ?? currentSessionKey,
+                                         sessionId: activeSessionId) else { return false }
+        sessionDidChange.send()
+        return true
     }
 
     /// Save dose 1 timestamp through the repository.

@@ -640,6 +640,8 @@ by the parsed instant; existing History identity and complete-read guards remain
 
 Persistence is local SQLite via `EventStorage`.
 
+Settings → Manage History → Clear Tonight's Events removes recognized sleep and quick-log entries for the active session. It preserves doses, check-ins, reminders, historical sessions and unrecognized legacy rows. With only a date available, clearing is limited to legacy rows for that night. The change is published after the event deletions and their sync tombstones commit together. A failed clear displays a retry message.
+
 Reset failure behavior is defined in [Storage initialization and reset](storage-initialization-and-reset.md). Database deletion must commit before preferences, active-session state or alarms are cleared.
 
 The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`, including the SQLite `user_version` and internal `schema_migrations` ledger. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not duplicate mutable schema versions, table totals, or partial table lists in this overview.

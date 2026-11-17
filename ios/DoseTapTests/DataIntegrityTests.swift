@@ -623,3 +623,86 @@ final class StorageResetFailureTests: XCTestCase {
     }
 
 }
+
+
+@MainActor
+final class TonightEventClearTests: XCTestCase {
+    private let fixedNow = Date(timeIntervalSince1970: 1_768_518_000)
+    private var storage: EventStorage!
+    private var repo: SessionRepository!
+    private var fakeScheduler: FakeNotificationScheduler!
+
+    override func setUp() async throws {
+        let now = fixedNow
+        storage = EventStorage.inMemory()
+        fakeScheduler = FakeNotificationScheduler()
+        repo = SessionRepository(storage: storage, notificationScheduler: fakeScheduler,
+                                 clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+    }
+
+    func testClearTonightSleepEventsPreservesDoseAndSiblingSession() throws {
+        repo.setDose1Time(fixedNow)
+        let sessionID = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        for (id, type, owner) in [("remove", "Brief Wake", sessionID),
+                                  ("dose", "Dose2 (early)", sessionID),
+                                  ("unknown", "legacy-custom", sessionID),
+                                  ("sibling", "water", "another-session")] {
+            XCTAssertTrue(storage.insertSleepEvent(id: id, eventType: type, timestamp: fixedNow,
+                                                   sessionDate: date, sessionId: owner))
+        }
+        let doses = storage.fetchDoseEvents(sessionKey: date)
+        XCTAssertFalse(doses.isEmpty)
+        fakeScheduler.reset()
+        var publications = 0
+        let observer = repo.sessionDidChange.sink { publications += 1 }
+        defer { observer.cancel() }
+
+        XCTAssertTrue(repo.clearTonightsEvents())
+        XCTAssertEqual(publications, 1)
+        XCTAssertEqual(Set(storage.fetchSleepEvents(forSession: date).map(\.id)), ["sibling", "unknown", "dose"])
+        XCTAssertEqual(storage.fetchCloudKitTombstones().map(\.recordName), ["remove"])
+        XCTAssertEqual(storage.fetchDoseEvents(sessionKey: date).map(\.id), doses.map(\.id))
+        XCTAssertTrue(fakeScheduler.cancelledIdentifiers.isEmpty)
+        repo.reload()
+        XCTAssertEqual(repo.activeSessionId, sessionID)
+        XCTAssertEqual(repo.dose1Time, fixedNow)
+    }
+
+    func testClearTonightSleepEventsRollsBackWhenDeleteFails() throws {
+        repo.setDose1Time(fixedNow)
+        let sessionID = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        XCTAssertTrue(storage.insertSleepEvent(id: "retain", eventType: "water", timestamp: fixedNow,
+                                               sessionDate: date, sessionId: sessionID))
+        XCTAssertEqual(sqlite3_exec(storage.db, """
+            CREATE TEMP TRIGGER fail_sleep_clear BEFORE DELETE ON sleep_events
+            BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END
+            """, nil, nil, nil), SQLITE_OK)
+        defer { sqlite3_exec(storage.db, "DROP TRIGGER fail_sleep_clear", nil, nil, nil) }
+        fakeScheduler.reset()
+        var publications = 0
+        let observer = repo.sessionDidChange.sink { publications += 1 }
+        defer { observer.cancel() }
+
+        XCTAssertFalse(repo.clearTonightsEvents())
+        XCTAssertEqual(publications, 0)
+        XCTAssertEqual(repo.fetchTonightSleepEvents().map(\.id), ["retain"])
+        XCTAssertTrue(storage.fetchCloudKitTombstones().isEmpty)
+        XCTAssertEqual(repo.activeSessionId, sessionID)
+        XCTAssertEqual(repo.dose1Time, fixedNow)
+        XCTAssertTrue(fakeScheduler.cancelledIdentifiers.isEmpty)
+    }
+
+    func testClearTonightSleepEventsWithDateOnlyPreservesIdentifiedSessions() {
+        let date = repo.currentSessionKey
+        for (id, owner) in [("legacy", date), ("sibling", "another-session")] {
+            XCTAssertTrue(storage.insertSleepEvent(id: id, eventType: "water", timestamp: fixedNow,
+                                                   sessionDate: date, sessionId: owner))
+        }
+        XCTAssertNil(repo.activeSessionId)
+        XCTAssertTrue(repo.clearTonightsEvents())
+        XCTAssertEqual(storage.fetchSleepEvents(forSession: date).map(\.id), ["sibling"])
+        XCTAssertEqual(storage.fetchCloudKitTombstones().map(\.recordName), ["legacy"])
+    }
+}

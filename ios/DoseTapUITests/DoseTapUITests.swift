@@ -32,6 +32,10 @@ final class DoseTapUITests: XCTestCase {
             app.launchArguments += ["--uitesting-auto-night-reset", "-setup_completed_v2", "YES", "-quicklog_buttons_json", "", "-cooldown_bathroom", "10", "-cooldown_water", "10", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
             if name.contains("BeforeDose2") { app.launchArguments.append("--uitesting-quick-log-waiting") }
         }
+        if name.contains("testClearTonightEventsPreservesDose") {
+            app.launchArguments += ["--uitesting-auto-night-reset", "--uitesting-quick-log-waiting",
+                                    "-setup_completed_v2", "YES", "-quicklog_buttons_json", ""]
+        }
         if name.contains("testExcelWorkbookExport") || name.contains("testNearbyDashboardPublisher") {
             app.launchArguments += ["-setup_completed_v2", "YES", "-healthkit_enabled", "NO", "-whoop_enabled", "NO"]
         }
@@ -390,6 +394,28 @@ final class DoseTapUITests: XCTestCase {
 
     func testQuickLogAvailabilityBeforeDose1() {
         verifyQuickLogAvailability()
+    }
+
+    func testClearTonightEventsPreservesDoseAfterRelaunch() {
+        let primary = app.buttons["dose-primary-action"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 10))
+        XCTAssertFalse(primary.label.contains("Dose 1"))
+        let bathroom = app.buttons["Bathroom event button"]
+        for _ in 0..<8 where !bathroom.isHittable { app.swipeUp() }
+        bathroom.tap()
+        XCTAssertFalse(bathroom.isEnabled)
+        app.buttons["Settings"].tap()
+        let manage = app.buttons["Manage History"]
+        for _ in 0..<15 where !manage.isHittable { app.swipeUp() }
+        manage.tap()
+        app.buttons["Clear Tonight's Events"].tap()
+        app.alerts["Clear Tonight's Events?"].buttons["Clear"].tap()
+        app.terminate()
+        app.launchArguments.removeAll { $0 == "--uitesting-auto-night-reset" || $0 == "--uitesting-quick-log-waiting" }
+        launchApp()
+        app.buttons["Tonight"].tap()
+        XCTAssertTrue(primary.waitForExistence(timeout: 10))
+        XCTAssertFalse(primary.label.contains("Dose 1"), "Clearing sleep events must preserve the recorded dose after restart")
     }
 
     func testQuickLogAvailabilityBeforeDose2() {
