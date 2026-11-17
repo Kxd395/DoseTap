@@ -31,6 +31,7 @@ struct SleepPlanDetailView: View {
                 if let legacyWarning {
                     Section("Review existing settings") {
                         Text(legacyWarning)
+                        if !reviewedLegacy { Text("Review existing settings before saving.").font(.caption) }
                         Toggle("Use the daily times below for work warnings", isOn: $reviewedLegacy)
                             .accessibilityIdentifier("weekly-review-legacy")
                     }
@@ -104,12 +105,15 @@ struct SleepPlanDetailView: View {
         .navigationTitle("Weekly Schedule")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 4) {
-                Text(legacyWarning != nil && !reviewedLegacy ? "Review existing settings before saving." : "Changes apply only after saving.").font(.caption)
-                Button("Save Schedule", action: save).buttonStyle(.borderedProminent)
-                    .disabled(!loaded || (legacyWarning != nil && !reviewedLegacy))
-                    .accessibilityIdentifier("weekly-save")
-            }.frame(maxWidth: .infinity).padding(8).background(.regularMaterial)
+            Button(action: save) {
+                Text("Save Schedule").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!loaded || (legacyWarning != nil && !reviewedLegacy))
+            .accessibilityHint("Applies your weekly schedule changes.")
+            .accessibilityIdentifier("weekly-save")
+            .padding(8)
+            .background(.regularMaterial)
         }
         .onAppear { if !loaded { load() } }
         .alert("Schedule saved", isPresented: $receipt) {

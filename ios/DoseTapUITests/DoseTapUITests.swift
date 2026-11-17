@@ -1615,7 +1615,7 @@ final class DoseTapUITests: XCTestCase {
         func reveal(_ control: XCUIElement, down: Bool = false) {
             for _ in 0..<60 {
                 let top = app.navigationBars.firstMatch.frame.maxY
-                let bottom = app.buttons["weekly-save"].frame.minY - 60
+                let bottom = app.buttons["weekly-save"].frame.minY - 12
                 let frame = control.exists ? control.frame : .zero
                 // Tap the center of the switch row. At AX5 a label can extend
                 // under the footer even while the switch itself is reachable.
