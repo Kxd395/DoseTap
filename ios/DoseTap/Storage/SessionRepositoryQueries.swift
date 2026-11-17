@@ -42,7 +42,11 @@ public extension SessionRepository {
         activeSessionId ?? activeSessionDate ?? currentSessionKey
     }
 
-    /// Checked original dose and sleep ledger rows for the export's date group.
+    /// Original local diary records for a full archive or a single History collection.
+    internal func exportIndependentSourceRecords(in table: String? = nil) throws -> [StoredExportSourceRecord] {
+        try storage.exportIndependentSourceRecords(in: table)
+    }
+
     internal func exportSourceSnapshot(sessionDate: String) throws -> ExportSourceSnapshot {
         try storage.exportSourceSnapshot(sessionDate: sessionDate)
     }

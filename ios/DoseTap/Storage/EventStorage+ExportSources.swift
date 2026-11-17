@@ -1,8 +1,9 @@
 import Foundation
 import SQLite3
+import DoseCore
 
 /// SQLite values are tagged so NULL, empty text, numbers and blobs stay distinct.
-struct StoredExportColumn: Encodable, Equatable {
+struct StoredExportColumn: Encodable, Equatable, Sendable {
     let type: String
     var text: String? = nil
     var integer: Int64? = nil
@@ -37,7 +38,7 @@ struct StoredExportColumn: Encodable, Equatable {
     }
 }
 
-struct StoredExportSourceRecord: Encodable, Equatable {
+struct StoredExportSourceRecord: Encodable, Equatable, Sendable {
     let sourceTable: String
     let columns: [String: StoredExportColumn]
 }
@@ -57,6 +58,69 @@ struct ExportSourceSnapshot {
 
 @MainActor
 extension EventStorage {
+    /// Build 108 stores these records independently of any night. Native main databases have none of these tables.
+    func exportIndependentSourceRecords(in requestedTable: String? = nil) throws -> [StoredExportSourceRecord] {
+        let tables = StudioIndependentSourceRecord.sourceTables
+        if let requestedTable, !tables.contains(requestedTable) { throw ExportReadError.unreadable }
+        guard databaseInitializationFailure == nil, db != nil else { throw ExportReadError.unreadable }
+        return try withSQLiteTransaction {
+            let objects = try readExportRows("""
+                SELECT name, type FROM main.sqlite_schema WHERE name NOT GLOB 'sqlite_*'
+                """, binding: nil) { row in
+                guard let name = sqlite3_column_text(row, 0), let type = sqlite3_column_text(row, 1) else {
+                    throw ExportReadError.unreadable
+                }
+                return (String(cString: name), String(cString: type))
+            }
+            if requestedTable == nil {
+                let existingTables = Set(objects.filter { $0.1 == "table" }.map { $0.0 })
+                guard existingTables.isSubset(of: Self.nativeStorageTables.union(tables)) else {
+                    throw ExportReadError.incompatibleSchema
+                }
+            }
+            let independent = objects.filter { tables.contains($0.0.lowercased()) }
+            guard !independent.isEmpty else { return [] }
+            guard independent.allSatisfy({ $0.1 == "table" }), Set(independent.map { $0.0 }) == Set(tables) else {
+                throw ExportReadError.unreadable
+            }
+
+            return try (requestedTable.map { [$0] } ?? tables).flatMap { table -> [StoredExportSourceRecord] in
+                guard let key = StudioIndependentSourceRecord.primaryKeys[table] else { throw ExportReadError.unreadable }
+                let columns = try readExportRows("SELECT name, pk FROM pragma_table_info(?1, 'main')", binding: table) { row in
+                    guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
+                    return (String(cString: name), sqlite3_column_int(row, 1))
+                }
+                let primaryKeys = columns.filter { $0.1 > 0 }.map { $0.0 }
+                guard primaryKeys == [key],
+                      let required = Self.independentRecordColumns[table],
+                      required.isSubset(of: Set(columns.map { $0.0 })) else { throw ExportReadError.unreadable }
+
+                let records = try readExportSourceRows(table: table,
+                    sql: "SELECT * FROM main.\(table) ORDER BY rowid", sessionDate: nil)
+                for row in records {
+                    guard let id = row.columns[key], id.integer != nil || id.text?.isEmpty == false else {
+                        throw ExportReadError.unreadable
+                    }
+                }
+                return records
+            }
+        }
+    }
+
+    /// Required non-key columns from the build-108 storage schema. Additional original columns are archived as well.
+    private static let independentRecordColumns: [String: Set<String>] = [
+        "daytime_checkins": ["observation_id", "payload"],
+        "daytime_events": ["event_id", "payload"],
+        "daytime_prompt_state": ["payload"],
+        "nap_diary": ["payload"],
+        "physician_review_records": ["kind", "payload"],
+        "work_block_context": ["payload"],
+        "dashboard_dose_reviews": ["session_date", "payload"],
+        "dashboard_provider_associations": [
+            "provider", "session_id", "session_date", "session_fingerprint", "episode_fingerprint", "revision", "recorded_at"
+        ]
+    ]
+
     /// Date grouping is for archival discovery, never authority to join two identities.
     private static let exportIdentitiesSQL = ["dose_events", "sleep_events", "sleep_sessions",
         "current_session", "morning_checkins", "checkin_submissions", "medication_events"]
@@ -111,7 +175,7 @@ extension EventStorage {
             status: reasons.isEmpty ? "resolved" : "raw_only", sessionIds: allIds.sorted(), reasons: reasons), records: records)
     }
 
-    private func readExportSourceRows(table: String, sql: String, sessionDate: String) throws -> [StoredExportSourceRecord] {
+    private func readExportSourceRows(table: String, sql: String, sessionDate: String?) throws -> [StoredExportSourceRecord] {
         try readExportRows(sql, binding: sessionDate) { stmt in
             var columns: [String: StoredExportColumn] = [:]
             for index in 0..<sqlite3_column_count(stmt) {

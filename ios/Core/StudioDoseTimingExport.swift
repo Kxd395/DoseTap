@@ -34,8 +34,15 @@ public enum StudioDoseTimingExport {
             throw StudioWorkbookProjectionError.unsupportedBundle
         }
         var root = data.root
-        root["schemaVersion"] = data.medicationPresetLedger == nil ? 4 : 5
-        root["exportVersion"] = data.medicationPresetLedger == nil ? "2.9" : "3.0"
+        if root["schemaVersion"] as? Int == 6 {
+            root["exportVersion"] = "3.1"
+        } else if data.medicationPresetLedger != nil {
+            root["schemaVersion"] = 5
+            root["exportVersion"] = "3.0"
+        } else {
+            root["schemaVersion"] = 4
+            root["exportVersion"] = "2.9"
+        }
         root["dateGroups"] = data.groups.map { group -> SWObject in
             var row = group.original
             row["doseTimingReview"] = data.doseTimingReview(group)

@@ -189,9 +189,9 @@ The default per-test timeout is 180 seconds, with a 240-second maximum. The mult
 
 `ci-safety-studio.yml` runs the separate `DoseTapUITests` scheme for Dose 1 review without an alarm, Dose 2 cancel/background/explicit save, quick-log availability before each dose, and reset-cleanup warning persistence through setup, background/foreground, and restart, followed by explicit acknowledgment at standard and largest accessibility text sizes. The warning is an app-root panel so reset does not depend on a second modal being presented during confirmation dismissal. `tools/run_ci_iphone_tests.sh` requires each selected test to pass, applies execution timeouts, and retains the result bundle. These simulator checks do not establish signed-device alarm delivery or owner-observed acceptance.
 
-A separate iOS job exercises six production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.
+A separate iOS job exercises seven production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.
 
-`tools/run_ci_studio_tests.sh` requires all six extracted payloads, builds Studio and runs its full suite. The iOS archive and raw-only identity round-trip tests must execute and pass; medication, stored-event, WHOOP and Apple Health fixtures also exercise their existing production-archive assertions. The two opt-in native preview tests remain a separate visual review gate.
+`tools/run_ci_studio_tests.sh` requires all seven extracted payloads, builds Studio and runs its full suite. The iOS archive, build-108 upgrade, and raw-only identity round-trip tests must execute and pass; medication, stored-event, WHOOP and Apple Health fixtures also exercise their existing production-archive assertions. The two opt-in native preview tests remain a separate visual review gate.
 
 Local reproduction (choose a fresh output directory for every run):
 
@@ -199,6 +199,7 @@ Local reproduction (choose a fresh output directory for every run):
 bash tools/run_ci_iphone_tests.sh safety .build/ci-safety-local
 bash tools/run_ci_iphone_tests.sh exports .build/ci-exports-local
 xcrun xcresulttool export attachments --path .build/ci-exports-local/tests.xcresult --output-path .build/ci-attachments-local
+python3 tools/verify_build108_upgrade_exports.py .build/ci-attachments-local
 python3 tools/export_studio_fixtures.py .build/ci-attachments-local .build/ci-fixtures-local
 bash tools/run_ci_studio_tests.sh .build/ci-fixtures-local .build/ci-studio-local
 python3 tools/tests/studio_fixtures_test.py

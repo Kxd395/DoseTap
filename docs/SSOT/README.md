@@ -545,6 +545,23 @@ Build 67 (DOSETAP-73) adds reporting-only dose timing review. Zero/reversed
 occurrence intervals remain in source evidence but are excluded from ordinary
 spacing fields, with `nonpositive_dose_interval` shown in Review Issues and JSON.
 Eligibility is specific to dose spacing; unrelated sleep summaries remain usable.
+Manual Settings exports use archive schema 6 (export 3.1). The Studio ZIP and
+Excel workbook include the original records from the independent daytime,
+prompt, nap, physician-review, work-context and dashboard collections. History
+provides read-only access to those records on this build. Each source row keeps
+its stored identity, revision and column types outside the nightly date groups.
+A recorded zero, a missing answer and an absent row are distinct. A fresh
+installation without the build-108 tables has an empty collection. A partial
+independent schema, an unrecognized user table or an unreadable original must
+stop the full manual export with an error. Full manual
+sharing requires review because these records may contain personal notes.
+
+Scheduled ZIPs remain schema 5 and declare their local subset explicitly.
+They omit independent diary records and provider enrichment. Studio and the
+workbook projection accept earlier supported schemas and the schema-6 manual
+archive. Neither an export nor this read-only History route establishes full
+app restoration or parity with the build-108 authoring and reminder workflows.
+
 Studio export 2.9/schema 4 derives sessions.csv and doseTimingReview from the same
 finalized JSON source selection as Excel. Historical target/window values remain
 unavailable; current settings never fill them. Schema 4 requires updated Studio:

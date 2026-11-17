@@ -45,6 +45,7 @@ struct HistoryView: View {
     @State private var selectedDate = HistoryView.initialDate
     @State private var showHistoryEditor = false
     @State private var pastSessions: [SessionSummary] = []
+    @State private var showDeleteDayFailure = false
     @State private var showDeleteDayConfirmation = false
     @State private var refreshTrigger = false
     @State private var searchText = ""
@@ -108,6 +109,11 @@ struct HistoryView: View {
                 Label("Medication history", systemImage: "pills.fill")
                     .frame(maxWidth: .infinity, alignment: .leading).padding()
             }.accessibilityIdentifier("history-medications")
+            NavigationLink { IndependentDiaryHistoryView() } label: {
+                Label("Diary records", systemImage: "book")
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal)
+                    .frame(minHeight: 44)
+            }.accessibilityIdentifier("history-diary-records")
             historyFilterBar
 
             if isSearchActive {
@@ -142,6 +148,11 @@ struct HistoryView: View {
             loadHistory()
         }
         .onAppear { loadHistory() }
+        .alert("This day could not be deleted", isPresented: $showDeleteDayFailure) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your session records are still available. Try again.")
+        }
         .alert("Delete This Day's Data?", isPresented: $showDeleteDayConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) {
@@ -326,7 +337,10 @@ struct HistoryView: View {
 
     private func deleteSelectedDay() {
         let sessionDate = sessionRepo.sessionDateString(for: eveningAnchorDate(for: selectedDate))
-        sessionRepo.deleteSession(sessionDate: sessionDate)
+        guard sessionRepo.deleteSession(sessionDate: sessionDate) else {
+            showDeleteDayFailure = true
+            return
+        }
         refreshTrigger.toggle()
         loadHistory()
     }

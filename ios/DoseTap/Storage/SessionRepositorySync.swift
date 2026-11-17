@@ -126,8 +126,9 @@ public extension SessionRepository {
     }
 
     /// Delete a whole session imported as removed by sync.
-    func deleteSessionFromSync(sessionDate: String) {
-        storage.deleteSession(sessionDate: sessionDate, recordCloudKitDeletion: false)
+    @discardableResult
+    func deleteSessionFromSync(sessionDate: String) -> Bool {
+        deleteStoredSession(sessionDate: sessionDate, recordCloudKitDeletion: false)
     }
 
     /// Reload and broadcast after a sync import batch is applied.

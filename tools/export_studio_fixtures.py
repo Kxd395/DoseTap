@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract the six synthetic iOS XCTest archives required by Studio CI."""
+"""Extract the synthetic iOS XCTest archives required by Studio CI."""
 import argparse
 import json
 import re
@@ -10,6 +10,7 @@ import tempfile
 import zipfile
 
 ARCHIVES = {
+    "build108": "build108-upgrade-manual.zip",
     "collected": "collected-night-roundtrip.zip",
     "raw-only": "raw-only-identity-roundtrip.zip",
     "medication": "stored-medication-roundtrip.zip",
@@ -18,6 +19,19 @@ ARCHIVES = {
     "health": "apple-health-biometrics-only-roundtrip.zip",
 }
 MAX_SIZE = 64 * 1024 * 1024
+
+
+def find_attachment(attachments: Path, manifest: list, name: str) -> Path:
+    expected = Path(name)
+    pattern = re.escape(expected.stem) + r"(?:_\d+_[0-9A-Fa-f-]{36})?" + re.escape(expected.suffix)
+    matches = [item for test in manifest for item in test.get("attachments", [])
+               if re.fullmatch(pattern, item.get("suggestedHumanReadableName", ""))]
+    if len(matches) != 1:
+        raise ValueError(f"Expected one {name} attachment; found {len(matches)}")
+    candidate = (attachments / matches[0]["exportedFileName"]).resolve(strict=True)
+    if not candidate.is_relative_to(attachments) or not candidate.is_file():
+        raise ValueError(f"Invalid attachment path for {name}")
+    return candidate
 
 
 def extract(attachments: Path, output: Path) -> None:
@@ -29,15 +43,7 @@ def extract(attachments: Path, output: Path) -> None:
         raise ValueError("Refusing to overwrite an existing fixture directory")
     selected = {}
     for label, name in ARCHIVES.items():
-        matches = [item for test in manifest for item in test.get("attachments", [])
-                   if re.fullmatch(re.escape(Path(name).stem) + r"(?:_\d+_[0-9A-Fa-f-]{36})?\.zip",
-                                   item.get("suggestedHumanReadableName", ""))]
-        if len(matches) != 1:
-            raise ValueError(f"Expected one {name} attachment; found {len(matches)}")
-        candidate = (attachments / matches[0]["exportedFileName"]).resolve(strict=True)
-        if not candidate.is_relative_to(attachments) or not candidate.is_file():
-            raise ValueError(f"Invalid attachment path for {name}")
-        selected[label] = candidate
+        selected[label] = find_attachment(attachments, manifest, name)
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix="studio-fixtures-", dir=output.parent))
     try:

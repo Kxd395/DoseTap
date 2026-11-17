@@ -1,37 +1,6 @@
 import Foundation
 import DoseCore
 
-enum InsightDoseEventKind: String, Sendable {
-    case dose1
-    case dose2
-    case dose2Skipped
-    case snooze
-    case other
-
-    init(eventType: EventType) {
-        switch eventType {
-        case .dose1_taken:
-            self = .dose1
-        case .dose2_taken:
-            self = .dose2
-        case .dose2_skipped:
-            self = .dose2Skipped
-        case .dose2_snoozed, .snooze:
-            self = .snooze
-        default:
-            self = .other
-        }
-    }
-}
-
-struct InsightEvent: Identifiable, Hashable, Sendable {
-    let id: UUID
-    let type: EventType
-    let kind: InsightDoseEventKind
-    let timestamp: Date
-    let details: String?
-}
-
 struct InsightBundle: Codable, Hashable, Sendable {
     let schemaVersion: Int
     let exportVersion: String?
@@ -44,6 +13,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
     let whoopEnrichment: InsightWHOOPEnrichment?
     var importMetadata: InsightBundleImportMetadata?
     let medicationPresetLedger: MedicationPresetExportSnapshot?
+    let independentSourceRecords: [StudioIndependentSourceRecord]?
+    let archiveScope: String?
+    let independentRecordsIncluded: Bool?
     let sessions: [InsightSessionSupplement]
 
     init(
@@ -58,6 +30,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
         whoopEnrichment: InsightWHOOPEnrichment? = nil,
         importMetadata: InsightBundleImportMetadata? = nil,
         medicationPresetLedger: MedicationPresetExportSnapshot? = nil,
+        independentSourceRecords: [StudioIndependentSourceRecord]? = nil,
+        archiveScope: String? = nil,
+        independentRecordsIncluded: Bool? = nil,
         sessions: [InsightSessionSupplement]
     ) {
         self.schemaVersion = schemaVersion
@@ -71,6 +46,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
         self.whoopEnrichment = whoopEnrichment
         self.importMetadata = importMetadata
         self.medicationPresetLedger = medicationPresetLedger
+        self.independentSourceRecords = independentSourceRecords
+        self.archiveScope = archiveScope
+        self.independentRecordsIncluded = independentRecordsIncluded
         self.sessions = sessions
     }
 }

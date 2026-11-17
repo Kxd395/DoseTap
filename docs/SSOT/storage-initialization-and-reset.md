@@ -15,6 +15,17 @@ Plane: DOSETAP-39
 - Diagnostic files, generated exports, integration credentials and provider-owned Apple Health/WHOOP records are not deleted by this bounded repair. Complete store coverage, lossless recovery, staging convergence, signed-device alarm delivery and owner acceptance remain open under DOSETAP-39 and their existing related items.
 - Routine failure telemetry identifies operation, stage, SQLite code and rollback outcome without clinical records, notes, amounts or credentials.
 
+## Session deletion and retention
+
+Deleting a night removes its explicitly dated dashboard dose reviews and provider
+associations, when these imported tables exist, in the same transaction as the
+other records owned by that night. Age-based retention applies its original
+cutoff to those two tables as well. Neither operation infers a relationship
+between a night and the other six independent diary collections. A failed
+deletion rolls back the scoped operation. The app retains the displayed night
+and its active dose alarms, and deferred sync must retry before advancing past
+a failed local deletion. The whole-database reset guard still applies.
+
 ## Checked schema initialization
 
 - Opening a database does not establish readiness. Initialization checks each schema inspection, statement, backfill, ledger write and version read/write.
