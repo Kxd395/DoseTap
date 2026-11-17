@@ -113,6 +113,8 @@ Typed scheduling results are:
 
 Reconciliation runs after app activation, timezone changes, significant-time changes, initial post-setup bootstrap, and explicit retry. It compares desired requests with actual pending requests and repairs missing, stale, mismatched, or unverified groups.
 
+A reconciliation that suspends to inspect or repair a group must stop if a newer scheduling decision, acknowledgement, cancellation or session reset supersedes it. It cannot start another group or publish its previous verification after that change.
+
 Timezone reconciliation preserves every absolute epoch while rebuilding trigger representations and named-zone provenance. Reconciliation with no persisted alarm intent is a successful no-op.
 
 ## Snooze Role Isolation

@@ -131,6 +131,7 @@ final class AlarmSchedulingTests: XCTestCase {
         var failingIdentifiers: Set<String> = []
         var remainingFailureCounts: [String: Int] = [:]
         var silentlyDroppedIdentifiers: Set<String> = []
+        var onPendingRead: (() async -> Void)?
         var onAdd: ((UNNotificationRequest) -> Void)?
         var onAuthorization: (() async -> Void)?
         var ignoresRemoval = false
@@ -173,7 +174,11 @@ final class AlarmSchedulingTests: XCTestCase {
         }
 
         func pendingRequests() async -> [UNNotificationRequest] {
-            Array(requestsByIdentifier.values)
+            let callback = onPendingRead
+            onPendingRead = nil
+            let snapshot = Array(requestsByIdentifier.values)
+            await callback?()
+            return snapshot
         }
 
         func removePendingRequests(withIdentifiers identifiers: [String]) {
@@ -568,6 +573,39 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertEqual(result.failure?.code, .cancelled)
         XCTAssertFalse(service.alarmScheduled)
         XCTAssertTrue(client.requestsByIdentifier.isEmpty, "Cancellation must win even when an add is in flight")
+    }
+
+    func testCompletionDuringPendingReadSupersedesReconciliation() async {
+        let client = FakeNotificationCenter()
+        let env = makeEnvironment()
+        let service = makeService(client: client, environment: env)
+        _ = await service.scheduleDose2Alarm(at: env.now.addingTimeInterval(165 * 60), dose1Time: env.now)
+        client.onPendingRead = {
+            let completion = await service.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+            XCTAssertEqual(completion, .cancelled)
+        }
+        let report = await service.reconcilePendingRequests(reason: .appActive, forceReschedule: true)
+        XCTAssertEqual(report.wakeResult.failure?.code, .cancelled)
+        XCTAssertTrue(report.repairedIdentifiers.isEmpty)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(service.targetWakeTime)
+        XCTAssertFalse(service.alarmScheduled)
+    }
+
+    func testCancellationDuringWakeRepairCannotRestartWindowReminders() async {
+        let client = FakeNotificationCenter()
+        let env = makeEnvironment()
+        let service = makeService(client: client, environment: env)
+        _ = await service.scheduleDose2Alarm(at: env.now.addingTimeInterval(165 * 60), dose1Time: env.now)
+        client.onAuthorization = {
+            service.cancelAllAlarms()
+            service.clearDose2AlarmState()
+        }
+        let report = await service.reconcilePendingRequests(reason: .appActive, forceReschedule: true)
+        XCTAssertEqual(report.reminderResult.failure?.code, .cancelled)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(service.targetWakeTime)
+        XCTAssertFalse(service.reminderScheduled)
     }
 
     func test_restartRequiresAndThenCompletesPendingRequestReconciliation() async throws {
