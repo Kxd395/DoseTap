@@ -80,8 +80,11 @@ public struct SupplyBottleStart: Codable, Equatable, Identifiable {
     public var id: UUID
     public var openedAt: Date
     public var recordedAt: Date
-    public init(openedAt: Date, recordedAt: Date) {
-        id = UUID()
+    public var receiptID: UUID?
+    public var voidedAt: Date?
+    public init(id: UUID = UUID(), openedAt: Date, recordedAt: Date, receiptID: UUID? = nil) {
+        self.id = id
+        self.receiptID = receiptID
         self.openedAt = openedAt
         self.recordedAt = recordedAt
     }
@@ -92,14 +95,18 @@ public struct SupplyBackup: Codable, Equatable {
     public var version = 1
     public var reminder: SupplyReminderDocument?
     public var bottleStarts: [SupplyBottleStart] = []
+    public var receipts: [SupplyBottleReceipt]?
+    public var quantityEntries: [SupplyQuantityEntry]?
     public init(reminder: SupplyReminderDocument? = nil) { self.reminder = reminder }
     public var isValid: Bool {
-        version == 1 && bottleStarts.count <= Self.maximumRecordCount
+        (1...3).contains(version) && bottleStarts.count <= Self.maximumRecordCount && trackingIsValid && quantityIsValid
             && reminder?.isValid != false
             && Set(bottleStarts.map(\.id)).count == bottleStarts.count
             && bottleStarts.allSatisfy {
                 $0.openedAt.timeIntervalSince1970.isFinite && $0.recordedAt.timeIntervalSince1970.isFinite
                     && $0.openedAt <= $0.recordedAt
+                    && ($0.voidedAt.map { $0.timeIntervalSince1970.isFinite } ?? true)
+                    && ($0.voidedAt == nil || $0.voidedAt! >= $0.recordedAt)
             }
     }
 }

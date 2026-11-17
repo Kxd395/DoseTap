@@ -219,6 +219,8 @@ extension InsightSession {
         }
 
         switch normalizedFilterValue(context?.scheduleDayType) {
+        case "one_night_override":
+            return .unknown
         case "worklike":
             return .worklike
         case "offlike":

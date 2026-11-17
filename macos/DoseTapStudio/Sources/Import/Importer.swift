@@ -134,7 +134,9 @@ final class Importer {
             let session = DoseSession(
                 startedUTC: startedAt,
                 endedUTC: endedAt,
-                windowTargetMin: Int(columns[2]) ?? 165,
+                sourceSessionDate: lines[0].firstIndex(of: "session_date").flatMap { $0 < columns.count ? StudioSessionDateIdentity.validatedSessionDate(columns[$0]) : nil },
+                sourceSessionID: lines[0].firstIndex(of: "session_id").flatMap { $0 < columns.count && !columns[$0].isEmpty ? columns[$0] : nil },
+                windowTargetMin: Int(columns[2]),
                 windowActualMin: columns[3].isEmpty ? nil : Int(columns[3]),
                 adherenceFlag: columns[4].isEmpty ? nil : columns[4],
                 whoopRecovery: columns.count > 5 && !columns[5].isEmpty ? Int(columns[5]) : nil,

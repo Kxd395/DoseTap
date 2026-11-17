@@ -98,7 +98,8 @@ extension MorningCheckInViewModel {
     }
 
     /// Nil means no medication action was selected, not a fabricated commit receipt.
-    func applyDoseReconciliation(using sessionRepo: SessionRepository = .shared) -> MedicationMutationResult? {
+    func applyDoseReconciliation(using sessionRepo: SessionRepository? = nil) -> MedicationMutationResult? {
+        let sessionRepo = sessionRepo ?? .shared
         var lastMutation: MedicationMutationResult?
         if loggedDose1Time == nil, reconcileDose1Taken {
             let result = sessionRepo.reconcileDose1(

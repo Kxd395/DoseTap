@@ -23,6 +23,30 @@ final class TestClock {
 /// These tests verify that delete operations properly broadcast state changes.
 @MainActor
 final class SessionRepositoryTests: XCTestCase {
+    func test_quickLogsBeforeDose1AndBeforeDose2WindowKeepMedicationSeparate() {
+        let store = EventStorage.inMemory()
+        var now = ISO8601DateFormatter().date(from: "2026-09-24T23:00:00Z")!
+        let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        let events = EventLogger(sessionRepo: repository, clock: { now })
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        XCTAssertNil(repository.dose1Time)
+        XCTAssertTrue(repository.fetchDoseEvents(forSessionDate: "2026-09-24").isEmpty)
+        XCTAssertFalse(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        XCTAssertTrue(events.logEvent(name: "Water", color: .blue, cooldownSeconds: 30))
+        now = now.addingTimeInterval(30)
+        XCTAssertFalse(events.isOnCooldown("Bathroom"))
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        let dose1 = now
+        XCTAssertTrue(repository.setDose1Time(dose1).isCommitted)
+        now = dose1.addingTimeInterval(149 * 60)
+        XCTAssertTrue(events.logEvent(name: "Bathroom", color: .blue, cooldownSeconds: 30))
+        XCTAssertTrue(events.logEvent(name: "Water", color: .blue, cooldownSeconds: 30))
+        XCTAssertEqual(repository.dose1Time, dose1)
+        XCTAssertNil(repository.dose2Time)
+        XCTAssertEqual(repository.fetchDoseEvents(forSessionDate: "2026-09-24").map(\.eventType), ["dose1"])
+        XCTAssertEqual(store.fetchSleepEvents(forSession: "2026-09-24").count, 5)
+    }
+
     func test_quickLogFailureRollsBackNewSessionAndRetryPersistsExactlyOnce() throws {
         let store = EventStorage.inMemory()
         let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
@@ -112,12 +136,13 @@ final class SessionRepositoryTests: XCTestCase {
         let now = ISO8601DateFormatter().date(from: "2026-09-11T23:00:00Z")!
         let repository = SessionRepository(storage: store, clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
         _ = try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now)
+        let reviewed = try repository.medicationDuplicateReview(medicationId: "adderall_ir", takenAt: now).tokens
         XCTAssertEqual(sqlite3_exec(store.db, "CREATE TRIGGER reject_med BEFORE INSERT ON medication_events BEGIN SELECT RAISE(ABORT,'test'); END", nil, nil, nil), SQLITE_OK)
-        XCTAssertThrowsError(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now, confirmedDuplicate: true))
+        XCTAssertThrowsError(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now, confirmedDuplicate: true, reviewedDuplicateTokens: reviewed))
         XCTAssertEqual(repository.listMedicationEntries(for: "2026-09-11").count, 1)
         XCTAssertEqual(sqlite3_exec(store.db, "DROP TRIGGER reject_med", nil, nil, nil), SQLITE_OK)
         XCTAssertTrue(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now).isDuplicate)
-        XCTAssertFalse(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now, confirmedDuplicate: true).isDuplicate)
+        XCTAssertFalse(try repository.logMedicationEntry(medicationId: "adderall_ir", doseMg: 10, takenAt: now, confirmedDuplicate: true, reviewedDuplicateTokens: reviewed).isDuplicate)
         XCTAssertEqual(repository.listMedicationEntries(for: "2026-09-11").count, 2)
         XCTAssertTrue(repository.listMedicationEntries(for: "2026-09-11").contains { $0.confirmedDuplicate })
         XCTAssertNil(repository.dose1Time)
@@ -147,7 +172,7 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(response["pre.substances.caffeine.legacy.unit"] as? String, "unverified")
         XCTAssertNil(response["pre.substances.caffeine.last_amount_mg"])
         let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
-        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["preSleep"] as? [String: Any])
+        let exported = try XCTUnwrap((bundle?["dateGroups"] as? [[String: Any]])?.first?["preSleep"] as? [String: Any])
         XCTAssertEqual((exported["caffeineAmounts"] as? [String: Any])?["dailyCaffeineMg"] as? Double, 95.5)
         XCTAssertEqual(exported["caffeineLegacyLastAmount"] as? Int, 95)
         XCTAssertNil(exported["caffeineLastAmountMg"])
@@ -204,7 +229,7 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(symptoms.count, 1)
         XCTAssertEqual(symptoms.first?.severity0to10, 0)
         let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
-        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
+        let exported = try XCTUnwrap((bundle?["dateGroups"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
         XCTAssertEqual(exported["rawPhysicalSymptomsJson"] as? String, stored.physicalSymptomsJson)
         XCTAssertEqual(storage.fetchCheckInSubmissionCount(sessionDate: date, checkInType: .morning), 1)
         XCTAssertEqual(storage.fetchMostRecentPreSleepLog(sessionId: identity)?.answers?.painEntries, savedBedtime.answers?.painEntries)
@@ -300,7 +325,7 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertNil(responses["headache.location"])
         XCTAssertEqual(responses["sleep.reflux_burden"] as? String, "moderate")
         let bundle = try JSONSerialization.jsonObject(with: StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [date])) as? [String: Any]
-        let exported = try XCTUnwrap((bundle?["sessions"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
+        let exported = try XCTUnwrap((bundle?["dateGroups"] as? [[String: Any]])?.first?["morning"] as? [String: Any])
         XCTAssertEqual(exported["rawPhysicalSymptomsJson"] as? String, saved.physicalSymptomsJson)
         XCTAssertEqual(exported["painBurden"] as? String, "none")
         XCTAssertEqual(decodeJSONDictionary(try XCTUnwrap(original.physicalSymptomsJson))["isMigraine"] as? Bool, true)

@@ -54,4 +54,4 @@ if rg -n '\b(import WidgetKit|WatchConnectivity|WCSession|@main.*Widget)' ios/Do
   fail "companion-only framework or entry-point source exists in the phone app tree"
 fi
 
-printf 'Companion target contract passed: zero supported companion targets; watchOS and widget code are proposal-only and absent from the shipping project.\n'
+printf 'Companion target contract passed: zero supported watchOS/widget targets; watchOS and widget code are proposal-only and absent from the shipping project.\n'

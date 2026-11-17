@@ -35,6 +35,8 @@ If the SSOT and the compiled implementation disagree, treat that as a defect. Do
 | File | Lifecycle | Purpose |
 | --- | --- | --- |
 | `README.md` | Current reference | Documentation governance and complete tree classification |
+| `PRODUCT_OVERVIEW.md` | Current reference with a labeled roadmap section | Presentation-ready nightly workflow, Apple Health timing and planned WHOOP feature |
+| `WORKSPACE_GUIDE.md` | Current runbook | Everyday checkout, document entry points, protected local work and worktree lifecycle |
 | `PLANNING.md` | Tracking index | Plane projects, modules, release blockers, and proposed work |
 | `FEATURE_TRIAGE.md` | Current reference | Code-backed feature status with validation limits |
 | `PRODUCTION_READINESS_CHECKLIST.md` | Current runbook | Release gates; it does not grant release approval |
@@ -74,6 +76,9 @@ If the SSOT and the compiled implementation disagree, treat that as a defect. Do
 
 ## Current planning and evidence
 
+- Product description for presentations: [DoseTap overview, sleep timing and integrations](PRODUCT_OVERVIEW.md)
+- Local project navigation and preservation: [Working-folder guide](WORKSPACE_GUIDE.md)
+- Proposed dashboard delivery: [September 30 consolidated roadmap and supplied specifications](plans/dashboard-2026-09-30/README.md)
 - Collection, storage and Settings export: [September 12 audit reading guide](audit/2026-09-12/README.md), [findings](audit/2026-09-12/collection-store-export-audit.md) and [stored field inventory](audit/2026-09-12/stored-field-inventory.md)
 - Owner data inventory and proposed work/off dashboard: [2026-09-11 review](review/2026-09-11-dashboard-and-collected-data-review.md)
 - Recent bounded changes and remaining acceptance gates: [delivery index](review/README.md#delivery-records), including [build 51 durable logging](review/2026-09-12-durable-log-delivery.md)

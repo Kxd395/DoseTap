@@ -41,56 +41,6 @@ struct MedicationSettingsView: View {
                 Text("Select the medications you take. Only selected medications will appear in the medication picker.")
             }
             
-            // MARK: - Default Doses
-            if settings.hasMedication("adderall_ir") || settings.hasMedication("adderall_xr") {
-                Section {
-                    // Default dose picker
-                    HStack {
-                        Label("Default Dose", systemImage: "number")
-                        Spacer()
-                        Menu {
-                            ForEach(settings.adderallDoseOptions, id: \.self) { dose in
-                                Button {
-                                    settings.defaultAdderallDose = dose
-                                } label: {
-                                    HStack {
-                                        Text("\(dose) mg")
-                                        if settings.defaultAdderallDose == dose {
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Text("\(settings.defaultAdderallDose) mg")
-                                    .foregroundColor(.secondary)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    
-                    // Default formulation picker (if both IR and XR selected)
-                    if settings.hasMedication("adderall_ir") && settings.hasMedication("adderall_xr") {
-                        HStack {
-                            Label("Default Type", systemImage: "capsule.fill")
-                            Spacer()
-                            Picker("", selection: $settings.defaultAdderallFormulation) {
-                                Text("Immediate Release (IR)").tag("ir")
-                                Text("Extended Release (XR)").tag("xr")
-                            }
-                            .pickerStyle(.menu)
-                        }
-                    }
-                } header: {
-                    Label("Defaults", systemImage: "slider.horizontal.3")
-                } footer: {
-                    Text("These values will be pre-filled when logging a new medication dose.")
-                }
-            }
-
             // MARK: - Supply Tracking
             Section {
                 if let latestInventorySnapshot {
@@ -165,8 +115,8 @@ struct MedicationSettingsView: View {
                     InfoRow(
                         icon: "link",
                         iconColor: .purple,
-                        title: "Session Linking",
-                        description: "Medications are linked to your sleep session for correlation analysis."
+                        title: "Independent Records",
+                        description: "Each new log stands on its own. Logging does not start a nighttime session or change Dose 1 or Dose 2."
                     )
                     
                     InfoRow(

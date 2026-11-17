@@ -5,7 +5,7 @@ import DoseCore
 
 @MainActor
 final class SupplyReminderService: ObservableObject {
-    static let requestID = "dosetap_supply_order_reminder"
+    nonisolated static let requestID = "dosetap_supply_order_reminder"
     static let shared = SupplyReminderService(repository: .shared, client: SystemAlarmNotificationCenterClient())
 
     @Published private(set) var backup: SupplyBackup?
@@ -78,7 +78,7 @@ final class SupplyReminderService: ObservableObject {
 
     func recordBottleStart(at date: Date) async -> Bool {
         await change { value in
-            guard date <= now() else { throw SupplyStorageError.invalid }
+            guard date <= now(), value.receipts == nil else { throw SupplyStorageError.invalid }
             value.bottleStarts.append(SupplyBottleStart(openedAt: date, recordedAt: now()))
         }
     }

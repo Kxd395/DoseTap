@@ -20,7 +20,9 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     private let authorizationTimeoutSeconds: UInt64 = 15
     
     // MARK: - Published State
-    @Published var isAuthorized = false
+    @Published var isAuthorized = false {
+        didSet { if oldValue && !isAuthorized { DashboardProviderAccess.shared.invalidate(.health) } }
+    }
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
     
     // MARK: - Initialization
@@ -344,7 +346,8 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
         HKQuery.predicateForSamples(withStart: start, end: end, options: options)
     }
 
-    private func fetchSleepSegments(from start: Date, to end: Date, options: HKQueryOptions = .strictStartDate) async throws -> [SleepSegment] {
+    private func fetchSleepSegments(from start: Date, to end: Date, options: HKQueryOptions = .strictStartDate,
+                                    limit: Int = HKObjectQueryNoLimit) async throws -> [SleepSegment] {
         let sleepType = HKCategoryType(.sleepAnalysis)
         let predicate = Self.sleepSamplePredicate(from: start, to: end, options: options)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
@@ -353,7 +356,7 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             let query = HKSampleQuery(
                 sampleType: sleepType,
                 predicate: predicate,
-                limit: HKObjectQueryNoLimit,
+                limit: limit,
                 sortDescriptors: [sortDescriptor]
             ) { _, samples, error in
                 if let error = error {
@@ -369,6 +372,25 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
             }
             healthStore.execute(query)
         }
+    }
+
+    /// Raw bounded reporting query; deliberately avoids the consensus resolver's
+    /// per-boundary scan over a month of data. No new permission request or write.
+    func dashboardSleepEvidence(endingAt end: Date, timeZone: TimeZone) async throws -> DashboardSleepEvidence {
+        guard HKHealthStore.isHealthDataAvailable() else { throw DashboardSnapshotError.invalidMetadata }
+        let start = end.addingTimeInterval(-DashboardSleepEvidence.maximumRange)
+        let segments = try await fetchSleepSegments(from: start, to: end, options: [],
+                                                    limit: DashboardSleepEvidence.maximumSamples + 1)
+        try Task.checkCancellation()
+        guard segments.count <= DashboardSleepEvidence.maximumSamples else { throw DashboardSnapshotError.invalidPayload }
+        let samples = try segments.map { segment -> SleepEvidenceSample in
+            guard let sample = segment.evidence else { throw DashboardSnapshotError.invalidPayload }
+            return sample
+        }
+        let packet = DashboardSleepEvidence(queryStart: start, queryEnd: end, completedAt: Date(),
+                                             timeZoneID: timeZone.identifier, samples: samples)
+        try packet.validate(capturedAt: packet.completedAt)
+        return packet
     }
 
     /// Opt-in coverage for explicit bounds. Does not select or persist a treatment night.
@@ -700,6 +722,31 @@ final class HealthKitService: ObservableObject, HealthKitProviding {
     /// Analyze a single night's sleep data
     private func analyzeSleepNight(segments: [SleepSegment], nightStart: Date) -> SleepNightSummary? {
         Self.sleepNightSummary(from: segments, nightStart: nightStart)
+    }
+
+    /// Read-only dashboard history. Does not change the TTFW baseline or dose suggestions.
+    func dashboardSleepHistory(days: Int, through now: Date, calendar: Calendar = .current) async throws -> [SleepNightSummary] {
+        let count = max(1, min(days, 730))
+        let start = calendar.date(byAdding: .day, value: -count, to: now)!
+        let segments = try await fetchSleepSegments(from: start, to: now)
+        return Self.dashboardSleepSummaries(segments: segments, days: count, through: now, calendar: calendar)
+    }
+
+    static func dashboardSleepSummaries(segments: [SleepSegment], days: Int, through now: Date,
+                                       calendar: Calendar = .current) -> [SleepNightSummary] {
+        let today = calendar.startOfDay(for: now)
+        let anchor = calendar.component(.hour, from: now) >= 18 ? today
+            : calendar.date(byAdding: .day, value: -1, to: today)!
+        var summaries: [SleepNightSummary] = []
+        for offset in 0..<max(1, min(days, 730)) {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: anchor),
+                  let next = calendar.date(byAdding: .day, value: 1, to: day),
+                  let lower = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day),
+                  let upper = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: next) else { continue }
+            let samples = segments.filter { $0.start >= lower && $0.start < upper && $0.start <= now }
+            if let summary = sleepNightSummary(from: samples, nightStart: day) { summaries.append(summary) }
+        }
+        return summaries.sorted { $0.date > $1.date }
     }
 
     // MARK: - TTFW Baseline Computation

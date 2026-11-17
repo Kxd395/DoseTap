@@ -565,7 +565,9 @@ class MorningCheckInViewModel: ObservableObject {
     }
 
     @discardableResult
-    func submit(using repository: SessionRepository = .shared, alarmService: AlarmService = .shared) async -> Bool {
+    func submit(using repository: SessionRepository? = nil, alarmService: AlarmService? = nil) async -> Bool {
+        let repository = repository ?? .shared
+        let alarmService = alarmService ?? .shared
         if let historyReview {
             historyReview(toStoredCheckIn())
             return true // Returns a draft for confirmation; no storage or live-session effects.

@@ -170,11 +170,10 @@ public final class CertificatePinning: NSObject, URLSessionDelegate, @unchecked 
         }
         
         // Check certificate pins
-        let certificateCount = SecTrustGetCertificateCount(serverTrust)
+        let certificates = SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate] ?? []
         var pinMatched = false
         
-        for i in 0..<certificateCount {
-            guard let certificate = SecTrustGetCertificateAtIndex(serverTrust, i) else { continue }
+        for certificate in certificates {
             
             let publicKeyHash = Self.spkiPin(of: certificate)
             if pinnedHashes.contains(publicKeyHash) {

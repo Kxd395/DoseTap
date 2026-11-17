@@ -1,9 +1,10 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-12
+Last verified: 2026-09-30
 SSOT revision: 0.4.19
-App version in this branch: 0.4.19 (build 58 candidate; last integrated and installed build: 57)
+App version defined in this revision's Xcode project: 0.4.19 (88)
+Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
 
@@ -29,6 +30,7 @@ alarm changes may re-enable them for the still-active dose.
 - Dose persistence contract: `docs/SSOT/dose-state-persistence.md`
 - Alarm scheduling contract: `docs/SSOT/alarm-scheduling.md`
 - Local order reminder contract: `docs/SSOT/supply-reminder.md`
+- Local bottle tracking, confirmed quantity and preparations: [Bottle tracking](bottle-tracking.md)
 - Data dictionary: `docs/SSOT/contracts/DataDictionary.md`
 - Diagnostic logging: `docs/DIAGNOSTIC_LOGGING.md`
 
@@ -39,6 +41,26 @@ Notes:
 ---
 
 ## Domain Entities and Invariants
+
+### Weekly wake schedule (DOSETAP-41, build 71)
+
+- Weekly Schedule edits one seven-day draft. Each day means the date of waking,
+  with an optional required wake time and separately confirmed work status.
+  Fill selected days is a draft shortcut; it never assumes Monday/Wednesday/Friday.
+  Only Save Schedule commits the draft. Leaving without saving changes no settings.
+- On explicit save, the existing SQLite work/wake document also owns the weekly
+  planner times. Work advisories use those times and retain dated exceptions.
+  Existing preference-based planner times are shown for review before this first
+  save; no enabled-day flag is inferred to mean working. Legacy warning/planner
+  differences require acknowledgment. Opening alone performs no migration.
+- Disabled wake requirements produce no wake deadline or bedtime calculation,
+  including in Tonight and export. A deliberately set one-night planner override
+  still takes precedence for that planner night; it does not change work status.
+  Missing/invalid dates stay unresolved. Wake-date and DST resolution use the
+  saved schedule timezone after consolidation, with next-valid/first-fold handling.
+- Failed loads block saving; failed/stale writes retain the draft, report failure,
+  and publish no success. One save retains the warning mode, timezone and dated
+  exceptions. It never records medication, changes dosing windows or schedules alarms.
 
 ### Dose 1 reminder review (DOSETAP-71)
 
@@ -451,13 +473,108 @@ Code references:
 
 ---
 
+## Independent medication entry (DOSETAP-74)
+
+Preset foundation: `MedicationPresetRevision` is a validated, immutable DoseCore
+contract for patient-entered oral-solid label details. It keeps release profile
+separate from tablet/capsule form, preserves multi-strength components and uses
+checked decimal milligram arithmetic. A prescribed preset is not an
+administration. The corresponding confirmed snapshot requires separately supplied
+actual components and occurrence evidence; unknown occurrence remains absent.
+The independent ledger stores immutable revisions and confirmed snapshots without
+night links, and schema5 exports carry exact payload strings outside date groups.
+Settings now offers explicit preset capture and prior-record review; audited
+corrections remain follow-on work. The
+existing manual medication and nighttime dose paths remain unchanged. See the
+[preset contract](contracts/MedicationPresets.md) for scope and remaining wiring.
+
+The first capture slice adds a direct Medications entry point on Tonight,
+independent of its nighttime review/dose state. It records a reported amount and
+occurrence through the existing medication ledger. Medication selection honors the configured medication list and starts
+with no amount or time mode selected; Now captures the instant when added to the
+review list, Earlier requires an explicitly reviewed date/time. Save confirms the
+visible list. Opening, selecting and cancelling do not record administration.
+
+New general-medication writes do not attach themselves to an active night.
+`session_date` remains a grouping key; nullable `session_id` remains absent across
+restart. Existing historical links are preserved, not repaired. Stable draft IDs
+make identical retries idempotent; an ID reused for changed content is rejected.
+Duplicate review compares absolute occurrences and complete reviewed row snapshots
+across date boundaries, separate
+from retry idempotency. Invalid/future times, unknown medication IDs and nonpositive
+or unrepresentable amounts are rejected before writing. Failed reads/writes do
+not become success. Routine diagnostics omit medication identity and amount.
+
+This is reviewed manual logging using the existing whole-milligram catalog, not
+the forthcoming one-tap prescription preset workflow. Versioned presets,
+components, unknown-time outcomes, audited Undo/Edit and groups remain planned in
+[the daytime treatment roadmap](../plans/2026-09-25-daytime-treatment-roadmap.md).
+Nighttime medication recording continues through its existing confirmations.
+
 ## Durable quick logs and general medication entry (DOSETAP-3/39)
+
+Quick Log availability is independent of the Dose 2 dosing window. A saved event
+starts only that event type's configured duplicate-tap cooldown. Both Tonight
+and Timeline Live show the remaining wait in text and accessibility value, and
+refresh eligibility from the current clock, including after foreground return.
+The cooldown does not create a dose or change medication eligibility. An
+unresolved save failure retains its separate retry/discard guidance. The owner
+report of intermittent untappable controls is tracked under DOSETAP-72;
+simulator verification does not establish its exact phone cause.
 
 Quick-log success, list insertion, cooldown and haptics follow a committed SQLite write. A new active session and its first quick log commit together; failed writes leave both absent. Final wake and its finalizing state also commit together. Failed manual entries retain their fields, while a failed quick tap retains its occurrence for an explicit same-session retry. If that session changes, retry is cleared, the unsaved occurrence stays visible for History review, and new quick logs remain usable. Alternate final-wake logs share the finalizing transaction. Siri, deep links and Flic report failure instead of success. Medication names remain outside the quick-log route.
 
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
 ## Storage and Persistence Truth
+
+Build 67 (DOSETAP-73) adds reporting-only dose timing review. Zero/reversed
+occurrence intervals remain in source evidence but are excluded from ordinary
+spacing fields, with `nonpositive_dose_interval` shown in Review Issues and JSON.
+Eligibility is specific to dose spacing; unrelated sleep summaries remain usable.
+Studio export 2.9/schema 4 derives sessions.csv and doseTimingReview from the same
+finalized JSON source selection as Excel. Historical target/window values remain
+unavailable; current settings never fill them. Schema 4 requires updated Studio:
+older readers reject it instead of replacing a blank target with 165 minutes.
+No SQLite, medication, alarm or historical-record writes occur.
+
+Build 66 adds a readable Dose Summary and Medication Log, with shared source/summary
+dose reconciliation and explicit missing timing metadata. No historical dose
+amounts or medication windows are inferred.
+
+Build 62 adds **Export Excel Workbook** in Settings. The styled, sortable XLSX
+uses the finalized Studio export snapshot, preserving original-source identities,
+missingness and unresolved-date exclusions. Excel table filters apply to their
+own sheets; Overview has fixed reporting periods. Original Studio ZIP export
+remains available. See the [Excel workbook contract](contracts/ExcelWorkbook.md).
+Build 63 reduces intermediate XML packaging memory without changing workbook
+contents or schema. Implementation and phone/Excel/accessibility acceptance are
+separate evidence.
+Build 64 repairs workbook contrast with explicit light backgrounds for dark-text
+cells, notes, blank placeholders and table bands. Body formats remain distinct
+from the implicit Normal style. Existing row colors can travel with sorted
+records; source values and schema are unchanged.
+
+Studio export 2.8/schema 3 (DOSETAP-13 / DC-07) preserves conflicting date groups as raw
+records instead of requiring an editable single-session identity. A checked,
+read-only source inspection emits `identityResolution` and original typed
+`rawSourceRecords` for session metadata and questionnaires. Multiple identities,
+identities spanning dates, or multiple source questionnaires with no authoritative
+selection produce `raw_only`: all ledger/source rows remain, but selected dose
+times, questionnaire/context summaries, collected-night calculations and derived
+CSV rows are withheld. Matching Studio excludes these dates from derived analysis
+and reports the preserved/excluded count. Source availability is independent of
+summary availability. Actual read failures still abort export. Export never repairs,
+relinks or deletes records; existing editing and medication guards are unchanged.
+Schema 3 uses the required root `dateGroups` array instead of `sessions`. Older
+Studio requires `sessions` and must reject the intact archive before publishing
+analytics. Matching Studio reads schema 3 and legacy schema 1/2, and rejects mixed
+or unknown root layouts. Updating only a numeric version would not protect old
+consumers. Standalone source CSVs do not carry this safety contract.
+
+Manual export failures identify the failed step and, when available, the treatment date and stored-record error detail. Free-space advice is shown only for a reported disk-full error; identity conflicts and read failures are not described as insufficient space. A failed export publishes no archive, changes no clinical records, and retains the existing retry action. The error type name is not evidence that failure injection was enabled.
+The share sheet is presented by the completed archive item itself, so the first
+export cannot present an empty sheet while waiting for separate file-list state.
 
 Studio export 2.7 (DOSETAP-13, bounded DC-05) adds optional request-scoped
 `whoopEnrichment` metadata for manual exports: independent sleep/recovery
@@ -512,6 +629,8 @@ reads accept absolute ISO occurrences with or without fractional seconds and sor
 by the parsed instant; existing History identity and complete-read guards remain.
 
 Persistence is local SQLite via `EventStorage`.
+
+Reset failure behavior is defined in [Storage initialization and reset](storage-initialization-and-reset.md). Database deletion must commit before preferences, active-session state or alarms are cleared.
 
 The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`, including the SQLite `user_version` and internal `schema_migrations` ledger. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not duplicate mutable schema versions, table totals, or partial table lists in this overview.
 
@@ -763,6 +882,8 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 
 ### Dashboard analytics contract (DOSETAP-45)
 
+Calendar reporting windows follow the [shared range contract](contracts/dashboard-calendar-ranges.md).
+
 - Food/outcome reporting parity: one versioned `collectedNight` projection exposes last-food finish/type/high-fat/notes, exact non-negative food-to-dose intervals, explicit Dose 2 wake/backup-alarm/following-day/final-wake answers, personal 0–10 sleepiness and assessment/record timestamps, and measured post-Dose-2 sleep with source/coverage. Raw questionnaire answers and revision history remain in the bundle; legacy 1–5 ratings and late-meal answers stay separate.
 - Food analytics use completed pre-sleep logs only. High-fat Yes/No/Unsure groups and unrecorded nights remain distinct, use medians with per-outcome usable counts, and follow the selected range/provider. No dose changes, inferred fasting, causal claims or food-effectiveness score. Food notes remain a detail field rather than an aggregate.
 - Manual and scheduled local exports share the Studio bundle writer and include all local questionnaire submissions, events, medication and inventory rows, plus a flat collected-night CSV. Scheduled exports do not fetch network/provider enrichment; source unavailability stays explicit. Publish a unique completed archive only after all files succeed; cancellation/failure must not advance the successful-export date. Scheduled timing and signed-device background behavior remain OS-controlled acceptance gates.
@@ -770,7 +891,7 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - Studio imports the versioned projection and shows/report-exports its fields without converting old ratings or inferring legacy wake answers. Missing projections in older bundles are unavailable, not zero. CSV quoting must preserve commas, quotes, CR/LF; spreadsheet-safe text escaping must round-trip through Studio. Export remains an analysis archive, not a content-equal whole-project restore guarantee.
 - Studio export actions and metadata adapt to the available window width. Save status remains below the actions. Source iPhone build identifies the imported archive, not the running Studio app or the current phone installation. Redaction applies to generated reports; an imported bundle copy preserves the original data.
 
-- Date ranges include exactly the selected number of civil night keys through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit (Apple Health up to 120 nights, WHOOP 30 days).
+- Fixed-day ranges include exactly the selected number of civil night keys; 6M and 1Y use six/twelve Gregorian calendar months through the current evening-anchored night; malformed and future keys are excluded. All Time includes all discovered local history. Provider fetch horizons remain explicit: the separate read-only Apple Health dashboard query covers the selected and preceding periods plus two boundary days, capped at 730 days; WHOOP remains capped at 30 days. The dosing baseline is unchanged.
 - Recorded dose events own retrospective timing; never infer Dose 1 from Dose 2 or an extra dose. Pending Dose 2 (before the existing upper timing boundary) is separate from missing outcomes. Recorded outcomes include explicit skips; on-time percentages use valid timestamp pairs only, with exact elapsed seconds and the shared MedicationTiming classification.
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
 - Studio's 30-day dose-timing cards use valid recorded timestamp pairs only, disclose their usable pair count, and show No data when no pairs exist. Classify each pair from unrounded elapsed seconds, never a legacy adherence flag. The average interval is descriptive; it is not labeled Optimal, Good, or an effectiveness result.
@@ -793,3 +914,88 @@ Dashboard WHOOP sleep totals/stage proportions require all three sleep-stage fie
 The optional Wake & Next Day Apple Health coverage check derives four durations from the same freshly checked local snapshot and reviewed provider projection: Dose 1 to initial sleep, awakening to Dose 2, Dose 2 to return to sleep, and the whole Dose 2 awakening. The contract is [reviewed dose/sleep metrics](contracts/reviewed-dose-sleep-metrics.md). These estimates do not record medication, infer skipped doses, replace dashboard totals, persist provider history, or supply awakening counts. Signed-device/provider, VoiceOver and release acceptance remain separate.
 
 Timeline Review exposes a read-only dose/sleep check for its selected treatment night. It uses the existing saved reviewed window and repository loader, shows the associated Dose 2 awakening and source samples, and clears results after local changes, a night switch, backgrounding or Health preference changes. It does not replace the legacy stage chart or infer wake causes. See the reviewed-dose-sleep contract.
+
+### Saved medication setup (DOSETAP-74, build 70)
+
+Settings → Saved medication presets creates and revises patient-entered oral-solid
+label information, with explicit review, immutable history and checked retry.
+It never records medication as taken. Retention is displayed before entry.
+See [MedicationPresets](contracts/MedicationPresets.md) for its full contract.
+
+### Confirmed preset capture (DOSETAP-74, build 72)
+
+Saved medication presets → Log taken reviews actual units and requires an explicit
+Now/Earlier/Approximate/Unknown time choice. Prior saved-preset records are shown
+separately from legacy picker records. Successful writes show a persistent receipt;
+failed writes retain the same command for retry. Taken records preserve immutable
+amount/time snapshots across restart. This does not enable medication estimates,
+new alarms, automatic administration or audited Edit/Undo.
+
+### Independent medication history (DOSETAP-74, build 75)
+
+History → Medication history reads quick-log and saved-preset administrations
+across all dates, including no-session and unknown-time records. It distinguishes
+source, occurrence, explicit preset recording time and quick-log stored creation
+time (which may be import time), and links the export meaning to Medication
+Log / Confirmed Medications sheets and ZIP insights_bundle.json. Read errors are
+visible, not empty success. No records are copied into nighttime dose history.
+
+### Separate cloud dashboard reporting foundation (DOSETAP-76)
+
+[Cloud dashboard reporting](contracts/CloudDashboardReporting.md) defines a
+one-way private reporting feed for a separate iPad app. The core snapshot validator
+and in-memory acceptance reducer reject incomplete, stale, corrupt or wrong-context
+refreshes. The subsequent nearby slice adds a separate iPad target, protected report cache
+and explicit foreground pairing. Clinical cloud uploads remain disabled. See
+[nearby iPad delivery](../review/2026-09-26-nearby-ipad-dashboard.md) for validation
+and acceptance gates. Phone records and alarms remain phone-owned.
+
+Dashboard review contracts: [color and Night Mode semantics](contracts/dashboard-colors.md),
+[positive recorded-dose spacing](contracts/dashboard-dose-eligibility.md), and
+[explicit diary outcome matching](contracts/dashboard-diary-analysis.md). The
+separate iPad may display validated timed sleepiness and reported final wake from
+the same snapshot generation, with independent metric eligibility and exclusions.
+Elapsed from Dose 2 to reported final wake is not measured sleep. See the
+[full collection/comparison inventory](../review/2026-09-26-dashboard-data-comparison-inventory.md)
+for implemented visibility versus remaining provider and context comparisons.
+
+Cloud dashboard transport correction (DOSETAP-76): clinical CloudKit publishing
+remains disabled because Apple5.1.3(ii) restricts personal health information in
+iCloud. The owner selected investigation of both a private-server feed and direct
+nearby device transfer. The reporting validator remains transport-independent; an
+explicit not-collected amendment section cannot be mistaken for zero amendments.
+### Calendar dashboard ranges and measurement coverage (DOSETAP-45)
+
+The iPhone and separate iPad dashboard share the calendar reporting-window contract.
+6M and 1Y mean six/twelve calendar months ending after the last treatment date,
+with an adjacent preceding calendar period. Fixed 7/14/30/90-day ranges remain
+civil-day counts. Show the exact dates and retain the 18:00 treatment-night anchor;
+iPad evaluates the frozen report capture, while the phone freezes its refresh instant.
+Apple Health queries derive their day count from both calendar periods plus two
+boundary days, capped at 730. Display the actual requested query interval/as-of time
+and whether the cap omits the beginning of the preceding period. Query coverage is
+not proof of measured data completeness. All Time retains local history without
+promising unlimited provider history. Range changes refresh provider data. WHOOP
+remains a 30-day query with explicit disclosure.
+Coverage shows available and missing selected-provider sleep readings, explicitly
+answered following-day type, final wake and timed0–10 sleepiness. Unreadable diary
+records do not count as answers; zero sleepiness with a valid nonfuture timestamp
+is usable. Counts describe recorded nights, not all calendar days or clinical
+confidence. Missing stays missing. Shipping records are local; staging CloudKit
+is not a promise of iPad synchronization.
+
+### Dashboard provider access (DOSETAP-45)
+
+Dashboard provider access changes follow the [invalidation contract](contracts/dashboard-provider-access.md).
+An integration preference change, known access loss, WHOOP disconnect or account
+change invalidates pending dashboard provider results and removes affected in-memory
+summaries. Local diary/dose records and the other provider remain separate. Re-enabling
+an integration requires a new query; an older request cannot republish after an off/on
+cycle. This does not detect HealthKit read revocation that Apple exposes as an empty
+query, add a persistent provider cache, or retain data after transient errors.
+
+### Nearby Apple Health evidence (DOSETAP-76)
+
+Optional bounded sleep-source transfer and receiver validation follow the
+[provider evidence contract](contracts/dashboard-provider-evidence.md). This adds
+original provider intervals, not reviewed sleep totals or dose advice.

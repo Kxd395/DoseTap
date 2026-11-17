@@ -3,6 +3,10 @@
 Status: Implemented code path; production enablement and live end-to-end validation open
 Last verified against code and WHOOP documentation: 2026-09-02
 
+## Product roadmap description
+
+The planned near-term DoseTap feature will present WHOOP sleep and supported recovery data alongside recorded doses and morning observations, with WHOOP clearly identified as its own source. Integration code exists, but production enablement and live validation remain open; there is no committed release date. This is a DoseTap feature plan, not an announcement of a forthcoming WHOOP provider feature. See the [presentation-ready product overview](PRODUCT_OVERVIEW.md#whoop-planned-near-term-dosetap-feature).
+
 ## Current implementation
 
 | Capability | Code-backed status | Remaining gate |

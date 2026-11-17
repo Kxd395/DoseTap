@@ -24,10 +24,14 @@ The first attempt on the existing simulator did not launch the test runner, and 
 
 Phone installation and owner interaction are separate evidence. Verify a zero-level entry with sensations remains visible after completing and reopening the exact night; check the pencil Edit path and unchanged saved preference. VoiceOver, broader accessibility, privacy and release gates remain open. Largest-text label truncation and broader pain-pattern identity/presence work remain separate DOSETAP-61 follow-ups.
 
-## Candidate status
+## September candidate status
 
 Build 58 is a draft candidate, not a delivered phone update. The UI repair passed independent source review. Local SwiftPM validation passed 710 XCTest and 43 Swift Testing cases. The signed device build and signature verification passed; all four app/staging configurations agree on 0.4.19 (58).
 
 The new app storage/export test compiles after qualifying the app model as `DoseTap.PreSleepLogAnswers`. Local simulator test execution remains blocked before assertions, so the new storage test and native save/edit/reopen journey are not recorded as passing. Temporary diagnostic schemes are excluded from the change. Hosted checks and exact PR state are recorded in the Plane workpad.
 
 Merge remains gated on simulator interaction proof for the zero-entry path. Build 57 remains the last integrated and installed version; its three post-merge workflows are now verified successful. No phone records were changed during this follow-up.
+
+## November 17 integration check
+
+The branch now incorporates main at `2b29e01` and uses its 0.4.19 (88) Xcode configuration. On the iPhone 17 Pro Max simulator running iOS 26.5, the UI test saved a 0/10 entry with sensations, edited it, reopened the completed check-in, explicitly cleared the nightly entry and verified that the remembered pattern remained available. The storage test also passed after updating the assertion to use the current Studio bundle’s `dateGroups` collection. It verified the source answers, normalized intensity, derived symptom and exported answers. Signed-device interaction and owner acceptance remain open.

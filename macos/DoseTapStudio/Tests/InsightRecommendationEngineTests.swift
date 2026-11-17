@@ -2,6 +2,17 @@ import XCTest
 @testable import DoseTapStudio
 
 final class InsightRecommendationEngineTests: XCTestCase {
+    func testOneNightWakeOverrideIsNotAWorkOffOrUniformScheduleEstimate() throws {
+        let data = Data("""
+        {"nextMorningWeekdayIndex":6,"nextMorningIsWeekend":false,"scheduleDayType":"one_night_override","wakeSignal":"unknown","snoozeCount":0}
+        """.utf8)
+        let context = try JSONDecoder().decode(InsightSessionContext.self, from: data)
+        let session = makeSession(sessionDate: "2026-09-24", intervalMinutes: 180, sleepQuality: 3, readiness: 3, context: context)
+        XCTAssertEqual(session.scheduleFilter, .unknown)
+        XCTAssertFalse(session.classification.tags.contains(.workNight))
+        XCTAssertFalse(session.classification.tags.contains(.offNight))
+    }
+
     func testNaturalWakeModeDoesNotRankLegacyOnlyWakeHints() {
         let sessions = (10...14).map { makeSession(sessionDate: "2024-09-\($0)", intervalMinutes: 165, sleepQuality: 5, readiness: 5) }
         let result = InsightRecommendationEngine().recommend(sessions: sessions, mode: .naturalWakeProbability)

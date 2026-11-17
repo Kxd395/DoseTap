@@ -9,44 +9,11 @@ import UIKit
 private let settingsActionsLog = Logger(subsystem: "com.dosetap.app", category: "SettingsView")
 
 extension SettingsView {
-    func exportData() {
-        Task { @MainActor in
-            await exportDataAsync()
-        }
-    }
-
     @MainActor
-    private func exportDataAsync() async {
-        let repo = SessionRepository.shared
-        let tempDirectory = FileManager.default.temporaryDirectory
-        let timestamp = DateFormatter.exportDateFormatter.string(from: Date())
-        let exportDirectory = tempDirectory.appendingPathComponent("DoseTapStudioExport_\(timestamp)_\(UUID().uuidString)", isDirectory: true)
-        let exporter = StudioBundleExporter()
-        var unpublishedArchive: URL?
-        defer {
-            try? FileManager.default.removeItem(at: exportDirectory)
-            if let unpublishedArchive { try? FileManager.default.removeItem(at: unpublishedArchive) }
-        }
-
-        do {
-            try FileManager.default.createDirectory(at: exportDirectory, withIntermediateDirectories: true)
-            try await exporter.writeStudioExportBundle(using: repo, to: exportDirectory)
-            let archiveURL = try exporter.archiveExportDirectory(exportDirectory)
-            unpublishedArchive = archiveURL
-            try Task.checkCancellation()
-
-            exportItems = [archiveURL]
-            showingExportSheet = true
-            unpublishedArchive = nil
-            settingsActionsLog.info("Studio export created: \(archiveURL.lastPathComponent, privacy: .private)")
-        } catch is CancellationError {
-            return
-        } catch {
-            settingsActionsLog.error("Failed to create export file: \(error.localizedDescription, privacy: .public)")
-            exportErrorMessage = error.localizedDescription
-            showingExportError = true
-        }
+    func exportData() {
+        exportData(format: .studioBundle)
     }
+
 
 }
 
@@ -64,46 +31,57 @@ struct StudioBundleExporter {
         let sortedSessionDates = sessionDates.sorted(by: >)
         let windowAssessments = repo.reviewedWindowAssessments(sessionDates: sortedSessionDates)
         let sessions = try sortedSessionDates.map { sessionDate in
+            let sources = try repo.exportSourceSnapshot(sessionDate: sessionDate)
+            let rawOnly = sources.identityResolution.isRawOnly
             let storedEvents = try repo.eventExportRecords(sessionDate: sessionDate)
-            let doseLog = repo.fetchDoseLog(forSession: sessionDate)
-            let doseEvents = repo.fetchDoseEvents(forSessionDate: sessionDate)
-            let sleepEvents = repo.fetchSleepEvents(for: sessionDate)
-            let preSleepLog = repo.fetchPreSleepLog(forSessionDate: sessionDate)
-            let morningCheckIn = repo.fetchMorningCheckIn(for: sessionDate)
-            let sessionId = repo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
+            let doseLog = rawOnly ? nil : repo.fetchDoseLog(forSession: sessionDate)
+            let doseEvents = rawOnly ? [] : repo.fetchDoseEvents(forSessionDate: sessionDate)
+            let sleepEvents = rawOnly ? [] : repo.fetchSleepEvents(for: sessionDate)
+            let preSleepLog = rawOnly ? nil : repo.fetchPreSleepLog(forSessionDate: sessionDate)
+            let morningCheckIn = rawOnly ? nil : repo.fetchMorningCheckIn(for: sessionDate)
+            let sessionId = rawOnly ? sessionDate : (repo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate)
             let rawEvents = exportRawEvents(storedEvents)
             let normalizedEvents = exportNormalizedEvents(from: rawEvents)
             let preSleep = preSleepLog.map(exportPreSleepSummary(from:))
             let morning = morningCheckIn.map(exportMorningSummary(from:))
             let medications = try repo.medicationExportRecords(for: sessionDate)
-            let checkInSubmissions = repo.fetchCheckInSubmissions(for: sessionDate)
+            let checkInSubmissions = rawOnly ? [] : repo.fetchCheckInSubmissions(for: sessionDate)
                 .map(exportCheckInSubmission(from:))
             let healthKit = enrichmentBySessionDate[sessionDate]?.healthKit
             let whoop = enrichmentBySessionDate[sessionDate]?.whoop
-            let alarmContext = exportAlarmContext(forSessionId: sessionId)
-            let exportExclusionReasons = buildSessionExportExclusionReasons(
+            let alarmContext = rawOnly ? nil : exportAlarmContext(forSessionId: sessionId)
+            let exportExclusionReasons = rawOnly ? sources.identityResolution.reasons : buildSessionExportExclusionReasons(
                 doseLog: doseLog,
                 doseEvents: doseEvents,
                 sleepEvents: sleepEvents,
                 morningCheckIn: morningCheckIn
             )
+            let collectedNight: CollectedNightSummary?
+            do {
+                collectedNight = rawOnly ? nil : try repo.collectedNightSummary(for: sessionDate,
+                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC,
+                    windowAssessment: windowAssessments[sessionDate])
+            } catch {
+                throw StudioExportFailure(step: "Reading the night summary for \(sessionDate)", underlying: error)
+            }
             return InsightsBundleSession(
+                identityResolution: sources.identityResolution, rawSourceRecords: sources.records,
                 sessionDate: sessionDate,
                 dose1TimeUTC: doseLog?.dose1Time,
                 dose2TimeUTC: doseLog?.dose2Time,
                 rawEvents: rawEvents,
                 normalizedEvents: normalizedEvents,
                 sourceAvailability: InsightsSourceAvailability(
-                    doseEvents: !doseEvents.isEmpty,
-                    sleepEvents: !sleepEvents.isEmpty,
-                    preSleep: preSleep != nil,
-                    morningCheckIn: morning != nil,
+                    doseEvents: storedEvents.contains { $0.sourceTable == "dose_events" },
+                    sleepEvents: storedEvents.contains { $0.sourceTable == "sleep_events" },
+                    preSleep: sources.records.contains { $0.sourceTable == "pre_sleep_logs" },
+                    morningCheckIn: sources.records.contains { $0.sourceTable == "morning_checkins" },
                     medications: !medications.isEmpty,
                     healthKit: healthKit != nil,
                     whoop: whoop != nil,
                     alarmDiagnostics: alarmContext != nil
                 ),
-                metricProvenance: buildMetricProvenance(
+                metricProvenance: rawOnly ? [:] : buildMetricProvenance(
                     doseLog: doseLog,
                     doseEvents: doseEvents,
                     sleepEvents: sleepEvents,
@@ -112,7 +90,7 @@ struct StudioBundleExporter {
                     healthKit: healthKit,
                     whoop: whoop
                 ),
-                dataQualityFlags: buildSessionDataQualityFlags(
+                dataQualityFlags: rawOnly ? sources.identityResolution.reasons : buildSessionDataQualityFlags(
                     doseLog: doseLog,
                     doseEvents: doseEvents,
                     sleepEvents: sleepEvents
@@ -122,7 +100,7 @@ struct StudioBundleExporter {
                 morning: morning,
                 medications: medications,
                 checkInSubmissions: checkInSubmissions,
-                context: exportSessionContext(
+                context: rawOnly ? nil : exportSessionContext(
                     sessionDate: sessionDate,
                     sessionId: sessionId,
                     doseLog: doseLog,
@@ -132,17 +110,20 @@ struct StudioBundleExporter {
                     sleepEvents: sleepEvents,
                     precomputedAlarmContext: alarmContext
                 ),
-                collectedNight: try repo.collectedNightSummary(for: sessionDate,
-                    intervals: healthKit?.recordedIntervals ?? [], providerFinalWake: healthKit?.finalWakeUTC,
-                    windowAssessment: windowAssessments[sessionDate]),
+                collectedNight: collectedNight,
                 healthKit: healthKit,
                 whoop: whoop
             )
         }
 
+        let supply: SupplyBackup
+        do { supply = try repo.loadSupply() }
+        catch { throw StudioExportFailure(step: "Reading bottle and supply records", underlying: error) }
+        let supplyEncoder = JSONEncoder()
+        supplyEncoder.outputFormatting = [.sortedKeys]
         return InsightsBundleExport(
-            schemaVersion: 2,
-            exportVersion: "2.7",
+            schemaVersion: 5,
+            exportVersion: "3.0",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -152,6 +133,9 @@ struct StudioBundleExporter {
                 + (whoopEnrichment?.warnings(hasExportedSleep: sessions.contains { $0.whoop != nil }) ?? [])
                 + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
             whoopEnrichment: whoopEnrichment,
+            medicationPresetLedger: try repo.medicationPresetExportSnapshot(),
+            supplyStateJSON: String(decoding: try supplyEncoder.encode(supply), as: UTF8.self),
+            supplyStateEncoding: "json-date-seconds-since-2001-v1",
             sessions: sessions
         )
     }
@@ -296,12 +280,6 @@ struct StudioBundleExporter {
         try Task.checkCancellation()
         try buildStudioEventsCSV(using: repo, sessionDates: sessionDates)
             .write(to: directory.appendingPathComponent("events.csv"), atomically: true, encoding: .utf8)
-        try buildStudioSessionsCSV(
-            using: repo,
-            sessionDates: sessionDates,
-            enrichmentBySessionDate: enrichmentBySessionDate
-        )
-            .write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
         try buildStudioInventoryCSV(using: repo)
             .write(to: directory.appendingPathComponent("inventory.csv"), atomically: true, encoding: .utf8)
 
@@ -315,8 +293,10 @@ struct StudioBundleExporter {
                 consent: consent,
                 whoopEnrichment: whoopEnrichment
             )
-        try writeCollectedNightCSV(bundle.sessions.map { ($0.sessionDate, $0.collectedNight) }, to: directory)
-        try encoder.encode(bundle)
+        let reviewed = try StudioDoseTimingExport.prepare(bundleData: encoder.encode(bundle))
+        try reviewed.sessionsCSV.write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
+        try writeCollectedNightCSV(bundle.sessions.compactMap { session in session.collectedNight.map { (session.sessionDate, $0) } }, to: directory)
+        try reviewed.bundleData
             .write(to: directory.appendingPathComponent("insights_bundle.json"), options: .atomic)
     }
 
@@ -328,7 +308,7 @@ struct StudioBundleExporter {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        return try encoder.encode(
+        return try StudioDoseTimingExport.prepare(bundleData: encoder.encode(
             try buildInsightsBundle(
                 using: repo,
                 sessionDates: sessionDates,
@@ -341,7 +321,7 @@ struct StudioBundleExporter {
                     whoopConnected: false
                 )
             )
-        )
+        )).bundleData
     }
 
     func buildStudioInventoryCSVForTesting(using repo: SessionRepository) throws -> String {
@@ -393,7 +373,7 @@ struct StudioBundleExporter {
 
     private func exportConsentState() async -> InsightsConsentState {
         let healthKit = HealthKitService.shared
-        if healthKit.isAvailable {
+        if settings.healthKitEnabled && healthKit.isAvailable {
             await healthKit.syncAuthorizationState()
         }
 
@@ -416,46 +396,6 @@ struct StudioBundleExporter {
                     event.sessionId ?? "", event.sessionDate, event.timestampStoredUTC,
                     event.createdAtStoredUTC ?? "", event.colorHex ?? ""].map(csvField).joined(separator: ","))
             }
-        }
-        return rows.joined(separator: "\n") + "\n"
-    }
-
-    private func buildStudioSessionsCSV(
-        using repo: SessionRepository,
-        sessionDates: [String],
-        enrichmentBySessionDate: [String: StudioExportSessionContext]
-    ) -> String {
-        var rows = ["started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes"]
-        for sessionDate in sessionDates {
-            guard let doseLog = repo.fetchDoseLog(forSession: sessionDate) else { continue }
-            let enrichment = enrichmentBySessionDate[sessionDate]
-            let startedUTC = doseLog.dose1Time
-            let endedUTC = doseLog.dose2Time
-            let adherenceFlag: String
-            if doseLog.dose2Skipped {
-                adherenceFlag = "missed"
-            } else if let second = doseLog.dose2Time {
-                switch MedicationTiming.classify(dose1: doseLog.dose1Time, dose2: second) {
-                case .early: adherenceFlag = "early"
-                case .late: adherenceFlag = "late"
-                case .inWindow: adherenceFlag = "ok"
-                case .invalid: adherenceFlag = "invalid"
-                }
-            } else {
-                adherenceFlag = "missing"
-            }
-            let row = [
-                AppFormatters.iso8601Fractional.string(from: startedUTC),
-                endedUTC.map(AppFormatters.iso8601Fractional.string(from:)) ?? "",
-                String(settings.targetIntervalMinutes),
-                doseLog.intervalMinutes.map(String.init) ?? "",
-                adherenceFlag,
-                numericCSVField(enrichment?.whoop?.recoveryScore.map { Double(Int($0.rounded())) }),
-                numericCSVField(enrichment?.healthKit?.averageHeartRate),
-                numericCSVField(enrichment?.whoop?.sleepEfficiency),
-                ""
-            ].map(csvField).joined(separator: ",")
-            rows.append(row)
         }
         return rows.joined(separator: "\n") + "\n"
     }
@@ -1106,25 +1046,7 @@ struct StudioBundleExporter {
     }
 
     private func scheduledWakeInfo(for sessionDate: String) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {
-        let store = SleepPlanStore.shared
-        let wakeDate = store.wakeByDate(for: sessionDate, tz: .current)
-        let entry = store.schedule.entry(for: nextMorningWeekdayIndex(for: sessionDate))
-        guard entry.enabled else {
-            return nil
-        }
-
-        let enabledEntries = store.schedule.entries.filter(\.enabled)
-        let wakeMinutes = entry.wakeByHour * 60 + entry.wakeByMinute
-        let uniqueWakeMinutes = Array(Set(enabledEntries.map { $0.wakeByHour * 60 + $0.wakeByMinute })).sorted()
-        let dayType: String
-        if uniqueWakeMinutes.count >= 2, let earliest = uniqueWakeMinutes.first, let latest = uniqueWakeMinutes.last {
-            let threshold = Int((Double(earliest + latest) / 2.0).rounded())
-            dayType = wakeMinutes <= threshold ? "worklike" : "offlike"
-        } else {
-            dayType = "uniform"
-        }
-
-        return (wakeDate, wakeMinutes, dayType)
+        SleepPlanStore.shared.wakeExportContext(for: sessionDate)
     }
 
     private func adjacentScheduledWakeInfo(for sessionDate: String, dayOffset: Int) -> (wakeDate: Date, minutesAfterMidnight: Int, dayType: String)? {
@@ -1378,6 +1300,8 @@ struct StudioBundleExporter {
         }
 
         var warnings: [String] = []
+        let rawOnlyCount = sessions.filter { $0.identityResolution.isRawOnly }.count
+        if rawOnlyCount > 0 { warnings.append("\(rawOnlyCount) date(s) preserved as raw records; combined summaries are unavailable pending identity review.") }
         let flaggedSessions = sessions.filter { !$0.dataQualityFlags.isEmpty }
         let missingProvenance = sessions.filter { ($0.metricProvenance ?? [:]).isEmpty }
         let missingWearables = sessions.filter { $0.healthKit == nil && $0.whoop == nil }
@@ -1476,44 +1400,12 @@ struct StudioBundleExporter {
     }
 }
 
-private struct InsightsWHOOPEnrichment: Encodable {
-    let version = 1
-    var sleepStatus = "not_attempted"
-    var recoveryStatus = "not_attempted"
-    var queryStartUTC: Date?
-    var queryEndUTC: Date?
-    var sleepRecordCount: Int?
-    var recoveryRecordCount: Int?
-    var eligibleNightCount: Int?
-    var notAttemptedReason: String?
-
-    func warnings(hasExportedSleep: Bool) -> [String] {
-        var messages: [String] = []
-        if sleepStatus == "failed" {
-            messages.append("WHOOP sleep could not be fetched; WHOOP enrichment is unavailable.")
-        }
-        if recoveryStatus == "failed" {
-            messages.append(hasExportedSleep ? "WHOOP sleep was fetched, but recovery could not be fetched; available sleep data is retained." :
-                "WHOOP recovery could not be fetched; no WHOOP sleep summary is included in this export.")
-        }
-        if sleepStatus == "completed" && sleepRecordCount == 0 {
-            messages.append("WHOOP sleep query completed with no records.")
-        } else if sleepStatus == "completed" && eligibleNightCount == 0 {
-            messages.append("WHOOP sleep records were fetched, but none met the existing sleep-summary criteria.")
-        }
-        switch notAttemptedReason {
-        case "feature_disabled": messages.append("WHOOP enrichment was not attempted because the integration is disabled.")
-        case "preference_disabled": messages.append("WHOOP enrichment was not attempted because the WHOOP preference is off.")
-        case "disconnected": messages.append("WHOOP enrichment was not attempted because the account is disconnected.")
-        case "no_sessions": messages.append("WHOOP enrichment was not attempted because there are no sessions to export.")
-        case "invalid_range": messages.append("WHOOP enrichment was not attempted because no valid query range was available.")
-        default: break
-        }
-        return messages
-    }
-}
-
 private struct InsightsBundleExport: Encodable {
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion, exportVersion, appVersion, exportedAtUTC, timeZoneIdentifier, localOffsetMinutes
+        case consent, exportWarnings, whoopEnrichment, medicationPresetLedger, supplyStateJSON, supplyStateEncoding
+        case sessions = "dateGroups"
+    }
     let schemaVersion: Int
     let exportVersion: String?
     let appVersion: String?
@@ -1523,6 +1415,9 @@ private struct InsightsBundleExport: Encodable {
     let consent: InsightsConsentState?
     let exportWarnings: [String]
     let whoopEnrichment: InsightsWHOOPEnrichment?
+    let medicationPresetLedger: MedicationPresetExportSnapshot
+    let supplyStateJSON: String
+    let supplyStateEncoding: String
     let sessions: [InsightsBundleSession]
 }
 
@@ -1562,6 +1457,8 @@ private struct InsightsConsentState: Codable {
 }
 
 private struct InsightsBundleSession: Encodable {
+    let identityResolution: ExportIdentityResolution
+    let rawSourceRecords: [StoredExportSourceRecord]
     let sessionDate: String
     let dose1TimeUTC: Date?
     let dose2TimeUTC: Date?
@@ -1576,7 +1473,7 @@ private struct InsightsBundleSession: Encodable {
     let medications: [StoredMedicationExportRecord]
     let checkInSubmissions: [InsightsCheckInSubmissionSummary]
     let context: InsightsSessionContext?
-    let collectedNight: CollectedNightSummary
+    let collectedNight: CollectedNightSummary?
     let healthKit: InsightsAppleHealthSummary?
     let whoop: InsightsWHOOPSummary?
 }

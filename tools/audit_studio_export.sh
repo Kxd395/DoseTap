@@ -30,7 +30,9 @@ import sys
 import tempfile
 import zipfile
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
+import base64
+import math
 from pathlib import Path
 
 export_input = Path(sys.argv[1])
@@ -157,7 +159,8 @@ def expected_morning_raw_fields(payload):
         expected.add("rawStressContextJson")
 
     timing_prefixes = ("night.", "wake.", "dose2.", "day_demand.")
-    if any(key.startswith(timing_prefixes) and truthy(value) for key, value in payload.items()):
+    if any(key != "wake.bathroom_urgency_burden" and key.startswith(timing_prefixes)
+           and truthy(value) for key, value in payload.items()):
         expected.add("rawTimingContextJson")
 
     return expected
@@ -169,7 +172,7 @@ def read_csv_rows(name):
         return list(reader), reader.fieldnames or []
 
 events, _ = read_csv_rows("events.csv")
-sessions_csv, _ = read_csv_rows("sessions.csv")
+sessions_csv, session_columns = read_csv_rows("sessions.csv")
 inventory, _ = read_csv_rows("inventory.csv")
 
 try:
@@ -181,10 +184,165 @@ except json.JSONDecodeError as exc:
 if not isinstance(bundle, dict):
     print("FAIL: insights_bundle.json is not an object")
     sys.exit(2)
-sessions_json = bundle.get("sessions")
+schema_version = bundle.get("schemaVersion")
+if type(schema_version) is not int or schema_version not in [1, 2, 3, 4, 5]:
+    print("FAIL: unsupported or invalid bundle schema")
+    sys.exit(1)
+session_key, forbidden_key = ("dateGroups", "sessions") if schema_version >= 3 else ("sessions", "dateGroups")
+if forbidden_key in bundle:
+    print("FAIL: contradictory bundle session layout")
+    sys.exit(1)
+sessions_json = bundle.get(session_key)
 if not isinstance(sessions_json, list) or any(not isinstance(s, dict) for s in sessions_json):
-    print("FAIL: insights_bundle.json sessions is not an array of objects")
+    print(f"FAIL: insights_bundle.json {session_key} is not an array of objects")
     sys.exit(2)
+
+# Payload strings retain exact decimal JSON. This structural audit never rewrites them.
+if schema_version == 5:
+    from decimal import Decimal
+    from uuid import UUID
+    ledger = bundle.get("medicationPresetLedger")
+    try:
+        assert isinstance(ledger, dict) and type(ledger.get("schemaVersion")) is int and ledger["schemaVersion"] == 1
+        def records(key):
+            assert isinstance(ledger.get(key), list) and all(isinstance(s, str) for s in ledger[key])
+            result = [json.loads(s, parse_float=Decimal, parse_constant=lambda _: None) for s in ledger[key]]
+            assert all(isinstance(r, dict) and type(r.get("schemaVersion")) is int and r["schemaVersion"] == 1 for r in result)
+            return result
+        presets, administrations = records("presetRevisions"), records("administrations")
+        def identifier(value):
+            assert isinstance(value, str)
+            return str(UUID(value))
+        def finite(value):
+            return type(value) in (int, Decimal) and Decimal(value).is_finite()
+        def components(values):
+            assert isinstance(values, list) and values
+            seen = set()
+            for value in values:
+                assert isinstance(value, dict)
+                key = identifier(value.get("id")); assert key not in seen; seen.add(key)
+                assert value.get("form") in ("tablet", "capsule")
+                assert all(finite(value.get(k)) and value[k] > 0 for k in ("strengthMilligrams", "unitCount"))
+        by_id, roots, parents = {}, set(), set()
+        for record in presets:
+            key = identifier(record.get("revisionID")); assert key not in by_id; by_id[key] = record
+            identifier(record.get("presetID"))
+            assert all(isinstance(record.get(k), str) and record[k].strip() for k in ("labelName", "ingredient", "instructions"))
+            assert record.get("releaseProfile") in ("immediateRelease", "extendedRelease", "other", "unknown")
+            assert record.get("releaseProfile") != "other" or (isinstance(record.get("releaseDetails"), str) and record["releaseDetails"].strip())
+            assert record.get("schedule") in ("scheduled", "asNeeded") and record.get("source") == "patientEnteredLabel"
+            assert finite(record.get("effectiveFrom")) and finite(record.get("recordedAt"))
+            assert record.get("effectiveUntil") is None or (finite(record["effectiveUntil"]) and record["effectiveUntil"] > record["effectiveFrom"])
+            components(record.get("components"))
+        for key, record in by_id.items():
+            previous = record.get("supersedesRevisionID")
+            if previous is None:
+                root = identifier(record["presetID"]); assert root not in roots; roots.add(root)
+            else:
+                parent = identifier(previous); assert parent in by_id and parent not in parents; parents.add(parent)
+                assert identifier(by_id[parent]["presetID"]) == identifier(record["presetID"])
+                assert by_id[parent]["recordedAt"] <= record["recordedAt"]
+                seen, cursor = {key}, parent
+                while cursor is not None:
+                    assert cursor not in seen; seen.add(cursor)
+                    candidate = by_id[cursor].get("supersedesRevisionID")
+                    cursor = identifier(candidate) if candidate is not None else None
+        seen = set()
+        for record in administrations:
+            key = identifier(record.get("id")); assert key not in seen; seen.add(key)
+            preset = record.get("preset"); assert isinstance(preset, dict)
+            assert by_id[identifier(preset.get("revisionID"))] == preset
+            assert record.get("outcome") == "taken" and record.get("source") == "userConfirmedPreset"
+            components(record.get("actualComponents"))
+            assert finite(record.get("confirmedAt")) and finite(record.get("recordedAt")) and record["confirmedAt"] <= record["recordedAt"]
+            if record.get("precision") == "unknown":
+                assert all(record.get(k) is None for k in ("occurredAt", "timeZoneIdentifier", "utcOffsetSeconds"))
+            else:
+                assert record.get("precision") in ("exact", "approximate")
+                assert finite(record.get("occurredAt")) and record["occurredAt"] <= record["confirmedAt"]
+                assert isinstance(record.get("timeZoneIdentifier"), str) and record["timeZoneIdentifier"].strip()
+                assert type(record.get("utcOffsetSeconds")) is int and -64800 <= record["utcOffsetSeconds"] <= 64800
+    except (AssertionError, ValueError, TypeError, KeyError):
+        issue("P1", "Schema 5 medication ledger is missing, malformed, or has inconsistent record identities")
+elif "medicationPresetLedger" in bundle:
+    issue("P1", "Medication preset ledger requires schema 5")
+
+if schema_version >= 4:
+    required_columns = "started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes,session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
+    if session_columns[:len(required_columns)] != required_columns:
+        issue("P1", "Schema 4/5 requires reviewed sessions.csv columns in contract order")
+    groups_by_date = {g.get("sessionDate"): g for g in sessions_json if isinstance(g.get("sessionDate"), str)}
+    if len(groups_by_date) != len(sessions_json):
+        issue("P1", "Schema 4/5 requires unique treatment dates")
+    reasons = {"available": "available", "missing_dose_time": "missing", "dose2_explicitly_skipped": "missing",
+               "identity_unresolved": "needs_review", "conflicting_dose_records": "needs_review", "nonpositive_dose_interval": "needs_review"}
+    def finite_number(value):
+        return type(value) in (int, float) and math.isfinite(value)
+    def csv_number(value):
+        try:
+            result = float(value)
+            return result if math.isfinite(result) else None
+        except (TypeError, ValueError):
+            return None
+    valid_reviews = {}
+    for day, group in groups_by_date.items():
+        review = group.get("doseTimingReview")
+        valid = (isinstance(review, dict) and type(review.get("version")) is int and review["version"] == 1
+                 and isinstance(review.get("reason"), str) and review["reason"] in reasons
+                 and review.get("status") == reasons[review["reason"]]
+                 and review.get("derivationVersion") == "recorded_dose_spacing_v1")
+        if valid:
+            raw, eligible = review.get("rawIntervalSeconds"), review.get("intervalSeconds")
+            valid = ("rawIntervalSeconds" not in review or finite_number(raw))
+            if review["reason"] == "available":
+                valid = valid and finite_number(eligible) and eligible > 0 and raw == eligible
+            else:
+                valid = valid and "intervalSeconds" not in review
+            if review["reason"] == "nonpositive_dose_interval":
+                valid = valid and finite_number(raw) and raw <= 0
+            elif review["reason"] != "available":
+                valid = valid and "rawIntervalSeconds" not in review
+        if not valid:
+            issue("P1", "Invalid or missing schema 4 dose timing review")
+        else:
+            valid_reviews[day] = review
+    seen_dates = set()
+    for row in sessions_csv:
+        day = row.get("session_date")
+        group, review = groups_by_date.get(day), valid_reviews.get(day)
+        if not group or not review or day in seen_dates:
+            issue("P1", "Schema 4 CSV date is missing, duplicate or lacks a valid review")
+            continue
+        seen_dates.add(day)
+        identity = group.get("identityResolution")
+        if not isinstance(identity, dict) or not isinstance(identity.get("sessionIds"), list) or any(not isinstance(v, str) for v in identity["sessionIds"]):
+            issue("P1", "Schema 4 CSV has malformed identity evidence")
+            continue
+        expected_outcome = "needs_review" if review["status"] == "needs_review" else "taken" if review["reason"] == "available" else "explicitly_skipped" if review["reason"] == "dose2_explicitly_skipped" else "missing"
+        valid = (identity.get("status") == "resolved" and row.get("session_id") == "; ".join(identity.get("sessionIds", []))
+                 and row.get("window_target_min") == "" and row.get("historical_window_status") == "unavailable"
+                 and row.get("interval_status") == review["status"] and row.get("interval_review_reason") == review["reason"]
+                 and row.get("adherence_flag") == expected_outcome)
+        try:
+            start = datetime.fromisoformat(row.get("started_utc", "").replace("Z", "+00:00"))
+            valid = valid and start.utcoffset() is not None
+            if "rawIntervalSeconds" in review:
+                end = datetime.fromisoformat(row.get("ended_utc", "").replace("Z", "+00:00"))
+                valid = valid and abs((end-start).total_seconds() - review["rawIntervalSeconds"]) < 0.001
+            else:
+                valid = valid and row.get("ended_utc") == ""
+        except (ValueError, TypeError):
+            valid = False
+        if review["status"] == "available":
+            valid = valid and csv_number(row.get("actual_interval_seconds")) == review["intervalSeconds"] and row.get("window_actual_min") == str(int(review["intervalSeconds"] / 60))
+        else:
+            valid = valid and row.get("actual_interval_seconds") == "" and row.get("window_actual_min") == ""
+        reminder = row.get("dose2_reminder_enabled")
+        valid = valid and reminder in ["", "true", "false"] and (reminder == "true" or row.get("reminder_interval_minutes") == "")
+        if not valid:
+            issue("P1", "Schema 4 CSV timing, identity, reminder or historical-window contract mismatch")
+    if any(r["reason"] in ["available", "nonpositive_dose_interval"] and day not in seen_dates for day, r in valid_reviews.items()):
+        issue("P1", "Schema 4 CSV omits a reviewed timestamp pair")
 
 unique_json_dates = {
     session.get("sessionDate")
@@ -192,9 +350,82 @@ unique_json_dates = {
     if session.get("sessionDate")
 }
 
-schema_version = bundle.get("schemaVersion")
-if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version <= 0:
-    issue("P1", "Missing or invalid export metadata: schemaVersion must be a positive integer")
+raw_only_dates = set()
+source_tables = {"pre_sleep_logs", "morning_checkins", "checkin_submissions", "sleep_sessions", "current_session"}
+for session in sessions_json:
+    resolution = session.get("identityResolution")
+    if "identityResolution" not in session:
+        if schema_version >= 3:
+            issue("P1", "Schema 3 date groups require identity resolution")
+        continue
+    valid = (isinstance(resolution, dict) and type(resolution.get("version")) is int and resolution["version"] == 1
+             and resolution.get("status") in ["resolved", "raw_only"]
+             and all(isinstance(resolution.get(k), list) and all(isinstance(v, str) and v for v in resolution[k])
+                     for k in ["sessionIds", "reasons"]))
+    if not valid:
+        issue("P1", "Invalid session identity resolution")
+        continue
+    if resolution["status"] != "raw_only":
+        continue
+    key = session.get("sessionDate")
+    if not isinstance(key, str):
+        issue("P1", "Raw-only date is missing its treatment date")
+        continue
+    raw_only_dates.add(key)
+    if not resolution["reasons"]:
+        issue("P1", "Raw-only date is missing its identity reason")
+    if any(session.get(k) is not None for k in ["dose1TimeUTC", "dose2TimeUTC", "preSleep", "morning", "context", "collectedNight"]) or session.get("checkInSubmissions"):
+        issue("P1", "Raw-only date contains derived or selected session values")
+    records = session.get("rawSourceRecords")
+    if not isinstance(records, list):
+        issue("P1", "Raw-only date is missing source records")
+        continue
+    for record in records:
+        valid = isinstance(record, dict) and isinstance(record.get("sourceTable"), str) and record["sourceTable"] in source_tables and isinstance(record.get("columns"), dict)
+        for value in record.get("columns", {}).values() if valid else []:
+            if not isinstance(value, dict):
+                valid = False
+                break
+            kind = value.get("type")
+            if not isinstance(kind, str):
+                valid = False
+                break
+            field = {"text": "text", "integer": "integer", "real": "real", "blob": "blobBase64"}.get(kind)
+            expected = {"type"} | ({field} if field else set())
+            valid &= kind in {"null", "text", "integer", "real", "blob"} and set(value) == expected
+            payload = value.get(field)
+            if kind in {"text", "blob"}: valid &= isinstance(payload, str)
+            if kind == "integer": valid &= type(payload) is int and -(2 ** 63) <= payload < 2 ** 63
+            if kind == "real": valid &= type(payload) in {int, float} and math.isfinite(payload)
+            if kind == "blob" and isinstance(payload, str):
+                try: base64.b64decode(payload, validate=True)
+                except ValueError: valid = False
+        if not valid:
+            issue("P1", "Invalid raw source record or typed column value")
+
+def csv_session_date(row):
+    if row.get("session_date"):
+        return row["session_date"]
+    raw = row.get("started_utc", "")
+    try:
+        started = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        for event in events:
+            if event.get("event_type") not in {"dose1", "dose1_taken"}:
+                continue
+            occurred = datetime.fromisoformat(event["occurred_at_utc"].replace("Z", "+00:00"))
+            if occurred == started:
+                return event.get("session_date") or event.get("device_time")
+        return (started - timedelta(hours=18)).date().isoformat()
+    except (ValueError, KeyError):
+        return None
+
+if any(csv_session_date(row) in raw_only_dates for row in sessions_csv):
+    issue("P1", "Raw-only date has a derived sessions.csv row")
+if (export_dir / "collected_nights.csv").is_file():
+    if any(row.get("session_date") in raw_only_dates for row in read_csv_rows("collected_nights.csv")[0]):
+        issue("P1", "Raw-only date has a derived collected_nights.csv row")
+if raw_only_dates:
+    issue("P2", f"{len(raw_only_dates)} date(s) preserved as raw records and excluded from derived analysis")
 
 missing_metadata = [
     field for field in [
@@ -223,7 +454,7 @@ if local_offset is None or isinstance(local_offset, bool) or not isinstance(loca
 
 local_marker = "Local snapshot only; provider enrichment was not fetched."
 warnings = bundle.get("exportWarnings")
-local_only = (schema_version == 2 and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
+local_only = (schema_version in [2, 3, 4, 5] and isinstance(warnings, list) and all(isinstance(w, str) for w in warnings)
               and local_marker in warnings)
 consent_value = bundle.get("consent")
 if isinstance(consent_value, dict):
@@ -320,6 +551,8 @@ for session in sessions_json:
                 provider_evidence = True
         provenance = session.get("metricProvenance", {})
         collected = session.get("collectedNight", {})
+        if session_date in raw_only_dates and collected is None:
+            collected = {}
         if not isinstance(provenance, dict) or not isinstance(collected, dict):
             issue("P1", "Local-only export has invalid provider-evidence containers")
         else:
@@ -384,7 +617,7 @@ if local_only:
             "sleep_after_dose2_interval_minutes", "sleep_after_dose2_final_wake_at_utc", "sleep_after_dose2_source"]):
             issue("P1", "Local-only declaration conflicts with provider values in collected_nights.csv")
 
-if len(sessions_csv) != len(sessions_json):
+if schema_version < 4 and len(sessions_csv) != len(sessions_json) - len(raw_only_dates):
     issue(
         "P2",
         f"Session count mismatch: sessions.csv has {len(sessions_csv)} rows, insights bundle has {len(sessions_json)} sessions",

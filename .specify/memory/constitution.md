@@ -98,24 +98,25 @@ Sync Impact Report:
 
 **Rationale**: Users take medication at 3 AM with unreliable connectivity. Critical actions (dose recording, skip) must never fail silently. Queuing ensures eventual consistency.
 
-### VII. XYWAV-Only Scope (Non-Negotiable)
+### VII. Treatment diary scope and medication boundaries
 
-**MUST**: No multi-medication CRUD, refills, pharmacy integration, or provider portals.
+Owner scope amendment, 2026-09-25: independent general-medication logging,
+versioned patient-entered prescription presets, custom daytime sleepiness/dozing
+observations and physician-review exports are authorized. This replaces the prior
+XYWAV-only prohibition on general medication CRUD; it does not generalize the
+nighttime dosing algorithm to other drugs.
 
-**In Scope**:
-- XYWAV Dose 1 & Dose 2 timing (150–240 minute window)
-- Sleep environment logging (13 event types)
-- Morning check-in questionnaire
-- CSV export (v1 format)
-- Support bundle (with PII redaction)
-
-**Out of Scope**:
-- Multi-medication management
-- Refill tracking or pharmacy integration
-- Caregiver or provider portals
-- Payment or subscription features
-
-**Rationale**: Focused scope ensures quality and reliability. XYWAV's strict timing requirements differ fundamentally from other medications. Generalizing prematurely introduces complexity without user benefit.
+- Keep prescribed regimen, tonight's plan and reported administration separate.
+- General medications retain their own ledger and cannot change Dose 1/2 state,
+  alarms, inventory or session lifecycle. No nighttime session is required.
+- Prescription-label entry is patient-reported, not clinician verification. No
+  catalog default becomes a confirmed amount, prescription or taken event.
+- Daily symptom diary, momentary observations and periodic ESS remain separate.
+  ESS implementation requires authorized wording, licensing and electronic use.
+- No automatic dose adjustment, generic combined medication-milligram total,
+  treatment-effectiveness score, drug-worn-off timer or driving clearance.
+- Pharmacy integration, refill execution, provider portals, automatic sharing,
+  payments and subscriptions remain outside this scope.
 
 ### VIII. Refactoring Safety (NON-NEGOTIABLE)
 

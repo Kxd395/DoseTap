@@ -1,9 +1,13 @@
 # DoseTap review records
 
 Status: Point-in-time review and decision evidence
-Last updated: 2026-09-12
+Last updated: 2026-09-30 (provider-access invalidation)
 
 Files here record dated reviews, design decisions, migration analysis, and regression runs. They do not override current SSOT, code, or Plane. Promote a lasting rule into SSOT or a maintained architecture decision and link back to its review record.
+
+- [Xcode compiler diagnostic cleanup](2026-09-25-xcode-diagnostics.md): explicit imports, main-actor default dependencies and current certificate-chain API; recommended-settings policy reviewed separately.
+
+- [Medication amendment foundation](2026-09-26-medication-amendment-contract.md): pure correction/reversal audit projection; persistence, export and UI integration remain pending.
 
 ## Questionnaire feedback packet
 
@@ -14,11 +18,35 @@ Files here record dated reviews, design decisions, migration analysis, and regre
 
 ## Owner data and dashboard review
 
+- [Provider-access invalidation](2026-09-30-dashboard-provider-access.md): consent/connection revisions, asynchronous publication guards and source-preserving clearing before future stale-snapshot retention.
+
+- [Calendar reporting range candidate](2026-09-30-dashboard-calendar-ranges.md): shared phone/iPad calendar-month windows, provider query limits, regression/native evidence and remaining acceptance.
+
+- [Bottle quantity and prepared-dose tracking](2026-09-28-bottle-quantity.md): explicit bottle balances, separate preparations and dose links, version-3 persistence and complete exports.
+
+- [Dashboard collection and comparison inventory](2026-09-26-dashboard-data-comparison-inventory.md): every collection family, phone/iPad visibility, source ownership, useful comparisons and provider-transfer sequencing.
+- [Dashboard evidence review delivery](2026-09-26-dashboard-evidence-review.md): phone Night Mode/readability, positive interval eligibility and the iPad's explicit wake/sleepiness diary view; validation and remaining whole-overhaul gates.
+
+- [Medication history and export verification](2026-09-26-medication-history-visibility.md): independent medication visibility, checked reads and matched phone-copy export evidence.
+
+- [Export timing review, build 67](2026-09-24-export-timing-review.md): reviewed interval eligibility, shared CSV/JSON source selection, historical-target missingness and Studio consumer safeguards.
+
+- [Medication export delivery, build 66](2026-09-24-medication-export-delivery.md): Dose Summary, Medication Log, shared timing reconciliation, native Excel evidence and remaining acceptance gates.
+- [Medication storage and export review](2026-09-24-medication-export-review.md): source-to-workbook audit, medication navigation and timing gaps, and proposed Dose Summary/Medication Log sheets under DOSETAP-73. Review only; source records and workbook remain unchanged.
+
+- [Next app improvements after build 65](2026-09-24-next-app-improvements.md): native Night Mode readability findings, the next bounded UI slice, and work/off and daytime-observation sequencing. Review only; proposed work remains under existing Plane items.
+
+- [Excel workbook design](../plans/2026-09-17-excel-workbook-export.md): owner-approved sheet order, sortable tables, source mapping and review/ingestion workflow. The [current contract](../SSOT/contracts/ExcelWorkbook.md) owns implementation semantics; native Excel, phone and release acceptance remain separate.
 - [Collected-data inventory and work/off dashboard plan](2026-09-11-dashboard-and-collected-data-review.md): human-facing provider, questionnaire, dosing and quick-log fields; planned means, transition groups and missingness rules. This is a build-45 source inventory with later delivery links, not a claim that the proposed dashboard ships.
 - [Collection/store/export audit reading guide](../audit/2026-09-12/README.md): pair the owner inventory with exact stored fields, export coverage and known discrepancies.
 - [Awakening-count source review and implementation plan](2026-09-12-awakening-count-review.md): existing count meanings, completed-episode contract, consumer migration and test cases; documentation only, no new app build.
 
 ## Delivery records
+
+- [Local bottle tracking](2026-09-28-bottle-tracking.md): build 82 receipts, explicit openings, recorded dosing nights, in-app last-bottle notices and supply exports; quantity and acceptance gates remain open.
+
+- [Confirmed preset administration capture](2026-09-25-medication-preset-capture.md): build72 B3b explicit actual amounts/time, prior-record review, receipts and immutable history; correction/reversal and acceptance remain open.
+- [Saved medication preset Settings](2026-09-25-medication-preset-settings.md): build70 B3a create/revise/history, explicit setup review and retention; no administration capture.
 
 - [September 12 Plane closeout and validator review](2026-09-12-plane-closeout-review.md): DC-12 local-export validation, exact acceptance boundaries and next provider repair; app remains build 53.
 - [Final retained legacy-patch disposition](2026-09-12-legacy-patch-disposition.md): DOSETAP-63 source comparison and protected Xcode policy; preserves the legacy checkout and branches.
@@ -27,6 +55,16 @@ Each record identifies its version, bounded changes, validation and remaining ga
 
 | Build | Record | Scope |
 | --- | --- | --- |
+| 71 candidate; acceptance open | [Weekly schedule repair](2026-09-25-weekly-schedule.md) | One saved draft, shared wake times, explicit missing deadlines and retained exceptions |
+| 69 candidate; acceptance open | [Medication preset ledger and export](2026-09-25-medication-preset-ledger.md) | Independent durable revisions and administrations, lossless Studio/Excel export; preset controls remain follow-on |
+| Core foundation; build 68 unchanged | [Medication preset foundation](2026-09-25-medication-preset-foundation.md) | Immutable label revisions and explicit actual snapshots; persistence, UI and export wiring remain follow-on work |
+| 68 candidate; phone acceptance open | [Independent medication capture](2026-09-25-independent-medication-capture.md) | Direct entry, explicit amount/time, durable independent identity and reviewed retry; prescription presets and daytime diary remain follow-on slices |
+| 67 | [Export timing review](2026-09-24-export-timing-review.md) | Nonpositive spacing review, historical-target missingness and shared export/import eligibility |
+| 66 | [Medication export](2026-09-24-medication-export-delivery.md) | Sortable dose summary and medication log; explicit timing evidence and conflicts |
+| 65 | [Quick-log availability](2026-09-24-quick-log-availability.md) | Shared clock-driven cooldowns, visible waits and larger tap targets; exact owner lockout cause remains unconfirmed |
+| 64 | [Excel row contrast](2026-09-22-excel-contrast-delivery.md) | Explicit body fills distinct from Normal; native date/duration sorting, filtering and save/reopen readability; phone and broader gates remain separate |
+| 63 | [Excel packaging memory](2026-09-22-excel-memory-delivery.md) | One generated XML part at a time; measured memory reduction with identical decompressed workbook contents; phone/release gates remain separate |
+| 62; phone save/open accepted | [Styled Excel workbook](2026-09-17-excel-workbook-delivery.md) | Fifteen sortable/filterable sheets, fixed summaries and source evidence; phone sorting/reopen and broader acceptance remain open |
 | 44 | [Sleeping arrangements](2026-09-10-sleeping-arrangement-delivery.md) | Planned/actual setup and separate reusable preferences |
 | 45 | [Morning pain reuse](2026-09-10-morning-pain-reuse-delivery.md) | One saved pattern reviewed with a fresh morning level |
 | 46 | [Dose/sleep metrics](2026-09-11-dose-sleep-metrics-delivery.md) | Read-only intervals with unresolved/conflicting evidence |
@@ -40,5 +78,19 @@ Each record identifies its version, bounded changes, validation and remaining ga
 | 54 | [Apple Health export missingness](2026-09-12-health-export-missingness-delivery.md) | DC-05 partial correction: absent sleep summaries retain biometrics without invented zeros |
 | 55 | [WHOOP export request status](2026-09-12-whoop-export-status-delivery.md) | Merged PR #43: independent fetch results, request counts and cancellation; local/hosted validation passed, provider acceptance open |
 | 56 installed; owner acceptance open | [Nightly setup reuse](2026-09-13-nightly-setup-reuse.md) | Opt-in automatic planned sleeping setup, durable room preferences and explicit morning reuse scope |
-| 57 installed; owner acceptance open | [Pre-sleep pain editor loading repair](2026-09-14-pre-sleep-pain-editor.md) | First saved-pattern opening loads the selected entry and mode together; owner acceptance open |
-| 58 draft; simulator validation blocked | [Pre-sleep zero-intensity preservation](2026-09-15-pre-sleep-zero-intensity.md) | Explicit zero entries remain visible, editable and saved; an explicit None action clears nightly details only |
+| 57 candidate | [Pre-sleep pain editor loading repair](2026-09-14-pre-sleep-pain-editor.md) | First saved-pattern opening loads the selected entry and mode together; owner acceptance open |
+
+| 58 historical draft | [Pre-sleep zero-intensity preservation](2026-09-15-pre-sleep-zero-intensity.md) | Explicit zero-level entries and remembered pain patterns |
+
+| 59 installed candidate; PR draft | [Settings export failure diagnosis](2026-09-17-export-failure-diagnosis.md) | USB read-only structural finding; truthful errors and empty-row removal; original export blockage remains open |
+
+- [2026-09-26 cloud dashboard audit and foundation](2026-09-26-cloud-dashboard-audit.md)
+  — DOSETAP-76; separate read-only iPad reporting direction, legacy cloud coverage
+  gaps and snapshot acceptance. No shipping cloud synchronization enabled.
+- [Dashboard six-month range, coverage and iPad storage](2026-09-26-dashboard-range-storage.md) — DOSETAP-45; provider limits and cross-device boundaries.
+
+- [Separate iPad dashboard and nearby reporting](2026-09-26-nearby-ipad-dashboard.md) — DOSETAP-76; device candidate, paired-transfer and privacy acceptance open.
+
+- [iPad analytics parity and expansion plan](2026-09-26-ipad-analytics-plan.md): richer interval review, captured-night ranges and remaining provider/questionnaire work.
+
+- [Nearby Apple Health evidence delivery, 2026-09-27](2026-09-27-nearby-apple-sleep-evidence.md): bounded optional transfer, native evidence inspection and remaining provider gates.

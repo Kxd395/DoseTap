@@ -4,7 +4,7 @@ import SQLite3
 @MainActor
 extension EventStorage {
     /// Export reads have no row cap and never turn a failed/partial read into success.
-    private func readExportRows<T>(_ sql: String, binding: String? = nil,
+    func readExportRows<T>(_ sql: String, binding: String? = nil,
                                    decode: (OpaquePointer) throws -> T) throws -> [T] {
         guard databaseInitializationFailure == nil, let db else { throw ExportReadError.unreadable }
         var stmt: OpaquePointer?

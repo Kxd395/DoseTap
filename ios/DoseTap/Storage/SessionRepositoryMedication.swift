@@ -31,6 +31,10 @@ public extension SessionRepository {
     }
 
     #if DEBUG && targetEnvironment(simulator)
+    func prepareQuickLogWaitingUITestSession() {
+        _ = setDose1Time(clock().addingTimeInterval(-60))
+    }
+
     func prepareDurableLogUITest(medication: Bool) {
         clearTonight()
         var inserts = 0
@@ -85,10 +89,10 @@ public extension SessionRepository {
     }
     #endif
 
-    public func workWakeSchedule() throws -> WorkWakeSchedule { try storage.loadWorkWakeSchedule() }
+    func workWakeSchedule() throws -> WorkWakeSchedule { try storage.loadWorkWakeSchedule() }
 
     @discardableResult
-    public func saveWorkWakeSchedule(_ value: WorkWakeSchedule) -> MedicationMutationResult {
+    func saveWorkWakeSchedule(_ value: WorkWakeSchedule) -> MedicationMutationResult {
         var revised = value
         revised.revision = UUID()
         let result = storage.saveWorkWakeSchedule(revised, expectedRevision: value.revision)
@@ -97,7 +101,7 @@ public extension SessionRepository {
     }
 
     @discardableResult
-    public func changeWorkWakeDate(_ warning: WorkWakeWarning, isWorking: Bool, wakeMinutes: Int? = nil) -> MedicationMutationResult {
+    func changeWorkWakeDate(_ warning: WorkWakeWarning, isWorking: Bool, wakeMinutes: Int? = nil) -> MedicationMutationResult {
         do {
             var plan = try workWakeSchedule()
             guard plan.revision == warning.revision else {
@@ -113,7 +117,7 @@ public extension SessionRepository {
     /// Resolve one explicitly selected historical session without reopening it.
     /// Does not schedule/cancel alarms; live-session actions use the coordinator.
     @discardableResult
-    public func recordHistoricalDose2Occurrence(
+    func recordHistoricalDose2Occurrence(
         sessionId: String,
         sessionDate: String,
         occurrenceTime: Date,
@@ -158,53 +162,38 @@ public extension SessionRepository {
         return result
     }
 
-    /// Log a medication entry for the session date derived from its timestamp.
-    /// Returns the DuplicateGuardResult for UI to handle.
+    /// Independent reported administration. Stable entry IDs make failed-write retries idempotent.
     func logMedicationEntry(
+        entryID: String = UUID().uuidString,
         medicationId: String,
         doseMg: Int,
         takenAt: Date,
         notes: String? = nil,
-        confirmedDuplicate: Bool = false
+        confirmedDuplicate: Bool = false,
+        reviewedDuplicateTokens: Set<Data> = []
     ) throws -> DuplicateGuardResult {
-        let sessionDate = computeSessionDate(for: takenAt)
+        let recordedAt = clock()
+        guard !entryID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              MedicationConfig.type(for: medicationId) != nil,
+              doseMg > 0, doseMg <= Int(Int32.max),
+              takenAt.timeIntervalSince1970.isFinite, recordedAt.timeIntervalSince1970.isFinite,
+              takenAt <= recordedAt else { throw EventStorage.MedicationCaptureError.invalid }
+        let entry = StoredMedicationEntry(id: entryID, sessionId: nil,
+            sessionDate: computeSessionDate(for: takenAt), medicationId: medicationId,
+            doseMg: doseMg, takenAtUTC: takenAt, doseUnit: "mg",
+            formulation: persistedMedicationFormulation(for: medicationId),
+            localOffsetMinutes: timeZoneProvider().secondsFromGMT(for: takenAt) / 60,
+            notes: notes, confirmedDuplicate: confirmedDuplicate, createdAt: recordedAt)
+        let result = try storage.commitMedicationCapture(entry, reviewedDuplicateTokens: reviewedDuplicateTokens)
+        if !result.isDuplicate { sessionDidChange.send() }
+        return result
+    }
 
-        if !confirmedDuplicate {
-            let guardResult = checkDuplicateGuard(
-                medicationId: medicationId,
-                takenAt: takenAt,
-                sessionDate: sessionDate
-            )
-            if guardResult.isDuplicate {
-                return guardResult
-            }
+    internal func medicationDuplicateReview(medicationId: String, takenAt: Date) throws -> MedicationCaptureReview {
+        guard MedicationConfig.type(for: medicationId) != nil, takenAt.timeIntervalSince1970.isFinite else {
+            throw EventStorage.MedicationCaptureError.invalid
         }
-
-        let sessionId: String? = sessionDate == activeSessionDate ? activeSessionId : nil
-        let localOffsetMinutes = timeZoneProvider().secondsFromGMT(for: takenAt) / 60
-        let formulation = persistedMedicationFormulation(for: medicationId)
-
-        let entry = StoredMedicationEntry(
-            sessionId: sessionId,
-            sessionDate: sessionDate,
-            medicationId: medicationId,
-            doseMg: doseMg,
-            takenAtUTC: takenAt,
-            doseUnit: "mg",
-            formulation: formulation,
-            localOffsetMinutes: localOffsetMinutes,
-            notes: notes,
-            confirmedDuplicate: confirmedDuplicate
-        )
-
-        guard storage.insertMedicationEvent(entry) else { throw EventStorage.LocalEventWriteError.notCommitted }
-        sessionDidChange.send()
-
-        #if canImport(OSLog)
-        logger.debug("Logged medication \(medicationId, privacy: .public) \(doseMg)mg")
-        #endif
-
-        return .notDuplicate
+        return try storage.medicationCaptureReview(medicationId: medicationId, takenAt: takenAt)
     }
 
     /// Check if a medication entry would be a duplicate.
@@ -327,5 +316,42 @@ private extension SessionRepository {
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+/// Distinct source IDs prevent two ledgers from being mistaken for duplicate records.
+enum MedicationHistoryRecord: Identifiable {
+    case quick(StoredMedicationEntry)
+    case preset(ConfirmedMedicationAdministration)
+    var id: String {
+        switch self {
+        case .quick(let row): return "quick:" + row.id
+        case .preset(let row): return "preset:" + row.id.uuidString
+        }
+    }
+    var sortTime: Date {
+        switch self {
+        case .quick(let row): return row.takenAtUTC
+        case .preset(let row): return row.occurredAt ?? row.recordedAt
+        }
+    }
+    var searchText: String {
+        switch self {
+        case .quick(let row): return "\(MedicationConfig.type(for: row.medicationId)?.displayName ?? row.medicationId) \(row.medicationId) \(row.formulation)"
+        case .preset(let row): return "\(row.preset.labelName) \(row.preset.ingredient) \(row.preset.releaseProfile.rawValue)"
+        }
+    }
+}
+
+@MainActor
+extension SessionRepository {
+    func medicationHistory() throws -> [MedicationHistoryRecord] {
+        let quick = try storage.medicationCaptureRows().map(MedicationHistoryRecord.quick)
+        let presets = try storage.medicationPresetExportSnapshot().administrations.map {
+            MedicationHistoryRecord.preset(try MedicationPresetExportSnapshot.decodeAdministration($0))
+        }
+        return (quick + presets).sorted {
+            $0.sortTime == $1.sortTime ? $0.id < $1.id : $0.sortTime > $1.sortTime
+        }
     }
 }

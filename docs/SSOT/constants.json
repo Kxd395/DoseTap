@@ -1,10 +1,20 @@
 {
+  "bottleTracking": {
+    "defaultReceiptCount": 3,
+    "maximumReceiptCount": 100,
+    "lastBottleContactRecordedNight": 3
+  },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://dosetap.com/ssot/constants.json",
   "title": "DoseTap SSOT Constants",
   "description": "Checked contract snapshot for constants that are manually mirrored in code. This file is not a runtime generator.",
   "version": "1.0.0",
-  "lastUpdated": "2026-09-04",
+  "lastUpdated": "2026-09-25",
+  "medicationPresetContract": {
+    "schemaVersion": 1,
+    "maximumAbsoluteUTCOffsetSeconds": 64800,
+    "description": "Oral-solid preset/actual value-model version and inclusive retained-offset bounds. Representation checks only; not clinical dose limits or a runtime generator."
+  },
   
   "doseWindow": {
     "description": "Core dose timing window constraints (non-negotiable medical safety)",
@@ -637,5 +647,14 @@
         "generic_name", "formulation", "dose_value", "dose_unit", "is_duplicate_confirmed"
       ]
     }
+  },
+  "bottle_quantity": {
+    "supply_document_version": 3,
+    "product": "XYWAV oral solution",
+    "concentration_mg_per_ml": 500,
+    "nominal_bottle_mg": 90000,
+    "reference_dose_mg": 4500,
+    "diluted_preparation_limit_seconds": 86400,
+    "reference_only_not_prescribing": true
   }
 }

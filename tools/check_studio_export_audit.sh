@@ -113,7 +113,59 @@ def case(name, expected, mutate=lambda value: None, *, seed=local, csv_value=Non
     mutate(value)
     cases.append((name, expected, value, csv_value))
 
+schema4 = copy.deepcopy(local)
+schema4.update(schemaVersion=4, exportVersion="2.9", dateGroups=schema4.pop("sessions"))
+for group in schema4["dateGroups"]:
+    group["identityResolution"] = dict(version=1, status="resolved", sessionIds=["fixture-session"], reasons=[])
+    group["doseTimingReview"] = dict(version=1, status="available", reason="available", derivationVersion="recorded_dose_spacing_v1", rawIntervalSeconds=12600, intervalSeconds=12600)
+schema5 = copy.deepcopy(schema4)
+schema5.update(schemaVersion=5, exportVersion="3.0", dateGroups=[], medicationPresetLedger=dict(schemaVersion=1, presetRevisions=[], administrations=[]))
+case("schema5-empty", 0, seed=schema5)
+case("schema5-missing-ledger", 1, lambda b: b.pop("medicationPresetLedger"), seed=schema5)
+case("schema5-malformed-payload", 1, lambda b: b["medicationPresetLedger"].update(presetRevisions=["{}"]), seed=schema5)
+case("schema5-wrong-version", 1, lambda b: b["medicationPresetLedger"].update(schemaVersion=True), seed=schema5)
+preset = dict(schemaVersion=1, presetID="00000000-0000-0000-0000-000000000001", revisionID="00000000-0000-0000-0000-000000000002",
+    labelName="Synthetic", ingredient="Synthetic ingredient", releaseProfile="extendedRelease", source="patientEnteredLabel",
+    schedule="scheduled", instructions="Entered label", effectiveFrom=800000000, recordedAt=800000000,
+    components=[dict(id="00000000-0000-0000-0000-000000000003", form="tablet", strengthMilligrams=1.25, unitCount=0.5)])
+actual = dict(schemaVersion=1, id="00000000-0000-0000-0000-000000000004", preset=preset, actualComponents=preset["components"],
+    outcome="taken", precision="unknown", confirmedAt=800000001, recordedAt=800000002, source="userConfirmedPreset")
+independent = copy.deepcopy(schema5)
+independent["medicationPresetLedger"].update(presetRevisions=[json.dumps(preset)], administrations=[json.dumps(actual)])
+case("schema5-independent-unknown-time", 0, seed=independent)
+for key, value in [("occurredAt", 800000000), ("recordedAt", 799999999), ("outcome", "unsure")]:
+    def change(b, key=key, value=value):
+        r = json.loads(b["medicationPresetLedger"]["administrations"][0]); r[key] = value
+        b["medicationPresetLedger"]["administrations"] = [json.dumps(r)]
+    case("schema5-invalid-"+key, 1, change, seed=independent)
+def invalid_amount(b):
+    r = json.loads(b["medicationPresetLedger"]["administrations"][0]); r["actualComponents"][0]["unitCount"] = 0
+    b["medicationPresetLedger"]["administrations"] = [json.dumps(r)]
+case("schema5-invalid-amount", 1, invalid_amount, seed=independent)
+case("schema5-orphan", 1, lambda b: b["medicationPresetLedger"].update(presetRevisions=[]), seed=independent)
+case("schema5-duplicate", 1, lambda b: b["medicationPresetLedger"]["presetRevisions"].append(b["medicationPresetLedger"]["presetRevisions"][0]), seed=independent)
+
+case("schema4", 0, seed=schema4)
+case("schema4-invalid-layout", 1, lambda b: b.update(sessions=[]), seed=schema4)
+case("schema4-nonpositive", 0, lambda b: b["dateGroups"][0].update(doseTimingReview=dict(version=1, status="needs_review", reason="nonpositive_dose_interval", derivationVersion="recorded_dose_spacing_v1", rawIntervalSeconds=0)), seed=schema4)
+case("schema4-no-dose1", 0, lambda b: b["dateGroups"][0].update(doseTimingReview=dict(version=1, status="missing", reason="missing_dose_time", derivationVersion="recorded_dose_spacing_v1")), seed=schema4)
+for label, expected in [("valid", 0), ("with-end", 1), ("with-raw-pair", 1)]:
+    def skipped(b, label=label):
+        b["dateGroups"][0]["doseTimingReview"] = dict(version=1, status="missing", reason="dose2_explicitly_skipped", derivationVersion="recorded_dose_spacing_v1")
+        if label == "with-raw-pair": b["dateGroups"][0]["doseTimingReview"]["rawIntervalSeconds"] = 12600
+    case("schema4-skip-"+label, expected, skipped, seed=schema4)
+case("schema4-malformed-identity", 1, lambda b: b["dateGroups"][0].update(identityResolution=[]), seed=schema4)
+case("schema4-malformed-ids", 1, lambda b: b["dateGroups"][0]["identityResolution"].update(sessionIds=[None]), seed=schema4)
+case("schema4-missing-review", 1, lambda b: b["dateGroups"][0].pop("doseTimingReview"), seed=schema4)
+case("schema4-legacy-csv", 1, seed=schema4)
+for field, value in [("version", True), ("version", 2), ("status", "missing"), ("reason", "future"), ("reason", []), ("derivationVersion", "future"), ("intervalSeconds", 0), ("intervalSeconds", True), ("rawIntervalSeconds", -1)]:
+    case(f"schema4-review-{field}-{len(cases)}", 1, lambda b, k=field, v=value: b["dateGroups"][0]["doseTimingReview"].update({k:v}), seed=schema4)
+for column, value in [("window_target_min", "225"), ("adherence_flag", "ok"), ("actual_interval_seconds", "0"), ("window_actual_min", "211"), ("session_id", "wrong"), ("session_date", "wrong"), ("interval_status", "missing"), ("interval_review_reason", "missing_dose_time"), ("historical_window_status", "known"), ("ended_utc", "2026-06-17T05:45:00Z"), ("dose2_reminder_enabled", "maybe")]:
+    case(f"schema4-csv-{column}", 1, seed=schema4, csv_value=("sessions.csv", column, value))
 case("local", 0)
+case("bathroom-physical-only", 0, lambda b: b["sessions"][0].update(
+    morning={"sleepQuality":3,"rawPhysicalSymptomsJson":'{"bathroomUrgencyBurden":2}'},
+    checkInSubmissions=[{"checkInType":"morning","responsesJson":'{"wake.bathroom_urgency_burden":2}'}]))
 case("ordinary-consent", 0, seed=base)
 whoop_query = dict(version=1, sleepStatus="completed", recoveryStatus="completed", sleepRecordCount=0,
                    recoveryRecordCount=0, eligibleNightCount=0, queryStartUTC="2026-06-16T18:00:00Z", queryEndUTC="2026-06-17T18:00:00Z")
@@ -208,13 +260,59 @@ case("local-missing-metadata", 1, lambda b: b.pop("appVersion"))
 case("local-missing-raw", 1, lambda b: (b["sessions"][0]["morning"].pop("rawPhysicalSymptomsJson"),
      b["sessions"][0]["checkInSubmissions"][-1].update(responsesJson='{"pain.any":true}')))
 
+raw_only = copy.deepcopy(local)
+raw_only["exportVersion"] = "2.8"
+raw_only["schemaVersion"] = 3
+raw_only.pop("sessions")
+raw_only["dateGroups"] = [{"sessionDate": "2030-04-05", "identityResolution": {
+    "version": 1, "status": "raw_only", "sessionIds": ["fixture-a", "fixture-b"], "reasons": ["multiple_session_identities"]},
+    "rawSourceRecords": [{"sourceTable": "pre_sleep_logs", "columns": {
+        "id": {"type": "text", "text": "fixture-row"}, "answers_json": {"type": "text", "text": "{}"},
+        "missing": {"type": "null"}, "count": {"type": "integer", "integer": 9223372036854775807}}}],
+    "sourceAvailability": {"healthKit": False, "whoop": False}, "checkInSubmissions": []}]
+case("identity-raw-only", 0, seed=raw_only)
+case("identity-raw-only-null-summary", 0, lambda b: b["dateGroups"][0].update(collectedNight=None), seed=raw_only)
+for key in ["dose1TimeUTC", "dose2TimeUTC", "preSleep", "morning", "context", "collectedNight"]:
+    case(f"identity-leaked-{key}", 1, lambda b, k=key: b["dateGroups"][0].update({k: {}}), seed=raw_only)
+case("identity-leaked-submissions", 1, lambda b: b["dateGroups"][0].update(checkInSubmissions=[{}]), seed=raw_only)
+case("identity-leaked-sessions-csv", 1, seed=raw_only, csv_value=("sessions.csv", "started_utc", "2030-04-06T02:00:00Z"))
+case("identity-leaked-collected-csv", 1, seed=raw_only, csv_value=("collected_nights.csv", "session_date", "2030-04-05"))
+case("identity-missing-source", 1, lambda b: b["dateGroups"][0].pop("rawSourceRecords"), seed=raw_only)
+for value in [{"type": "integer", "integer": True}, {"type": "null", "text": "invented"},
+              {"type": "blob", "blobBase64": "not base64"}, {"type": []}]:
+    case(f"identity-invalid-column-{len(cases)}", 1,
+         lambda b, v=value: b["dateGroups"][0]["rawSourceRecords"][0]["columns"].update(count=v), seed=raw_only)
+case("identity-invalid-status", 1, lambda b: b["dateGroups"][0]["identityResolution"].update(status=[]), seed=raw_only)
+case("identity-missing-resolution", 1, lambda b: b["dateGroups"][0].pop("identityResolution"), seed=raw_only)
+case("identity-both-layouts", 1, lambda b: b.update(sessions=[]), seed=raw_only)
+case("identity-schema-three-legacy-layout", 1, lambda b: b.update(sessions=b.pop("dateGroups")), seed=raw_only)
+case("identity-schema-two-new-layout", 1, lambda b: b.update(schemaVersion=2), seed=raw_only)
+case("identity-schema-three-missing-groups", 2, lambda b: b.pop("dateGroups"), seed=raw_only)
+
 failures = []
 for name, expected, value, csv_value in cases:
     folder = root / name
     folder.mkdir()
     for path in base_dir.glob("*.csv"):
         shutil.copyfile(path, folder / path.name)
+    if name.startswith("identity-"):
+        path = folder / "sessions.csv"
+        path.write_text(path.read_text().splitlines()[0] + "\n")
     (folder / "insights_bundle.json").write_text(json.dumps(value))
+    if name.startswith(("schema4", "schema5")) and name != "schema4-legacy-csv":
+        path = folder / "sessions.csv"
+        with path.open(newline="") as handle:
+            reader = csv.DictReader(handle); rows, fields = list(reader), reader.fieldnames
+        fields += "session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
+        rows[0].update(window_target_min="", adherence_flag="taken", session_date="2026-06-16", session_id="fixture-session", actual_interval_seconds="12600", interval_status="available", interval_review_reason="available", historical_window_status="unavailable", dose2_reminder_enabled="", reminder_interval_minutes="")
+        if name == "schema4-nonpositive":
+            rows[0].update(ended_utc=rows[0]["started_utc"], window_actual_min="", adherence_flag="needs_review", actual_interval_seconds="", interval_status="needs_review", interval_review_reason="nonpositive_dose_interval")
+        if name.startswith("schema4-skip-"):
+            rows[0].update(ended_utc="2026-06-17T04:45:00Z" if name == "schema4-skip-with-end" else "", window_actual_min="", adherence_flag="explicitly_skipped", actual_interval_seconds="", interval_status="missing", interval_review_reason="dose2_explicitly_skipped")
+        if name == "schema4-no-dose1" or name.startswith("schema5"):
+            rows = []
+        with path.open("w", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields); writer.writeheader(); writer.writerows(rows)
     if csv_value:
         path = folder / csv_value[0]
         rows, fields = [{}], [csv_value[1]]
@@ -222,6 +320,8 @@ for name, expected, value, csv_value in cases:
             with path.open(newline="") as handle:
                 reader = csv.DictReader(handle)
                 rows, fields = list(reader), reader.fieldnames
+        if not rows:
+            rows = [{}]
         rows[0][csv_value[1]] = csv_value[2]
         with path.open("w", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields)

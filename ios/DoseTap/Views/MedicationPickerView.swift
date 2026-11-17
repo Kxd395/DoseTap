@@ -3,7 +3,7 @@
 //  DoseTap
 //
 //  Medication Logger: Log one or more medications before saving
-//  Supports all FDA-approved narcolepsy medications
+//  Uses the configured medication catalog; amounts are explicitly reported.
 //
 
 import SwiftUI
@@ -18,6 +18,7 @@ struct PendingMedicationEntry: Identifiable, Equatable {
     let takenAt: Date
     let notes: String?
     var confirmedDuplicate = false
+    var reviewedDuplicateTokens: Set<Data> = []
 }
 
 // MARK: - Medication Picker View (Main Container)
@@ -27,7 +28,10 @@ struct MedicationPickerView: View {
     
     // Current entry being edited
     @State private var selectedMedication: MedicationType?
-    @State private var selectedDose: Int = 10
+    @State private var selectedDose: Int?
+    @State private var timeMode: String?
+    @State private var earlierTimeReviewed = false
+    @State private var reviewedDuplicateTokens: Set<Data> = []
     @State private var takenAt: Date = Date()
     @State private var notes: String = ""
     
@@ -36,12 +40,14 @@ struct MedicationPickerView: View {
     
     // UI state
     @State private var showDuplicateAlert = false
-    @State private var duplicateResult: DuplicateGuardResult?
+    @State private var duplicateEntries: [MedicationEntry] = []
     @State private var pendingEntryToConfirm: PendingMedicationEntry?
     @State private var showSuccessToast = false
     @State private var isLogging = false
     @State private var saveError: String?
     @State private var savedCount = 0
+    @State private var savedEntries: [PendingMedicationEntry] = []
+    @ObservedObject private var settings = UserSettingsManager.shared
     @State private var expandedCategory: MedicationCategory? = nil
     
     let onComplete: (() -> Void)?
@@ -55,6 +61,17 @@ struct MedicationPickerView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     if let saveError { Text(saveError).foregroundColor(.red).accessibilityIdentifier("medication-save-error") }
+                    Text("Record medication you already took. Choose the reported amount and time; Save confirms the reviewed list. This does not change Dose 1 or Dose 2.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    if !savedEntries.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Saved this visit: \(savedCount)").font(.headline)
+                                .accessibilityIdentifier("medication-saved-count")
+                            ForEach(savedEntries) { entry in
+                                Text("\(entry.medication.displayName) · \(entry.doseMg) mg · \(entry.takenAt.formatted(date: .abbreviated, time: .shortened))")
+                            }
+                        }
+                    }
                     // Pending entries list (what you've added)
                     if !pendingEntries.isEmpty {
                         pendingEntriesSection
@@ -65,13 +82,22 @@ struct MedicationPickerView: View {
                 }
                 .padding()
             }
+            .safeAreaInset(edge: .bottom) {
+                if selectedMedication != nil {
+                    Button("Add") { addCurrentEntry() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedDose == nil || timeMode == nil || (timeMode == "earlier" && !earlierTimeReviewed))
+                        .padding().frame(maxWidth: .infinity).background(.regularMaterial)
+                }
+            }
             .disabled(isLogging)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Log Medication")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(savedCount == 0 ? "Cancel" : "Done") {
+                        onComplete?()
                         dismiss()
                     }
                 }
@@ -91,15 +117,17 @@ struct MedicationPickerView: View {
                 Button("Add Anyway", role: .destructive) {
                     if var entry = pendingEntryToConfirm {
                         entry.confirmedDuplicate = true
+                        entry.reviewedDuplicateTokens = reviewedDuplicateTokens
                         if let index = pendingEntries.firstIndex(where: { $0.id == entry.id }) { pendingEntries[index] = entry } else { pendingEntries.append(entry) }
                         resetCurrentEntry()
                     }
                     pendingEntryToConfirm = nil
                 }
             } message: {
-                if let result = duplicateResult, let existing = result.existingEntry {
-                    Text("You logged \(existing.displayName) \(existing.doseMg)mg \(result.minutesDelta) minute\(result.minutesDelta == 1 ? "" : "s") ago. Add another entry?")
-                } else if let entry = pendingEntryToConfirm {
+                if !duplicateEntries.isEmpty {
+                    Text(duplicateEntries.map {
+                        "\($0.displayName) · \($0.doseMg) mg · \($0.takenAtUTC.formatted(date: .abbreviated, time: .shortened))"
+                    }.joined(separator: "\n") + "\nThese records are near the reported time. Record another administration?")                } else if let entry = pendingEntryToConfirm {
                     let matchingPending = pendingEntries.first { $0.medication.id == entry.medication.id }
                     if matchingPending != nil {
                         Text("You already added \(entry.medication.displayName) to this batch. Add another?")
@@ -160,26 +188,19 @@ struct MedicationPickerView: View {
                 
                 Spacer()
                 
-                if selectedMedication != nil {
-                    Button {
-                        addCurrentEntry()
-                    } label: {
-                        Label("Add", systemImage: "plus.circle.fill")
-                            .font(.subheadline.bold())
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
-                }
+
             }
             
             // Medication categories
             ForEach(MedicationCategory.allCases, id: \.self) { category in
-                let medsInCategory = DoseCore.MedicationConfig.types.filter { $0.category == category }
+                let medsInCategory = DoseCore.MedicationConfig.types.filter { $0.category == category && settings.hasMedication($0.id) }
                 if !medsInCategory.isEmpty {
                     medicationCategorySection(category: category, medications: medsInCategory)
                 }
             }
             
+            NavigationLink("Choose medications in Settings") { MedicationSettingsView() }
+                .font(.subheadline)
             // Dose selection (only show if medication selected)
             if let medication = selectedMedication {
                 VStack(alignment: .leading, spacing: 8) {
@@ -196,17 +217,24 @@ struct MedicationPickerView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    DatePicker(
-                        "Time Taken",
-                        selection: $takenAt,
-                        in: ...Date(),
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .padding()
-                    .background(Color(.tertiarySystemGroupedBackground))
-                    .cornerRadius(10)
+                    HStack {
+                        Button("Now") { timeMode = "now"; earlierTimeReviewed = false }
+                            .buttonStyle(.bordered).tint(timeMode == "now" ? .accentColor : .secondary)
+                            .accessibilityIdentifier("medication-time-now")
+                        Button("Earlier") { timeMode = "earlier"; earlierTimeReviewed = false; takenAt = Date() }
+                            .buttonStyle(.bordered).tint(timeMode == "earlier" ? .accentColor : .secondary)
+                            .accessibilityIdentifier("medication-time-earlier")
+                    }
+                    if timeMode == "now" {
+                        Text("Now is captured when you tap Add, then shown for review before Save.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else if timeMode == "earlier" {
+                        DatePicker("Date and time taken", selection: $takenAt, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                            .onChange(of: takenAt) { _ in earlierTimeReviewed = false }
+                        Toggle("I reviewed the occurrence date and time", isOn: $earlierTimeReviewed)
+                    } else {
+                        Text("Choose when you took it.").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 
                 // Optional notes
@@ -266,7 +294,9 @@ struct MedicationPickerView: View {
                             onSelect: {
                                 withAnimation {
                                     selectedMedication = med
-                                    selectedDose = med.defaultDoseMg
+                                    selectedDose = nil
+                                    timeMode = nil
+                                    earlierTimeReviewed = false
                                     expandedCategory = category
                                 }
                             }
@@ -306,8 +336,9 @@ struct MedicationPickerView: View {
         } else {
             // Picker for many options
             Picker("Dose", selection: $selectedDose) {
+                Text("Choose reported amount").tag(Int?.none)
                 ForEach(doses, id: \.self) { dose in
-                    Text(formatDose(dose, medication: medication)).tag(dose)
+                    Text(formatDose(dose, medication: medication)).tag(Optional(dose))
                 }
             }
             .pickerStyle(.wheel)
@@ -328,29 +359,32 @@ struct MedicationPickerView: View {
     // MARK: - Actions
     
     private func addCurrentEntry() {
-        guard let medication = selectedMedication else { return }
+        guard let medication = selectedMedication, let selectedDose, let timeMode,
+              timeMode != "earlier" || earlierTimeReviewed else { return }
+        let occurrence = timeMode == "now" ? Date() : takenAt
         
         let entry = PendingMedicationEntry(
             medication: medication,
             doseMg: selectedDose,
-            takenAt: takenAt,
+            takenAt: occurrence,
             notes: notes.isEmpty ? nil : notes
         )
         
         // Check for duplicates in pending list
         let hasPendingDuplicate = pendingEntries.contains {
             $0.medication.id == medication.id &&
-            abs($0.takenAt.timeIntervalSince(takenAt)) < 300 // within 5 min
+            abs($0.takenAt.timeIntervalSince(occurrence)) < Double(MedicationConfig.duplicateGuardMinutes * 60) // within 5 min
         }
         
-        // Check for duplicates in database
-        let result = repository.checkDuplicateMedication(
-            medicationId: medication.id,
-            takenAt: takenAt
-        )
-        
-        if hasPendingDuplicate || result.isDuplicate {
-            duplicateResult = result
+        do {
+            let review = try repository.medicationDuplicateReview(medicationId: medication.id, takenAt: occurrence)
+            duplicateEntries = review.entries
+            reviewedDuplicateTokens = review.tokens
+        } catch {
+            saveError = "Existing medication records could not be checked. Your entry is kept; try Add again."
+            return
+        }
+        if hasPendingDuplicate || !reviewedDuplicateTokens.isEmpty {
             pendingEntryToConfirm = entry
             showDuplicateAlert = true
         } else {
@@ -363,9 +397,11 @@ struct MedicationPickerView: View {
     
     private func resetCurrentEntry() {
         selectedMedication = nil
-        selectedDose = 10
+        selectedDose = nil
+        timeMode = nil
+        earlierTimeReviewed = false
+        takenAt = Date()
         notes = ""
-        // Keep the same time for convenience when logging multiple
     }
     
     private func saveAllEntries() {
@@ -375,11 +411,13 @@ struct MedicationPickerView: View {
         saveError = nil
         for entry in pendingEntries {
             do {
-                let result = try repository.logMedicationEntry(medicationId: entry.medication.id, doseMg: entry.doseMg,
-                    takenAt: entry.takenAt, notes: entry.notes, confirmedDuplicate: entry.confirmedDuplicate)
+                let result = try repository.logMedicationEntry(entryID: entry.id.uuidString, medicationId: entry.medication.id, doseMg: entry.doseMg,
+                    takenAt: entry.takenAt, notes: entry.notes, confirmedDuplicate: entry.confirmedDuplicate, reviewedDuplicateTokens: entry.reviewedDuplicateTokens)
                 guard !result.isDuplicate else {
                     saveError = "This medication was recorded since you added it. Review the duplicate before saving. Earlier saved entries will not be repeated."
-                    duplicateResult = result
+                    let review = try repository.medicationDuplicateReview(medicationId: entry.medication.id, takenAt: entry.takenAt)
+                    duplicateEntries = review.entries
+                    reviewedDuplicateTokens = review.tokens
                     pendingEntryToConfirm = entry
                     showDuplicateAlert = true
                     isLogging = false
@@ -387,21 +425,22 @@ struct MedicationPickerView: View {
                 }
                 pendingEntries.removeAll { $0.id == entry.id }
                 savedCount += 1
+                savedEntries.append(entry)
             } catch {
-                saveError = "\(savedCount) saved; \(pendingEntries.count) not saved. Your remaining entries are kept. Tap Save to retry."
+                saveError = "\(savedCount) saved; \(pendingEntries.count) not saved. \(error.localizedDescription) Your remaining entries are kept."
                 isLogging = false
                 return
             }
         }
 
-        // Success - show toast and dismiss
+        isLogging = false
+        // Keep a receipt visible until the user finishes.
         withAnimation {
             showSuccessToast = true
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            onComplete?()
-            dismiss()
+            showSuccessToast = false
         }
     }
 }
@@ -425,17 +464,15 @@ private struct PendingEntryRow: View {
                 Text(entry.medication.displayName)
                     .font(.subheadline.bold())
                 
-                HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(formatDose(entry.doseMg, medication: entry.medication))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text("•")
-                        .foregroundColor(.secondary)
-                    
-                    Text(entry.takenAt, style: .time)
+                    Text(entry.takenAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .accessibilityIdentifier("medication-pending-occurrence")
                 }
             }
             

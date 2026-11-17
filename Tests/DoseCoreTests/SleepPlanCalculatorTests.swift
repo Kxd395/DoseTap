@@ -16,7 +16,7 @@ final class SleepPlanCalculatorTests: XCTestCase {
         
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = tz
-        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: wake)
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: wake!)
         XCTAssertEqual(comps.year, 2025)
         XCTAssertEqual(comps.month, 12)
         XCTAssertEqual(comps.day, 26)
@@ -24,6 +24,27 @@ final class SleepPlanCalculatorTests: XCTestCase {
         XCTAssertEqual(comps.minute, 45)
     }
     
+    func testDisabledAndInvalidDateHaveNoWakeRequirement() {
+        let schedule = TypicalWeekSchedule(entries: (1...7).map {
+            TypicalWeekEntry(weekdayIndex: $0, wakeByHour: 5, wakeByMinute: 0, enabled: false)
+        })
+        let zone = TimeZone(secondsFromGMT: 0)!
+        XCTAssertNil(SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: "2026-09-24", schedule: schedule, tz: zone))
+        XCTAssertNil(SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: "invalid", schedule: TypicalWeekSchedule(), tz: zone))
+    }
+
+    func testWakeRequirementResolvesDSTGapAndFold() {
+        let zone = TimeZone(identifier: "America/New_York")!
+        func wake(_ night: String, hour: Int) -> Date? {
+            let schedule = TypicalWeekSchedule(entries: (1...7).map {
+                TypicalWeekEntry(weekdayIndex: $0, wakeByHour: hour, wakeByMinute: 30)
+            })
+            return SleepPlanCalculator.wakeByDateTime(forActiveSessionKey: night, schedule: schedule, tz: zone)
+        }
+        XCTAssertEqual(wake("2026-03-07", hour: 2), ISO8601DateFormatter().date(from: "2026-03-08T07:00:00Z"))
+        XCTAssertEqual(wake("2026-10-31", hour: 1), ISO8601DateFormatter().date(from: "2026-11-01T05:30:00Z"))
+    }
+
     func test_recommendedInBedTime_accounts_for_latency() {
         let tz = TimeZone(secondsFromGMT: 0)!
         var comps = DateComponents()

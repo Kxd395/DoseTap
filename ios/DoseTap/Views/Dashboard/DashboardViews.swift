@@ -8,6 +8,8 @@ struct DashboardTabView: View {
     @ObservedObject var core: DoseTapCore
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject private var sessionRepo = SessionRepository.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.isInSplitView) private var isInSplitView
     @StateObject private var model = DashboardAnalyticsModel()
@@ -26,32 +28,46 @@ struct DashboardTabView: View {
             : [GridItem(.flexible())]
     }
 
+    private var palette: DashboardPalette { DashboardPalette(isNight: themeManager.currentTheme == .night) }
+
     var body: some View {
-        if isInSplitView {
-            dashboardContent
-        } else {
-            NavigationStack {
+        Group {
+            if isInSplitView {
                 dashboardContent
+            } else {
+                NavigationStack { dashboardContent }
             }
-        }
+        }.environment(\.dashboardPalette, palette)
+    }
+
+    private var rangePicker: some View {
+        Picker("Range", selection: $model.selectedRange) {
+            ForEach(DashboardDateRange.allCases) { range in
+                Text(range.rawValue).tag(range).accessibilityLabel(range.label)
+            }
+        }.accessibilityIdentifier("dashboard-range-picker")
     }
 
     private var dashboardContent: some View {
             ScrollView {
                 VStack(spacing: 0) {
                     // MARK: Date Range Picker
-                    Picker("Range", selection: $model.selectedRange) {
-                        ForEach(DashboardDateRange.allCases) { range in
-                            Text(range.rawValue).tag(range)
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            rangePicker.pickerStyle(.menu)
+                        } else {
+                            rangePicker.pickerStyle(.segmented)
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    }.padding(.horizontal).padding(.vertical, 8)
 
+                    Text(model.rangeDescription).font(.caption).foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                     Text(model.selectedRange.label + " • \(model.populatedNights.count) nights with data")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                         .padding(.bottom, 4)
                 }
 
@@ -64,7 +80,7 @@ struct DashboardTabView: View {
                     .accessibilityIdentifier("dashboard-section-picker")
 
                 DisclosureGroup("Dashboard colors & missing data") {
-                    Text("Blue values: dose timing. Purple: sleep and check-ins. Teal: record coverage. Gray: context or no data. Orange review flags need a record check. Chart legends identify their series; WHOOP recovery uses its labeled ranges. Color alone is not a health rating.")
+                    Text(palette.legend)
                         .font(.caption).foregroundColor(.secondary)
                 }.font(.callout).padding(.horizontal).padding(.top, 8)
 
@@ -87,6 +103,7 @@ struct DashboardTabView: View {
                             DashboardExecutiveSummaryCard(model: model, core: core)
                             DashboardDosingSnapshotCard(model: model)
                             DashboardSleepSnapshotCard(model: model)
+                            if section == "Overview" { DashboardDataQualityCard(model: model) }
                             if !model.whoopNights.isEmpty {
                                 DashboardWHOOPCard(model: model)
                             } else {
@@ -118,6 +135,12 @@ struct DashboardTabView: View {
                     if section == "All" || section == "Data" {
                         dashboardHeading("Data")
                         DashboardDataQualityCard(model: model)
+                        DisclosureGroup("Storage & iPad access") {
+                            Text(cloudSync.cloudSyncAvailableInBuild
+                                ? "This validation build has experimental cloud sync. Complete cross-device record coverage and conflict handling are not accepted for release."
+                                : "DoseTap records are stored locally on this device. Automatic DoseTap iCloud sync is disabled in this build. An iPad installation does not automatically receive this phone’s medication or check-in records.")
+                            Text("Apple Health syncing, device backups, and files saved to iCloud Drive are separate. An exported workbook is a review snapshot, not a live dashboard or a tested full-app restore.")
+                        }.font(.callout).gridCellColumns(columns.count)
                         DashboardIntegrationsCard(states: model.integrationStates)
                         DashboardRecentNightsCard(nights: model.trendNights, onResolveDuplicateGroup: { resolvingDuplicateGroup = $0 })
                             .gridCellColumns(columns.count)
@@ -177,6 +200,7 @@ struct DashboardTabView: View {
             .task {
                 model.refresh()
             }
+            .onChange(of: model.selectedRange) { _ in model.refresh() }
             .onReceive(sessionRepo.sessionDidChange) { _ in
                 model.refresh()
             }

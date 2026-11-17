@@ -486,7 +486,8 @@ public protocol EventStore: AnyObject {
     func deleteSession(sessionKey: String)
     
     /// Clear all data (for testing/reset)
-    func clearAllData()
+    @discardableResult
+    func clearAllData() -> Bool
     
     // MARK: - Export
     
@@ -496,5 +497,5 @@ public protocol EventStore: AnyObject {
     // MARK: - Migration Support
     
     /// Backfill session_id for rows with NULL
-    func backfillNullSessionIds()
+    func backfillNullSessionIds() throws
 }

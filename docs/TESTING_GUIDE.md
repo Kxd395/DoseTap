@@ -92,12 +92,43 @@ bash tools/doc_lint.sh
 bash tools/ssot_check.sh
 bash tools/check_architecture_boundaries.sh
 bash tools/check_dose_state_writes.sh
+bash tools/check_inventory_state_writes.sh
+python3 tools/tests/inventory_state_writes_test.py
 bash tools/check_legacy_safety_paths.sh
 bash tools/check_companion_targets.sh
 bash tools/check_repository_hygiene.sh
 ```
 
 Run `bash tools/release_preflight.sh` for a release candidate. The tagged form has stricter pin and version requirements.
+
+The inventory guard recognizes the checked, uncapped repository export reader
+and the raw dashboard snapshot inside EventStorage's read transaction. Its
+isolated rejection fixtures protect against capped export reads, optional or
+forced `try`, unreviewed storage access, leaked table names and derived/legacy
+sources. Required-call presence and every accessor occurrence use the same
+code-only scan, including multiple statements per line. Every executable
+`listInventorySnapshots` occurrence in Studio is rejected, including captured
+references and comment-separated calls; harmless mentions are ignored. Method references,
+unqualified calls and noncanonical accessor spellings are rejected; only direct
+ordinary-`try` calls and declarations in the two reviewed storage files are
+accepted. This accessor scan excludes line/block comments (including nested
+blocks), extended regex literals (`#/.../#`, including multiline and additional
+hashes), and string literal contents, including raw and multiline strings. String
+interpolation is excluded from required-call presence, but guarded inventory
+accessor tokens inside its executable expressions cause an explicit rejection;
+move those reads to reviewed standalone statements. Interpolation-like
+backslash/hash/parenthesis sequences in extended regexes fail with an explicit
+guard-review diagnostic instead of being interpreted as Swift expressions.
+Bare slash syntax inside
+interpolation (including division or a bare regex) fails with an explicit guard
+review diagnostic, even when a real export call is present. Move such expressions
+outside interpolation or extend the guard with reviewed coverage; it does not
+guess slash/operator semantics. Outside interpolation, only a slash followed by
+a space or tab is accepted as an operator; use extended delimiters for regexes.
+This lexical check
+does not analyze surrounding `do`/`catch` or prove
+error propagation. The iOS export and dashboard snapshot tests establish runtime
+read-failure propagation, row fidelity and transaction behavior.
 
 ## Time and timezone tests
 
@@ -137,3 +168,24 @@ Evidence class: <automated, simulator runtime, signed device, external, owner ob
 Open gates: <what this run did not prove>
 ```
 
+
+### iPhone safety and Studio CI
+
+The default per-test timeout is 180 seconds, with a 240-second maximum. The multi-relaunch Dose 2 confirmation/History journey explicitly uses 240 seconds: a hosted run completed its assertions at 184 seconds but exceeded the default. Other cases retain the default; no assertions or selected cases are skipped. The journey targets the nested native switches and checks selection before saving as well as persistence after restart; the surrounding SwiftUI rows are not reliable tap targets.
+
+`ci-safety-studio.yml` runs the separate `DoseTapUITests` scheme for Dose 1 review without an alarm, Dose 2 cancel/background/explicit save, quick-log availability before each dose, and reset-cleanup warning persistence through setup, background/foreground, and restart, followed by explicit acknowledgment at standard and largest accessibility text sizes. The warning is an app-root panel so reset does not depend on a second modal being presented during confirmation dismissal. `tools/run_ci_iphone_tests.sh` requires each selected test to pass, applies execution timeouts, and retains the result bundle. These simulator checks do not establish signed-device alarm delivery or owner-observed acceptance.
+
+A separate iOS job exercises six production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.
+
+`tools/run_ci_studio_tests.sh` requires all six extracted payloads, builds Studio and runs its full suite. The iOS archive and raw-only identity round-trip tests must execute and pass; medication, stored-event, WHOOP and Apple Health fixtures also exercise their existing production-archive assertions. The two opt-in native preview tests remain a separate visual review gate.
+
+Local reproduction (choose a fresh output directory for every run):
+
+```bash
+bash tools/run_ci_iphone_tests.sh safety .build/ci-safety-local
+bash tools/run_ci_iphone_tests.sh exports .build/ci-exports-local
+xcrun xcresulttool export attachments --path .build/ci-exports-local/tests.xcresult --output-path .build/ci-attachments-local
+python3 tools/export_studio_fixtures.py .build/ci-attachments-local .build/ci-fixtures-local
+bash tools/run_ci_studio_tests.sh .build/ci-fixtures-local .build/ci-studio-local
+python3 tools/tests/studio_fixtures_test.py
+```

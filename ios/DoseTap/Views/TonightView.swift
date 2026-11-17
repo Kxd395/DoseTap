@@ -164,6 +164,7 @@ struct LegacyTonightView: View {
     @State private var earlyDoseMinutesRemaining: Int = 0
     @State private var showMorningCheckIn = false
     @State private var showPreSleepLog = false
+    @State private var showMedications = false
     @State private var showExtraDoseWarning = false  // For second dose 2 attempt
     @State private var incompleteSessionDate: String? = nil
     @State private var showIncompleteCheckIn = false
@@ -217,6 +218,14 @@ struct LegacyTonightView: View {
                     .padding(.horizontal)
                 }
 
+            Button { showMedications = true } label: {
+                Label("Log Medication", systemImage: "pills.fill")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .padding(.horizontal)
+            .accessibilityIdentifier("tonight-log-medication")
+
             if let priorReview = homeState.priorSessionReview {
                 IncompleteSessionBanner(
                     sessionDate: priorReview.sessionDate,
@@ -246,11 +255,11 @@ struct LegacyTonightView: View {
                 HStack {
                     Label("Wake by", systemImage: "bed.double.fill")
                     Spacer()
-                    Text(sleepPlanStore.plan(
-                        for: sessionRepo.preSleepDisplaySessionKey(for: Date()),
-                        now: Date(), tz: .current
-                    ).wakeBy, style: .time)
-                    .accessibilityIdentifier("tonightWakeTime")
+                    if let wake = sleepPlanStore.wakeByDate(for: sessionRepo.preSleepDisplaySessionKey(for: Date())) {
+                        Text(wake, style: .time).accessibilityIdentifier("tonightWakeTime")
+                    } else {
+                        Text(sleepPlanStore.scheduleLoadFailed ? "Schedule unavailable" : "No required wake time").accessibilityIdentifier("tonightWakeTime")
+                    }
                 }
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal)
@@ -299,6 +308,8 @@ struct LegacyTonightView: View {
                 }
 
             }
+
+            BottleSupplyCard().padding(.top, 12)
 
             if let night = sessionRepo.activeSessionDate, sessionRepo.dose2Time != nil {
                 NightOutcomeButton(sessionDate: night).padding(.horizontal)
@@ -439,6 +450,7 @@ struct LegacyTonightView: View {
                 )
             }
         }
+        .sheet(isPresented: $showMedications) { MedicationPickerView() }
         .sheet(isPresented: $showPreSleepLog) {
                 PreSleepLogView(
                     existingLog: preSleepEditingLog,

@@ -43,6 +43,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
     let exportWarnings: [String]?
     let whoopEnrichment: InsightWHOOPEnrichment?
     var importMetadata: InsightBundleImportMetadata?
+    let medicationPresetLedger: MedicationPresetExportSnapshot?
     let sessions: [InsightSessionSupplement]
 
     init(
@@ -56,6 +57,7 @@ struct InsightBundle: Codable, Hashable, Sendable {
         exportWarnings: [String]? = nil,
         whoopEnrichment: InsightWHOOPEnrichment? = nil,
         importMetadata: InsightBundleImportMetadata? = nil,
+        medicationPresetLedger: MedicationPresetExportSnapshot? = nil,
         sessions: [InsightSessionSupplement]
     ) {
         self.schemaVersion = schemaVersion
@@ -68,15 +70,9 @@ struct InsightBundle: Codable, Hashable, Sendable {
         self.exportWarnings = exportWarnings
         self.whoopEnrichment = whoopEnrichment
         self.importMetadata = importMetadata
+        self.medicationPresetLedger = medicationPresetLedger
         self.sessions = sessions
     }
-}
-
-struct InsightBundleImportMetadata: Codable, Hashable, Sendable {
-    let fileName: String
-    let byteCount: Int
-    let sha256Hex: String
-    let importedAtUTC: Date
 }
 
 enum InsightMetricFactCategory: String, Codable, Hashable, Sendable, CaseIterable {
@@ -161,6 +157,9 @@ struct InsightConsentState: Codable, Hashable, Sendable {
 }
 
 struct InsightSessionSupplement: Codable, Hashable, Sendable {
+    var doseTimingReview: InsightDoseTimingReview? = nil
+    let identityResolution: InsightIdentityResolution?
+    let rawSourceRecords: [InsightRawSourceRecord]?
     let collectedNight: CollectedNightSummary?
     let sessionDate: String
     let dose1TimeUTC: Date?
@@ -181,6 +180,8 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
 
     init(
         sessionDate: String,
+        identityResolution: InsightIdentityResolution? = nil,
+        rawSourceRecords: [InsightRawSourceRecord]? = nil,
         dose1TimeUTC: Date? = nil,
         dose2TimeUTC: Date? = nil,
         rawEvents: [InsightBundleEvent] = [],
@@ -199,6 +200,8 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         whoop: InsightWHOOPSummary? = nil
     ) {
         self.sessionDate = sessionDate
+        self.identityResolution = identityResolution
+        self.rawSourceRecords = rawSourceRecords
         self.dose1TimeUTC = dose1TimeUTC
         self.dose2TimeUTC = dose2TimeUTC
         self.rawEvents = rawEvents
@@ -215,6 +218,10 @@ struct InsightSessionSupplement: Codable, Hashable, Sendable {
         self.collectedNight = collectedNight
         self.healthKit = healthKit
         self.whoop = whoop
+    }
+
+    var excludesDerivedAnalytics: Bool {
+        identityResolution.map { !$0.permitsDerivedSummary } ?? false
     }
 }
 

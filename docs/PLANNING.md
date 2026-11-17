@@ -71,6 +71,8 @@ The [September 9 quick-win review](audit/2026-09-09/plane-quick-wins.md) records
 
 ## Proposed next version
 
+The [September 30 dashboard package](plans/dashboard-2026-09-30/README.md) preserves four owner-supplied proposals and consolidates their definitions and delivery dependencies. It maps the proposed work to DOSETAP-45/56/57/58/59/75; DOSETAP-79 records document/workspace reconciliation. No proposed chart, work-block classifier, daytime instrument or clinician report becomes implemented merely by inclusion in that package.
+
 `docs/MYWAV_DOSETAP/` describes proposed vNext behavior. The supply-cycle feature is a local notification and alarm that helps a user order medication before a cycle ends. It is not a refill request, order, pharmacy acknowledgement, insurance status, shipment status, or clinical eligibility decision.
 
 The proposal remains downstream of the data-integrity foundation and its explicit acceptance gates. See `docs/MYWAV_DOSETAP/README.md` and the supply-cycle Plane module.
@@ -85,6 +87,8 @@ The [September 8 roadmap](plans/2026-09-08-food-drink-roadmap.md) defines five p
 
 ## Insights implementation
 
+The [Excel workbook plan](plans/2026-09-17-excel-workbook-export.md) is approved for implementation under DOSETAP-13. It adds a styled, sortable human review format alongside the existing Studio source bundle. The [workbook contract](SSOT/contracts/ExcelWorkbook.md) defines source identities, missingness, fixed summaries and export publication boundaries. New clinical collection and provider-query expansion remain separate work.
+
 The [sleep markers roadmap](plans/2026-09-08-sleep-markers-roadmap.md) preserves Apple Health detail and defines DOSETAP-56 measurement corrections, DOSETAP-57 dose/sleep/wake markers and counts, DOSETAP-58 independent daytime observations, DOSETAP-59 clinician reporting and DOSETAP-60 activity-time specification review. The roadmap is a dated plan. DOSETAP-56 has a measurement foundation, and the linked DOSETAP-57 deliveries above add read-only dose/sleep and awakening inspection. They do not complete awakening counts, work/off averages, independent daytime observations or provider/phone acceptance. New analytics depend on corrected boundaries and explicit missingness.
 
 DoseTap Studio is implemented, but product claims remain limited by import quality, data-source parity, physical Apple Health verification, and whole-lifecycle restore evidence. Current source and validation status are in `docs/INSIGHTS_STATUS.md`.
@@ -92,3 +96,10 @@ DoseTap Studio is implemented, but product claims remain limited by import quali
 ## Archived planning material
 
 Completed and superseded plans are retained under `docs/archive/planning/`. They are useful for rationale and history but do not own current priority or completion state.
+
+## Daytime treatment diary
+
+The owner-authorized [2026-09-25 delivery plan](plans/2026-09-25-daytime-treatment-roadmap.md)
+maps medication capture/presets to DOSETAP-74, independent sleepiness/day review,
+nap/rest and the separate ESS authorization gate to DOSETAP-58, and full-period
+physician reporting to DOSETAP-59. Planned slices are not delivered behavior.

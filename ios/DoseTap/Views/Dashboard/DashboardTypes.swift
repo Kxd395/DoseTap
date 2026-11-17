@@ -7,49 +7,7 @@ enum DashboardSleepSource: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-enum DashboardDateRange: String, CaseIterable, Identifiable {
-    case week = "7D"
-    case twoWeeks = "14D"
-    case month = "30D"
-    case quarter = "90D"
-    case year = "1Y"
-    case all = "All"
-
-    var id: String { rawValue }
-
-    var days: Int {
-        switch self {
-        case .week:     return 7
-        case .twoWeeks: return 14
-        case .month:    return 30
-        case .quarter:  return 90
-        case .year:     return 365
-        case .all:      return 9999
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .week:     return "Week"
-        case .twoWeeks: return "2 Weeks"
-        case .month:    return "Month"
-        case .quarter:  return "Quarter"
-        case .year:     return "Year"
-        case .all:      return "All Time"
-        }
-    }
-
-    func cutoffDate(from anchor: Date = Date(), calendar: Calendar = .current) -> Date {
-        guard self != .all else { return .distantPast }
-        return calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: anchor)) ?? .distantPast
-    }
-
-    func priorPeriodCutoff(from anchor: Date = Date(), calendar: Calendar = .current) -> (start: Date, end: Date) {
-        let end = cutoffDate(from: anchor, calendar: calendar)
-        let start = calendar.date(byAdding: .day, value: -days, to: end) ?? .distantPast
-        return (start, end)
-    }
-}
+typealias DashboardDateRange = DashboardReportingRange
 
 struct DashboardNightAggregate: Identifiable {
     let sessionDate: String
@@ -61,8 +19,8 @@ struct DashboardNightAggregate: Identifiable {
     let events: [StoredSleepEvent]
     let morningCheckIn: StoredMorningCheckIn?
     let preSleepLog: StoredPreSleepLog?
-    let healthSummary: HealthKitService.SleepNightSummary?
-    let whoopSummary: WHOOPNightSummary?
+    var healthSummary: HealthKitService.SleepNightSummary?
+    var whoopSummary: WHOOPNightSummary?
     let duplicateClusterCount: Int
     let napSummary: SessionRepository.NapSummary
     var outcome: NightOutcomeDiary? = nil
@@ -86,7 +44,7 @@ struct DashboardNightAggregate: Identifiable {
     var exactIntervalMinutes: Double? {
         guard let dose1Time, let dose2Time else { return nil }
         let seconds = dose2Time.timeIntervalSince(dose1Time)
-        return seconds.isFinite && seconds >= 0 ? seconds / 60 : nil
+        return seconds.isFinite && seconds > 0 ? seconds / 60 : nil
     }
 
     func isPendingDose2(at now: Date) -> Bool {
@@ -95,7 +53,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var intervalMinutes: Int? {
-        guard let dose1Time, let dose2Time else { return nil }
+        guard let dose1Time, let dose2Time, exactIntervalMinutes != nil else { return nil }
         let minutes = TimeIntervalMath.minutesBetween(start: dose1Time, end: dose2Time)
         return minutes >= 0 ? minutes : nil
     }
@@ -128,7 +86,7 @@ struct DashboardNightAggregate: Identifiable {
     }
 
     var hasAnyData: Bool {
-        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil
+        dose1Time != nil || dose2Time != nil || dose2Skipped || extraDoseCount > 0 || !events.isEmpty || morningCheckIn != nil || preSleepLog != nil || healthSummary != nil || whoopSummary != nil || outcome != nil || outcomeReadFailed
     }
 
     var dataCategoryCount: Int {
@@ -192,14 +150,37 @@ struct DashboardMetricCategory: Identifiable {
 
 
 /// Category accents are descriptive, not health or treatment ratings.
-enum DashboardPalette {
-    static let timing: Color = .blue
-    static let sleep: Color = .purple
-    static let coverage: Color = .teal
-    static let review: Color = .orange
+struct DashboardPalette {
+    var isNight = false
+    var timing: Color { chart(.blue) }
+    var sleep: Color { chart(.purple) }
+    var coverage: Color { chart(.teal) }
+    var review: Color { chart(.orange, warmth: 0.6) }
 
-    static func recovery(_ score: Double?) -> Color {
+    /// Input to the existing global filter, not an additional night filter.
+    func chart(_ normal: Color, warmth: Double = 1) -> Color {
+        isNight ? Color(red: 1, green: warmth, blue: warmth * 0.8) : normal
+    }
+
+    var legend: String {
+        isNight
+            ? "Night Mode uses bright warm values. Category labels, chart symbols and series names identify the data. Review flags need a record check; missing data stays labeled. Color alone is not a health rating."
+            : "Blue values: dose timing. Purple: sleep and check-ins. Teal: record coverage. Gray: context or no data. Orange review flags need a record check. Chart legends identify their series; WHOOP recovery uses its labeled ranges. Color alone is not a health rating."
+    }
+
+    func recovery(_ score: Double?) -> Color {
         guard let score else { return .secondary }
-        return score >= 67 ? .green : score >= 34 ? .orange : .red
+        return chart(score >= 67 ? .green : score >= 34 ? .orange : .red)
+    }
+}
+
+private struct DashboardPaletteKey: EnvironmentKey {
+    static let defaultValue = DashboardPalette()
+}
+
+extension EnvironmentValues {
+    var dashboardPalette: DashboardPalette {
+        get { self[DashboardPaletteKey.self] }
+        set { self[DashboardPaletteKey.self] = newValue }
     }
 }

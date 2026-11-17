@@ -4,13 +4,17 @@ struct SettingsView: View {
     @Environment(\.isInSplitView) var isInSplitView
     @StateObject var settings = UserSettingsManager.shared
     @State var showingResetConfirmation = false
+    @State var showingResetError = false
+    @State var resetErrorMessage = ""
     @State var showingExportSuccess = false
-    @State var showingExportSheet = false
+    @State var exportArchive: StudioExportArchive?
+    @State var isExporting = false
+    @State var exportStatus = ""
+    @State var requestedExportFormat: SettingsExportFormat = .studioBundle
     @State var showingExportError = false
     @State var exportErrorMessage = ""
     @State var showingNotificationPermissionAlert = false
     @State var notificationPermissionMessage = ""
-    @State var exportItems: [Any] = []
     @ObservedObject var urlRouter = URLRouter.shared
     @ObservedObject var sleepPlanStore = SleepPlanStore.shared
     let tabBarInsetHeight: CGFloat = 64
@@ -24,6 +28,11 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+struct StudioExportArchive: Identifiable {
+    let url: URL
+    var id: URL { url }
 }
 
 struct SettingsView_Previews: PreviewProvider {

@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "imported_on": "2026-09-30",
+  "source": "Owner-supplied attachments, preserved without modification",
+  "implementation_baseline": "99914e4e77a0a0655e0c6a41383a5a274c39b91f",
+  "files": [
+    {
+      "name": "DoseTap_Dashboard_Blueprint_2026-09-30.md",
+      "size_bytes": 23704,
+      "sha256": "b2712129eae17016cbb95650f7e3956bdfbe50ab26d19b0659d85b614aec6c88"
+    },
+    {
+      "name": "DoseTap_Daytime_CheckIn_and_ESS_Prep_2026-09-30.md",
+      "size_bytes": 20507,
+      "sha256": "fb8700d149016190b6b3f7ba32d631531840010de4785468feea4de5991514a1"
+    },
+    {
+      "name": "DoseTap_Single_Dose_and_Dose_Pattern_Views_2026-09-30.md",
+      "size_bytes": 17474,
+      "sha256": "8824c780650076a79658aef4b9ae1b887d00e5d05532aba9720dffa6e12f54b2"
+    },
+    {
+      "name": "DoseTap_Work_Block_Dashboard_Addendum_2026-09-30.md",
+      "size_bytes": 18833,
+      "sha256": "850368a191672609c077a3ee86e419bf7d8d5540e8746c163f3fd34aab62c885"
+    }
+  ]
+}

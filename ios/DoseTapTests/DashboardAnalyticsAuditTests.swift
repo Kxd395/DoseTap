@@ -4,6 +4,81 @@ import DoseCore
 
 @MainActor
 final class DashboardAnalyticsAuditTests: XCTestCase {
+    func testOutcomeOnlyNightsRemainInCoverage() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        var diary = NightOutcomeDiary(); diary.dayType = .dayOff
+        let row = DashboardNightAggregate(sessionDate: "2026-09-01", dose1Time: nil, dose2Time: nil,
+            dose2Skipped: false, snoozeCount: 0, extraDoseCount: 0, events: [], morningCheckIn: nil,
+            preSleepLog: nil, healthSummary: nil, whoopSummary: nil, duplicateClusterCount: 0,
+            napSummary: .init(count: 0, totalMinutes: 0), outcome: diary)
+        model.nights = [row]
+        XCTAssertEqual(model.populatedNights.count, 1)
+        XCTAssertEqual(model.explicitDayTypeCount, 1)
+    }
+
+    func testSixMonthRangeAndProviderLookbackAcrossDST() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let anchor = calendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 22))!
+        let range = DashboardDateRange.sixMonths
+        let window = try XCTUnwrap(range.window(asOf: anchor, timeZone: calendar.timeZone))
+        let start = try XCTUnwrap(window.start), priorStart = try XCTUnwrap(window.priorStart)
+        XCTAssertEqual(calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: anchor)).day, 183)
+        XCTAssertEqual(calendar.dateComponents([.day], from: priorStart, to: start).day, 181)
+        XCTAssertEqual(window.healthQueryDays, 367)
+        XCTAssertEqual(DashboardDateRange.all.window(asOf: anchor, timeZone: calendar.timeZone)?.healthQueryDays, 730)
+        XCTAssertEqual(DashboardDateRange.allCases.map(\.rawValue), ["7D", "14D", "30D", "90D", "6M", "1Y", "All"])
+    }
+
+    func testSixMonthPhoneAndFrozenReportHaveIdenticalMembership() throws {
+        let captured = date("2026-09-30").addingTimeInterval(22 * 3600)
+        let model = DashboardAnalyticsModel(now: { captured }); model.selectedRange = .sixMonths
+        let keys = ["2026-03-31", "2026-04-01", "2026-04-03", "2026-09-30", "2026-10-01"]
+        model.nights = keys.map { night($0) }
+        let window = try XCTUnwrap(DashboardReportingRange.sixMonths.window(asOf: captured, timeZone: .current))
+        XCTAssertEqual(model.populatedNights.map(\.sessionDate), keys.filter { window.contains($0) }.sorted(by: >))
+        XCTAssertEqual(model.priorPeriodNights.map(\.sessionDate), ["2026-03-31"])
+    }
+
+    func testReportingAnchorStaysFrozenUntilRefreshAndProviderLimitsAreVisible() async throws {
+        var clock = date("2024-02-29").addingTimeInterval(22 * 3600)
+        let repository = SessionRepository(storage: EventStorage.inMemory())
+        let model = DashboardAnalyticsModel(now: { clock }, sessionRepo: repository)
+        model.selectedRange = .year
+        model.healthQueryWindow = try XCTUnwrap(model.currentReportWindow)
+        XCTAssertTrue(model.healthQueryDescription.contains("omits the beginning"))
+        XCTAssertTrue(model.healthQueryDescription.contains(model.reportingTimeZone.identifier))
+        clock = date("2024-03-01").addingTimeInterval(22 * 3600)
+        XCTAssertEqual(model.currentReportWindow?.lastTreatmentDate, "2024-02-29")
+        model.selectedRange = .sixMonths
+        XCTAssertTrue(model.healthQueryDescription.contains("refresh coverage is pending"))
+        await model.performRefresh(days: 730, includeProviders: false)
+        XCTAssertEqual(model.currentReportWindow?.lastTreatmentDate, "2024-03-01")
+        XCTAssertEqual(model.lastRefresh, clock)
+        XCTAssertNil(model.healthQueryWindow)
+    }
+
+    func testMeasurementCoverageRequiresExplicitReadableTimedAnswers() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        var valid = night("2026-09-01")
+        var answer = NightOutcomeDiary()
+        answer.dayType = .workday; answer.sleepiness = 0
+        answer.assessedAt = date("2026-09-02"); answer.finalWakeAt = date("2026-09-02")
+        valid.outcome = answer
+        var untimed = night("2026-09-02"); answer.assessedAt = nil; answer.dayType = .unknown
+        untimed.outcome = answer
+        var failed = valid; failed.outcomeReadFailed = true
+        model.nights = [valid, untimed, failed]
+        XCTAssertEqual(model.explicitDayTypeCount, 1)
+        XCTAssertEqual(model.timedSleepinessCount, 1)
+        XCTAssertEqual(model.recordedFinalWakeCount, 2)
+        XCTAssertEqual(model.sleepSampleCount, 0)
+        model.nights = []
+        XCTAssertEqual(model.timedSleepinessCount, 0)
+    }
+
     func testFoodAnalyticsUseCompletedLogsExplicitDaysAndIndependentCounts() {
         let first = date("2026-09-01")
         var answers = DoseTap.PreSleepLogAnswers()
@@ -81,12 +156,11 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         for components in [DateComponents(year: 2026, month: 3, day: 10), DateComponents(year: 2026, month: 11, day: 3)] {
             let anchor = calendar.date(from: components)!.addingTimeInterval(22 * 3600)
-            let start = DashboardDateRange.week.cutoffDate(from: anchor, calendar: calendar)
+            let window = DashboardDateRange.week.window(asOf: anchor, timeZone: calendar.timeZone)!
+            let start = window.start!
             XCTAssertEqual(calendar.component(.hour, from: start), 0)
             XCTAssertEqual(calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: anchor)).day, 6)
-            let prior = DashboardDateRange.week.priorPeriodCutoff(from: anchor, calendar: calendar)
-            XCTAssertEqual(prior.end, start)
-            XCTAssertEqual(calendar.dateComponents([.day], from: prior.start, to: prior.end).day, 7)
+            XCTAssertEqual(calendar.dateComponents([.day], from: window.priorStart!, to: start).day, 7)
         }
     }
 
@@ -104,6 +178,39 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.onTimePercentage, 100)
         XCTAssertEqual(model.averageIntervalMinutes ?? 0, 239.9, accuracy: 0.001)
         XCTAssertEqual(model.doseEffectivenessReport.totalNights, 1)
+    }
+
+    func testNonpositiveSpacingNeedsReviewWithoutErasingRecordedOutcome() {
+        let model = DashboardAnalyticsModel(now: { self.date("2026-09-07").addingTimeInterval(22 * 3600) })
+        model.selectedRange = .all
+        let zero = night("2026-09-01", interval: 0)
+        let reversed = night("2026-09-02", interval: -1)
+        let positive = night("2026-09-03", interval: 180)
+        model.nights = [zero, reversed, positive]
+        XCTAssertNil(zero.exactIntervalMinutes)
+        XCTAssertNil(zero.intervalMinutes)
+        XCTAssertNil(zero.onTimeDosing)
+        XCTAssertNil(reversed.exactIntervalMinutes)
+        XCTAssertEqual(zero.dose2Time, zero.dose1Time, "Preserve the reported instants")
+        XCTAssertEqual(model.recordedPairCount, 1)
+        XCTAssertEqual(model.invalidIntervalCount, 2)
+        XCTAssertEqual(model.averageIntervalMinutes, 180)
+        XCTAssertEqual(model.onTimePercentage, 100)
+        XCTAssertEqual(model.timingCount(.early), 0)
+        XCTAssertEqual(model.timingCount(.inWindow), 1)
+        XCTAssertEqual(model.recordedDose2OutcomeCount, 3)
+        XCTAssertEqual(model.missingDose2OutcomeCount, 0)
+        XCTAssertEqual(model.doseEffectivenessReport.totalNights, 1)
+    }
+
+    func testPositiveSubminuteSpacingAndAbsoluteDSTElapsedRemainEligible() {
+        let fractional = night("2026-09-01", interval: 0.5)
+        XCTAssertEqual(fractional.exactIntervalMinutes, 0.5)
+        XCTAssertEqual(fractional.intervalMinutes, 0)
+        let first = ISO8601DateFormatter().date(from: "2026-11-01T01:30:00-04:00")!
+        let second = ISO8601DateFormatter().date(from: "2026-11-01T01:30:00-05:00")!
+        let crossing = night("2026-10-31", dose1: first, interval: second.timeIntervalSince(first) / 60)
+        XCTAssertEqual(crossing.exactIntervalMinutes, 60)
     }
 
     func testCanonicalDoseProjectionDoesNotInventDose1() {
@@ -214,6 +321,15 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(model.skippedDose2Count, 0)
         XCTAssertEqual(model.doseEffectivenessReport.acceptableZone.count, 1)
         XCTAssertEqual(model.doseEffectivenessReport.nonCompliant.count, 0)
+    }
+
+    func testFinishedNightStreakUsesFrozenReportAnchorAfterRollover() {
+        var clock = date("2026-09-05").addingTimeInterval(22 * 3600)
+        let model = DashboardAnalyticsModel(now: { clock }); model.selectedRange = .week
+        model.nights = [night("2026-09-05"), night("2026-09-04"), night("2026-09-03")]
+        XCTAssertEqual(model.finishedNightStreak, 2)
+        clock = date("2026-09-06").addingTimeInterval(22 * 3600)
+        XCTAssertEqual(model.finishedNightStreak, 2, "The report has not refreshed across rollover")
     }
 
     func testFinishedNightStreakStopsAtGapsAndIgnoresActiveNight() {

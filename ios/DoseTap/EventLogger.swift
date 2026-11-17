@@ -21,7 +21,8 @@ class EventLogger: ObservableObject {
     private let clock: () -> Date
     private var sessionChangeCancellable: AnyCancellable?
     
-    init(sessionRepo: SessionRepository = .shared, clock: @escaping () -> Date = Date.init) {
+    init(sessionRepo: SessionRepository? = nil, clock: @escaping () -> Date = Date.init) {
+        let sessionRepo = sessionRepo ?? .shared
         self.sessionRepo = sessionRepo
         self.clock = clock
         // Load persisted events from SQLite on startup

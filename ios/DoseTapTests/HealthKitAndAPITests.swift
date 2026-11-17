@@ -16,6 +16,28 @@ import DoseCore
 
 @MainActor
 final class HealthKitProviderTests: XCTestCase {
+    func testDashboardHistoryIncludesOlderAndCurrentNightWithoutChangingBaseline() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 26, hour: 23))!
+        let recent = now.addingTimeInterval(-3600)
+        let old = calendar.date(byAdding: .day, value: -150, to: recent)!
+        let samples = [recent, old].map { HealthKitService.SleepSegment(start: $0, end: $0.addingTimeInterval(1800), stage: .asleepCore, source: "Test") }
+        let baseline = HealthKitService.shared.ttfwBaseline
+        let rows = HealthKitService.dashboardSleepSummaries(segments: samples, days: 362, through: now, calendar: calendar)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.map(\.totalSleepMinutes), [30, 30])
+        XCTAssertEqual(calendar.startOfDay(for: rows[0].date), calendar.startOfDay(for: now))
+        XCTAssertEqual(HealthKitService.shared.ttfwBaseline, baseline)
+        let beforeBoundary = calendar.date(bySettingHour: 17, minute: 59, second: 59, of: now)!
+        let before = HealthKitService.dashboardSleepSummaries(segments: samples, days: 362, through: beforeBoundary, calendar: calendar)
+        XCTAssertEqual(before.count, 1)
+        let afterBoundary = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now)!
+        let boundarySample = HealthKitService.SleepSegment(start: afterBoundary, end: afterBoundary.addingTimeInterval(1800), stage: .asleepCore, source: "Test")
+        XCTAssertEqual(HealthKitService.dashboardSleepSummaries(segments: [boundarySample], days: 362,
+            through: afterBoundary.addingTimeInterval(1800), calendar: calendar).count, 1)
+    }
+
     func testReviewedNightCoverageSummaryAtStandardAndAccessibleTextSizes() throws {
         let start = Date(timeIntervalSince1970: 1_800_000_000), end = start.addingTimeInterval(3600)
         let samples = [SleepEvidenceSample(sampleID: "synthetic", start: start, end: start.addingTimeInterval(2400),

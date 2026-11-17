@@ -123,7 +123,7 @@ final class SleepingSetupIntegrationTests: XCTestCase {
         XCTAssertNotNil(normalized["sleeping_context.v1"])
         let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: [night])
         let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let session = try XCTUnwrap((bundle["sessions"] as? [[String: Any]])?.first)
+        let session = try XCTUnwrap((bundle["dateGroups"] as? [[String: Any]])?.first)
         let morning = try XCTUnwrap(session["morning"] as? [String: Any])
         let raw = try XCTUnwrap(morning["rawSleepEnvironmentJson"] as? String)
         XCTAssertTrue(raw.contains("sleepingContext")); XCTAssertTrue(raw.contains("Partner in the same bed"))

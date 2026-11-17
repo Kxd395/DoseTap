@@ -39,6 +39,7 @@ struct DoseTapApp: App {
     @StateObject private var themeManager = ThemeManager.shared
     @StateObject private var container = AppContainer()
     @AppStorage(SetupWizardService.setupCompletedKey) private var isSetupComplete: Bool = false
+    @AppStorage(DataResetPresentation.warningKey) private var resetCleanupWarning = ""
     
     /// Track when app went to background for duration logging
     @State private var backgroundedAt: Date?
@@ -53,6 +54,13 @@ struct DoseTapApp: App {
         #endif
         Self.migrateSetupStateIfNeeded()
         #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-reset-cleanup-warning") {
+            UserDefaults.standard.set(true, forKey: SetupWizardService.setupCompletedKey)
+            UserDefaults.standard.removeObject(forKey: DataResetPresentation.warningKey)
+        }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-bottle-tracking-reset") {
+            try? SessionRepository.shared.saveSupply(SupplyBackup())
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-dose1-review-reset") {
             UserSettingsManager.shared.targetIntervalMinutes = 165
             UserSettingsManager.shared.dose2ReminderEnabled = true
@@ -105,6 +113,9 @@ struct DoseTapApp: App {
         if ProcessInfo.processInfo.arguments.contains("--uitesting-durable-log") {
             SessionRepository.shared.prepareDurableLogUITest(medication: ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))
         }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-quick-log-waiting") {
+            SessionRepository.shared.prepareQuickLogWaitingUITestSession()
+        }
         #endif
 
 
@@ -139,7 +150,12 @@ struct DoseTapApp: App {
     
     var body: some Scene {
         WindowGroup {
-            Group {
+            VStack(spacing: 0) {
+                if !resetCleanupWarning.isEmpty {
+                    DataResetWarningView(message: resetCleanupWarning) {
+                        resetCleanupWarning = ""
+                    }
+                }
                 if isSetupComplete {
                     ContentView()
                         .environmentObject(urlRouter)

@@ -324,7 +324,7 @@ final class MedicationMutationTransactionTests: XCTestCase {
         let repo = SessionRepository(storage: storage, clock: { now })
         let data = try StudioBundleExporter().buildStudioInsightsBundleDataForTesting(using: repo, sessionDates: keys)
         let bundle = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual((bundle["sessions"] as? [[String: Any]])?.count, keys.count)
+        XCTAssertEqual((bundle["dateGroups"] as? [[String: Any]])?.count, keys.count)
         XCTAssertEqual(reads.pointee, 1, "The actual bundle path must reuse the batch assessment")
         XCTAssertEqual(sqlite3_exec(storage.db,
             "INSERT INTO dose_events (id, event_type, timestamp, session_date, session_id) VALUES ('bad-batch-dose', 'dose1', 'not-a-date', '2026-09-01', 'batch-0')",
@@ -1469,12 +1469,17 @@ final class MedicationMutationTransactionTests: XCTestCase {
         }
         do {
             let failed = EventStorage(dbPath: path)
+            XCTAssertNotNil(failed.databaseInitializationFailure)
+            XCTAssertNil(failed.db)
+            var inspection: OpaquePointer?
+            XCTAssertEqual(sqlite3_open(path, &inspection), SQLITE_OK)
+            defer { sqlite3_close(inspection) }
             var statement: OpaquePointer?
-            XCTAssertEqual(sqlite3_prepare_v2(failed.db, "SELECT COUNT(*) FROM schema_migrations WHERE id IN ('event_types_normalized_v1','brief_wake_alias_migration_v1')", -1, &statement, nil), SQLITE_OK)
+            XCTAssertEqual(sqlite3_prepare_v2(inspection, "SELECT COUNT(*) FROM schema_migrations WHERE id IN ('event_types_normalized_v1','brief_wake_alias_migration_v1')", -1, &statement, nil), SQLITE_OK)
             XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
             XCTAssertEqual(sqlite3_column_int(statement, 0), 0)
             sqlite3_finalize(statement)
-            XCTAssertEqual(sqlite3_exec(failed.db, "DROP TRIGGER reject_migration", nil, nil, nil), SQLITE_OK)
+            XCTAssertEqual(sqlite3_exec(inspection, "DROP TRIGGER reject_migration", nil, nil, nil), SQLITE_OK)
         }
         let retried = EventStorage(dbPath: path)
         var statement: OpaquePointer?

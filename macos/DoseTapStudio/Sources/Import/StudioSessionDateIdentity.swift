@@ -25,6 +25,7 @@ enum StudioSessionDateIdentity {
         events: [DoseEvent],
         timeZone: TimeZone = legacyFallbackTimeZone
     ) -> String {
+        if let date = validatedSessionDate(session.sourceSessionDate) { return date }
         if let dose1 = events.first(where: {
             $0.eventType == .dose1_taken
                 && abs($0.occurredAtUTC.timeIntervalSince(session.startedUTC)) < 1

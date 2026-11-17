@@ -6,9 +6,54 @@ SQLite user_version: 5
 DDL source: `ios/DoseTap/Storage/EventStorage+Schema.swift`
 Exact column mirror: `docs/DATABASE_SCHEMA.md`
 
-This dictionary defines how persisted fields are interpreted. It covers all 17 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
+This dictionary defines how persisted fields are interpreted. It covers all 19 application tables plus the internal migration ledger. It does not redefine SQL types or migrations from the executable schema.
+
+Excel workbook schema 3 (DOSETAP-73, build 67; schema 1 began in build 62) is a read-only reporting projection
+of finalized Studio JSON and inventory CSV, with no new SQLite fields or writes.
+It retains typed sortable values, unknown source fields, source hashes and record
+associations across 17 sheets, including Dose Summary and Medication Log. See the [Excel workbook contract](ExcelWorkbook.md)
+for table grains, missingness, fixed-summary definitions and unavailable fields.
+Studio export 2.9/schema 4 adds versioned `doseTimingReview` per date group and a
+shared-source sessions CSV. Nonpositive recorded intervals retain their original
+times and raw difference, but have no eligible spacing value. Historical window
+and target remain unavailable; reminder interval is separate. The CSV appends
+treatment-date/session identifiers and review fields; explicit skip is not missing.
+Matching Studio preserves an absent target as nil; older schema-limited readers
+reject schema 4. Legacy archives remain readable. See the workbook contract for
+the exact field order. Excel edits do not import into the app.
+
+Build 69 adds Studio schema 5/export 3.0 and workbook schema 4: required independent
+medication preset/admin payloads and two dedicated sheets (19 total). Original
+Decimal text and unknown occurrence survive storage, export and Studio import.
+Legacy archives retain their existing sheet layout. See the workbook and
+[medication preset contract](MedicationPresets.md) for the exact boundaries.
 
 ## Identity and time
+
+Studio export 2.8/schema 3 uses root `dateGroups` instead of `sessions` and adds a per-date `identityResolution` object:
+`version: 1`, `status: resolved | raw_only`, `sessionIds` (distinct original
+nonplaceholder IDs), and stable `reasons`. Reasons include
+`multiple_session_identities`, `multiple_source_questionnaires`, and
+`session_identity_spans_dates`. A `raw_only` date has no selected dose timestamps,
+pre-sleep/morning/context/collected-night summary or derived CSV row. It remains
+in JSON exactly once, with all original events, medication rows and source records.
+Matching Studio retains the original archive while excluding these dates from
+analytic sessions. Matching Studio still decodes legacy schema 1/2 `sessions`;
+older Studio rejects schema 3 because its required `sessions` key is absent.
+Unknown versions and conflicting root keys are rejected. This boundary applies
+to intact Studio archives, not standalone source CSV interpretation.
+
+`rawSourceRecords` contains `sourceTable` and `columns` for `sleep_sessions`,
+`current_session`, `pre_sleep_logs`, `morning_checkins`, and `checkin_submissions`.
+Each column retains its SQLite `type` (`null`, `text`, `integer`, `real`, `blob`)
+and corresponding `text`, `integer`, `real`, or `blobBase64` value. Original JSON,
+unknown keys/types/versions, IDs, capture timestamps, offsets and completion states
+are preserved without decoding/re-encoding them. Null differs from empty text.
+Pre-sleep associations use stored session identity or normalized source-record
+links, never capture time as a substitute treatment date. Provider data remains
+date-scoped evidence; it cannot authorize a combined dose-linked metric for a
+conflicting group. This is read-only archival handling, not identity reconciliation
+or a tested full-app restore. Genuine SQLite/read failures publish no archive.
 
 WHOOP fetch evidence (Studio export 2.7/schema 2; DOSETAP-13): optional root
 `whoopEnrichment` contains `version: 1`, `sleepStatus`, `recoveryStatus`, optional
@@ -57,7 +102,8 @@ Local Studio archive metadata (DOSETAP-13 / DC-12): the local/scheduled writer
 omits `consent` because it does not capture provider consent or fetch enrichment.
 Its `exportWarnings` string array includes the exact element
 `Local snapshot only; provider enrichment was not fetched.` The strict validator
-accepts this omission only for known schema version 2 with a sessions array and
+accepts this omission only for known schema version 2 with a sessions array or
+schema version 3 with a dateGroups array, and
 without contradictory structured provider evidence. Unknown layouts cannot use
 the exception because their provider fields have not been validated.
 Explicit `null` or another malformed consent value is invalid. Manual/provider
@@ -141,6 +187,8 @@ Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain onl
 | `morning_checkins` | Source morning assessment payload | `id`, linked to `session_id` |
 | `checkin_submissions` | Normalized, questionnaire-versioned responses | `id`; unique source record plus check-in type |
 | `medication_events` | Other local medication log entries | `id` |
+| `medication_preset_revisions` | Immutable patient-entered oral-solid label revisions | revision `id`; `preset_id` groups revisions |
+| `confirmed_medication_administrations` | Independent confirmed actual snapshots | administration `id`; `revision_id` references preset |
 | `inventory_snapshots` | Point-in-time inventory data used by export and Studio | `id` |
 | `symptom_events` | Durable non-diagnostic symptom facts | `id` |
 | `symptom_locations` | Structured body location for a symptom event | `id`, parent `event_id` |
@@ -247,7 +295,7 @@ prevents archive publication; broader snapshot/read-error coverage is separate.
 
 `inventory_snapshots` records a point-in-time local estimate or imported inventory state. The legacy column name `next_refill_date` does not grant DoseTap authority to refill, order, verify eligibility, contact a pharmacy, or report shipment state.
 
-The proposed supply-cycle feature is a local reminder to order before medication runs out. It remains proposed under `docs/MYWAV_DOSETAP/` until implemented and accepted.
+The local calendar order reminder and reported bottle tracking use `supply_state`; see the [reminder](../supply-reminder.md) and [bottle tracking](../bottle-tracking.md) contracts. Broader MYWAV supply-cycle proposals do not establish delivered or accepted behavior.
 
 ## CloudKit boundary
 
@@ -269,6 +317,20 @@ A replacement event retains `correction.previous_events`, an array of the replac
 
 `supply_state` contains one row (`id INTEGER PRIMARY KEY CHECK (id = 1)`, `payload TEXT NOT NULL`). The versioned SupplyBackup JSON owns optional reminder source and correction history, plus independent bottle-start IDs, opened-at and recorded-at timestamps. Reminder dates preserve Gregorian year/month/day and local hour/minute, mode, lead days, current-device-wall-clock policy, entry timezone, enabled and handled state. Received-date mode adds 21 calendar days. No quantity is inferred from bottle starts. A single upsert commits the complete supply document; load/validation/write errors are surfaced. Reminder-only deletion preserves bottle starts and all medication data. Supply export/restore includes both reminder and bottle records; Clear All Data clears the row. The additive table does not rewrite existing medication records.
 
+DOSETAP-77 keeps the SQL schema unchanged. `SupplyBackup.version` remains 1 for
+legacy documents; tracking commands promote it to 2. Optional `receipts` contains
+`{id, count, receivedAt, recordedAt, voidedAt?}`; `count` is 1–100 reported bottles,
+not dose quantity. A receipt adds unopened bottles to tracking and may represent
+only the unopened portion of a delivery; its count is not a full shipment total.
+Existing `bottleStarts` add optional `receiptID` and `voidedAt`
+to `{id, openedAt, recordedAt}`. Legacy openings remain unlinked; undo retains source
+history. Unopened stock excludes voided receipts and subtracts nonvoided linked openings.
+Studio JSON adds optional `supplyStateJSON` and `supplyStateEncoding` with supported
+value `json-date-seconds-since-2001-v1`, retaining exact reference-date seconds.
+The conditional **Bottle & Supply** and **Source Fields** sheets retain receipts,
+openings, reminder revisions and void history. Invalid persisted supply stops export;
+absent legacy fields are not zero stock. Calendar reminder behavior remains independent.
+
 ### Dose 1 reminder review metadata (DOSETAP-71)
 
 New confirmed Dose 1 reviews retain `recorded_at_utc`, `source` (registration
@@ -286,3 +348,100 @@ The local `dose2_reminder_enabled` usual preference defaults true and changes on
 after successful dose persistence when explicitly requested. Alarm-only opt-out
 is retained by session UUID in local alarm preferences to prevent History from
 recreating reminders; it does not rewrite the original medication metadata.
+
+### Independent general-medication capture (DOSETAP-74, build 68)
+
+The separate [preset contract](MedicationPresets.md) defines immutable label
+revisions and explicitly confirmed actual snapshots. Its two independent tables
+retain canonical JSON text and checked indexes, without backfilling this legacy
+ledger. Bundle schema5 carries its exact strings in medicationPresetLedger, even
+with no dateGroups. Legacy medication_events retain the contract below.
+
+New manual captures retain `session_id = NULL`; startup no longer backfills a
+night identity into general medication rows. Existing non-null links remain as
+stored. The 18:00 `session_date` remains a reporting group, not an inferred night
+relationship. `taken_at_utc` is the explicitly reviewed occurrence; `created_at`
+is supplied by this capture path's recording clock. Older creation timestamps
+retain their original meaning. The persisted unit/formulation are unchanged.
+Night deletion/reset, including synced deletion, excludes NULL-linked medication
+rows from local deletion and outbound tombstones. Explicit Clear All Data or
+age-based deletion retains its broader scope.
+
+A pending entry's stable ID is also its retry key. Identical replay returns the
+saved record; changed content under that ID cannot replace it. Duplicate review
+uses absolute time across date groups and compares the complete displayed-source
+snapshot at commit. These in-memory consent tokens are not exported or logged.
+No new SQL column, preset revision, outcome enum, named timezone, precision or
+correction history is added in this slice. Existing raw medication JSON and
+Medication Log exports retain the occurrence, creation time and absent session
+link; they do not infer a prescription or convert these records into Dose 1/2.
+
+### Saved medication setup (build 70)
+
+Settings preset creation/revision writes only `medication_preset_revisions` through
+SessionRepository. The full reviewed label, components, effective dates and recording
+time use the existing immutable schema; prior revisions remain unchanged. New
+categorical choices and amounts start unanswered. Form drafts/review toggles are
+transient, not stored observations. No administration, dose, inventory, reminder or
+night record is created. Existing schema-5 and workbook exports retain revisions.
+
+### Unified weekly planner (build 71)
+
+After an explicit Weekly Schedule save, `work_wake_schedule.payload.weeklySchedule`
+contains seven validated `TypicalWeekEntry` records (weekdayIndex, wakeByHour,
+wakeByMinute, enabled). Disabled means no required wake time. The containing
+work/wake revision and timezone apply to this schedule; the transaction retains
+workingWeekdays, warning settings and dated exceptions. An absent weeklySchedule
+is a legacy document: planner preferences remain readable until reviewed and saved.
+No automatic migration or inference from enabled flags to work status occurs.
+The old sleepPlan.schedule.v1 preference is retained but ceases to be authoritative
+after consolidation. Current clinical exports do not promise a restorable schedule
+backup. Dated warning exceptions and one-night planner overrides retain their
+existing distinct scopes; neither rewrites the recurring week.
+
+A deliberate one-night override exports its effective UTC time and matching local
+clock minutes even when the recurring day is disabled. `scheduleDayType` is
+`one_night_override`, not an inferred work/off classification. These remain
+current preference projections, not proven historical obligations. Studio treats
+this value as unknown for schedule grouping unless independent recorded context
+provides a classification.
+
+### Confirmed preset capture (build 72)
+
+Log taken writes `confirmed_medication_administrations` only after actual-component
+and occurrence review. Exact/approximate captures retain timezone and offset;
+unknown times remain nil. Retry retains the administration UUID and timestamps.
+Existing schema-5 source and workbook exports include the exact snapshot without
+night links or a schema migration. Prior-record acknowledgements are transient UI
+state, not medication equivalence or clinical validation. No Edit/Undo is provided.
+
+### Medication administration amendments — domain foundation only
+
+DOSETAP-74 B3c defines `MedicationAdministrationAmendment` schema1 with `id`,
+`administrationID`, `supersedesAmendmentID`, `action`, optional `replacement`,
+`reason`, `confirmedAt`, `recordedAt`, and `source` (`userConfirmedAmendment`).
+Correction replacements retain the original administration identity. Reversal
+withdraws evidence without asserting non-administration. The deterministic review
+projection retains original and ordered amendments separately from current report.
+See [MedicationPresets.md](MedicationPresets.md). No SQLite table, Settings
+export field, migration, backfill or editing UI is introduced by this foundation.
+
+### Nearby dashboard provider packet
+
+`DashboardSleepEvidence` version 1 carries a bounded successful Apple Health sleep
+query in the nearby snapshot, separately from clinical SQLite and Studio exports.
+It preserves the allowed `SleepEvidenceSample` fields and query/timezone metadata.
+See [dashboard-provider-evidence.md](dashboard-provider-evidence.md) for validation,
+empty-query meaning, limits and read-only scope.
+
+### Bottle quantity ledger (supply document version 3)
+
+Optional `quantityEntries` contains baseline, preparation, discard and dose-link
+records with UUID, bottleID, integer amountMg, occurredAt, recordedAt, reason,
+optional preparationID, optional immutable dose evidence, and optional voidedAt.
+Dose evidence retains eventID, sessionID, eventType and occurrence timestamp.
+Product contract is XYWAV 0.5 g/mL (90,000 mg nominal bottle capacity); baseline
+amount is explicitly reported. Prepared amount leaves the bottle once; linking or
+discarding a preparation never subtracts it twice. These allocated amounts are
+inventory reports, not a backfill of actual administered amounts in dose_events.
+See [quantity and preparation rules](../bottle-tracking.md).

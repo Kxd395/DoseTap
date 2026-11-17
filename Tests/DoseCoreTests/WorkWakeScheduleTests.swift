@@ -3,6 +3,33 @@ import XCTest
 
 final class WorkWakeScheduleTests: XCTestCase {
     private let parse = ISO8601DateFormatter()
+    func testUnifiedWeeklyWakeOverridesLegacyTimeAndPreservesDatedExceptions() throws {
+        var plan = WorkWakeSchedule(timeZoneIdentifier: "UTC", workingWeekdays: [6], wakeMinutes: 420, target: .wakeBuffer, bufferMinutes: 120)
+        plan.weeklySchedule = TypicalWeekSchedule(entries: (1...7).map {
+            TypicalWeekEntry(weekdayIndex: $0, wakeByHour: 5, wakeByMinute: 0)
+        })
+        let first = parse.date(from: "2026-09-25T00:30:00Z")!
+        let now = parse.date(from: "2026-09-25T03:30:00Z")!
+        func warning(_ value: WorkWakeSchedule) -> WorkWakeWarning? {
+            value.warning(sessionId: "night", sessionDate: "2026-09-24", dose1: first, now: now, doseTargetMinutes: 180)
+        }
+        XCTAssertEqual(warning(plan)?.requiredWake, parse.date(from: "2026-09-25T05:00:00Z"))
+        plan.weeklySchedule?.entries[5].enabled = false
+        XCTAssertNil(warning(plan))
+        plan.exceptions["2026-09-25"] = WorkWakeException(isWorking: true, wakeMinutes: 300)
+        XCTAssertNotNil(warning(plan))
+        XCTAssertEqual(try JSONDecoder().decode(WorkWakeSchedule.self, from: JSONEncoder().encode(plan)), plan)
+        plan.weeklySchedule?.entries.removeLast()
+        XCTAssertFalse(plan.isValid)
+    }
+
+    func testLegacyScheduleWithoutWeeklyPayloadStillDecodes() throws {
+        let legacy = WorkWakeSchedule(workingWeekdays: [3, 5])
+        let restored = try JSONDecoder().decode(WorkWakeSchedule.self, from: JSONEncoder().encode(legacy))
+        XCTAssertNil(restored.weeklySchedule)
+        XCTAssertEqual(restored.workingWeekdays, [3, 5])
+    }
+
     func testEachSelectedModeResolvesFridayWakeDateAndOneDayException() throws {
         let dose1 = try XCTUnwrap(parse.date(from: "2026-09-04T03:10:00Z"))
         let now = try XCTUnwrap(parse.date(from: "2026-09-04T06:10:00Z"))

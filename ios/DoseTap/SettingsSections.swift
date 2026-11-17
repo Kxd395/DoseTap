@@ -118,7 +118,7 @@ extension SettingsView {
                     SleepPlanDetailView()
                 } label: {
                     HStack {
-                        Label("Typical Week Schedule", systemImage: "calendar.badge.clock")
+                        Label("Weekly Schedule", systemImage: "calendar.badge.clock")
                         Spacer()
                         Text("Configure")
                             .foregroundColor(.secondary)
@@ -188,6 +188,12 @@ extension SettingsView {
 
             Section {
                 NavigationLink {
+                    MedicationPresetSettingsView()
+                } label: {
+                    Label("Saved medication presets", systemImage: "list.bullet.clipboard")
+                }
+                .accessibilityIdentifier("settings-medication-presets")
+                NavigationLink {
                     MedicationSettingsView()
                 } label: {
                     HStack {
@@ -205,7 +211,7 @@ extension SettingsView {
             } header: {
                 Label("Medications", systemImage: "cross.case.fill")
             } footer: {
-                Text("Configure which medications you take and default doses.")
+                Text("Save prescription-label presets or configure the existing medication picker. Setup does not record medication as taken.")
             }
 
             Section {
@@ -246,10 +252,28 @@ extension SettingsView {
             }
 
             Section {
+                NavigationLink(destination: DashboardTransferView()) {
+                    Label("Connect iPad Dashboard", systemImage: "ipad.and.iphone")
+                }.accessibilityIdentifier("settings.dashboardConnection")
+                Button {
+                    exportData(format: .excelWorkbook)
+                } label: {
+                    Label("Export Excel Workbook", systemImage: "tablecells")
+                }
+                .disabled(isExporting)
+                .accessibilityIdentifier("settings.exportExcel")
+
                 Button {
                     exportData()
                 } label: {
                     Label("Export Studio Bundle", systemImage: "square.and.arrow.up")
+                }
+                .disabled(isExporting)
+                .accessibilityIdentifier("settings.exportStudio")
+
+                if isExporting {
+                    ProgressView(exportStatus)
+                        .accessibilityIdentifier("settings.exportProgress")
                 }
 
                 Toggle(isOn: Binding(
@@ -293,8 +317,6 @@ extension SettingsView {
                     Label("Manage History", systemImage: "clock.arrow.circlepath")
                 }
 
-                Divider()
-
                 Button(role: .destructive) {
                     showingResetConfirmation = true
                 } label: {
@@ -303,7 +325,7 @@ extension SettingsView {
             } header: {
                 Label("Data Management", systemImage: "externaldrive.fill")
             } footer: {
-                Text("Studio bundles include dose and quick-log events, both questionnaires, the wake/sleepiness diary, medication entries, and inventory. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
+                Text("Excel workbooks include styled sheets with sortable columns and filters for reviewing your nights and recorded details. Studio bundles retain the original CSV and JSON records for software import. Scheduled ZIPs save local records to Files > DoseTap Exports; iOS decides when they run. Use a manual export for available provider measurements. Exports are not a tested full-app restore.")
             }
 
             Section {
@@ -372,7 +394,12 @@ extension SettingsView {
                 clearAllData()
             }
         } message: {
-            Text("This will permanently delete all your dose history, sleep events, and settings. This action cannot be undone.")
+            Text("This permanently deletes local dose history, sleep events, and settings. Diagnostic files, exported files, connected-service credentials, and Apple Health/WHOOP records are retained. This action cannot be undone.")
+        }
+        .alert("Reset Status", isPresented: $showingResetError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(resetErrorMessage)
         }
         .alert("Export Complete", isPresented: $showingExportSuccess) {
             Button("OK", role: .cancel) {}
@@ -380,15 +407,13 @@ extension SettingsView {
             Text("Your data has been exported to the Files app.")
         }
         .alert("Export Failed", isPresented: $showingExportError) {
-            Button("Try Again") { exportData() }
+            Button("Try Again") { exportData(format: requestedExportFormat) }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Could not export your data: \(exportErrorMessage). Check available storage and try again.")
+            Text(exportErrorMessage)
         }
-        .sheet(isPresented: $showingExportSheet) {
-            if !exportItems.isEmpty {
-                ActivityViewController(activityItems: exportItems)
-            }
+        .sheet(item: $exportArchive) { archive in
+            ActivityViewController(activityItems: [archive.url])
         }
         .onChange(of: settings.notificationsEnabled) { enabled in
             guard enabled else { return }
