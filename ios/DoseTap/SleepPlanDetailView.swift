@@ -17,6 +17,43 @@ struct SleepPlanDetailView: View {
     private var calendar: Calendar { var value = Calendar(identifier: .gregorian); value.timeZone = zone; return value }
 
     var body: some View {
+        ScrollViewReader { scroll in
+            plannerList
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            ForEach(weekdays, id: \.self) { day in
+                                Button(dayName(day)) { scroll.scrollTo(day, anchor: .top) }
+                            }
+                        } label: {
+                            Label("Go to day", systemImage: "calendar")
+                        }
+                        .disabled(!loaded)
+                        .accessibilityIdentifier("weekly-day-menu")
+                    }
+                }
+        }
+        .environment(\.timeZone, zone)
+        .navigationTitle("Weekly Schedule")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button(action: save) {
+                Text("Save Schedule").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!loaded || (legacyWarning != nil && !reviewedLegacy))
+            .accessibilityHint("Applies your weekly schedule changes.")
+            .accessibilityIdentifier("weekly-save")
+            .padding(8)
+            .background(.regularMaterial)
+        }
+        .onAppear { if !loaded { load() } }
+        .alert("Schedule saved", isPresented: $receipt) {
+            Button("OK", role: .cancel) {}
+        } message: { Text("Weekly wake times and work preferences saved. No medication or alarm was changed.") }
+    }
+
+    private var plannerList: some View {
         List {
             if loaded {
                 Section {
@@ -61,6 +98,7 @@ struct SleepPlanDetailView: View {
                         Toggle("Required wake time", isOn: Binding(get: { entry(day).enabled }, set: {
                             var value = entry(day); value.enabled = $0; update(value)
                         })).accessibilityIdentifier("weekly-required-\(day)")
+                            .id(day)
                         if entry(day).enabled {
                             DatePicker("Wake by", selection: Binding(get: {
                                 time(entry(day).wakeByHour * 60 + entry(day).wakeByMinute)
@@ -101,24 +139,6 @@ struct SleepPlanDetailView: View {
                 }
             }
         }
-        .environment(\.timeZone, zone)
-        .navigationTitle("Weekly Schedule")
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            Button(action: save) {
-                Text("Save Schedule").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!loaded || (legacyWarning != nil && !reviewedLegacy))
-            .accessibilityHint("Applies your weekly schedule changes.")
-            .accessibilityIdentifier("weekly-save")
-            .padding(8)
-            .background(.regularMaterial)
-        }
-        .onAppear { if !loaded { load() } }
-        .alert("Schedule saved", isPresented: $receipt) {
-            Button("OK", role: .cancel) {}
-        } message: { Text("Weekly wake times and work preferences saved. No medication or alarm was changed.") }
     }
 
     private func entry(_ day: Int) -> TypicalWeekEntry { draft.weeklySchedule!.entry(for: day) }

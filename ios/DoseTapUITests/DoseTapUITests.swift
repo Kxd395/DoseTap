@@ -1644,6 +1644,10 @@ final class DoseTapUITests: XCTestCase {
             }
             XCTAssertTrue(link.isHittable); link.tap()
         }
+        func goToDay(_ title: String) {
+            app.buttons["weekly-day-menu"].tap()
+            app.buttons[title].tap()
+        }
         func set(_ id: String, _ on: Bool, down: Bool = false) {
             let control = app.switches[id]; reveal(control, down: down)
             if (control.value as? String == "1") != on { control.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
@@ -1653,26 +1657,34 @@ final class DoseTapUITests: XCTestCase {
         set("weekly-work-known", false); set("weekly-work-known", true)
         if !app.buttons["weekly-save"].isEnabled { set("weekly-review-legacy", true) }
         captureDashboard("Weekly schedule header and legacy review")
+        goToDay("Monday")
         set("weekly-required-2", false)
+        goToDay("Tuesday")
         set("weekly-work-3", true)
+        goToDay("Thursday")
         set("weekly-work-5", true)
         captureDashboard("Weekly schedule independent work and wake controls")
         let save = app.buttons["weekly-save"]
         XCTAssertTrue(save.isEnabled); XCTAssertTrue(save.isHittable); save.tap()
         XCTAssertTrue(app.alerts["Schedule saved"].waitForExistence(timeout: 5)); app.alerts.buttons["OK"].tap()
         app.terminate(); launchApp(); open()
+        goToDay("Monday")
         let monday = app.switches["weekly-required-2"]; reveal(monday)
         XCTAssertEqual(monday.value as? String, "0")
         XCTAssertTrue(app.staticTexts["No required wake time"].exists)
+        goToDay("Tuesday")
         let tuesday = app.switches["weekly-work-3"]; reveal(tuesday)
         XCTAssertEqual(tuesday.value as? String, "1")
+        goToDay("Wednesday")
         let wednesday = app.switches["weekly-work-4"]; reveal(wednesday)
         XCTAssertEqual(wednesday.value as? String, "0")
+        goToDay("Thursday")
         let thursday = app.switches["weekly-work-5"]; reveal(thursday)
         XCTAssertEqual(thursday.value as? String, "1")
         captureDashboard("Weekly schedule after restart")
         // An unsaved edit must not leak into next opening.
         thursday.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap(); app.terminate(); launchApp(); open()
+        goToDay("Thursday")
         reveal(thursday); XCTAssertEqual(thursday.value as? String, "1")
         XCTAssertFalse(app.staticTexts["Quick Weekly Setup"].exists)
     }

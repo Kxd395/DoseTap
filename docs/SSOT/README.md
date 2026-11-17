@@ -47,7 +47,7 @@ Notes:
 - Weekly Schedule edits one seven-day draft. Each day means the date of waking,
   with an optional required wake time and separately confirmed work status.
   Fill selected days is a draft shortcut; it never assumes Monday/Wednesday/Friday.
-  Only Save Schedule commits the draft. Leaving without saving changes no settings.
+  Go to day scrolls directly to a weekday. Only Save Schedule commits the draft. Leaving without saving changes no settings.
 - On explicit save, the existing SQLite work/wake document also owns the weekly
   planner times. Work advisories use those times and retain dated exceptions.
   Existing preference-based planner times are shown for review before this first
