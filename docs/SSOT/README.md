@@ -763,6 +763,10 @@ Cancellation:
 - The alarm indicator displays the absolute deadline, the last reconciled named timezone, degraded scheduling status, and a manual retry action.
 - Snooze replaces only wake-alarm roles. Still-future window-open/15-minute/5-minute safety reminders remain pending; reminders that have become stale are removed deterministically.
 
+A reviewed Dose 1 commits a pending alarm handoff with its SQLite event. After interruption, reconciliation uses the saved interval or explicit No alarm for the unresolved active dose.
+
+Completion, skip, opt-out, and later alarm changes supersede any older reconciliation suspended during pending-request inspection or repair.
+
 The complete normative contract and failure table are in `docs/SSOT/alarm-scheduling.md`.
 
 Code references:

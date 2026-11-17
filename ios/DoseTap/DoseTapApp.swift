@@ -179,9 +179,8 @@ struct DoseTapApp: App {
                                 logTimezoneChange(from: lastKnownTimezone, to: currentTz)
                                 lastKnownTimezone = currentTz
                                 Task {
-                                    await container.alarmService.reconcilePendingRequests(
-                                        reason: .timeZoneChange,
-                                        dose1Time: container.sessionRepository.dose1Time,
+                                    await container.alarmService.reconcileSession(
+                                        container.sessionRepository, reason: .timeZoneChange,
                                         forceReschedule: true
                                     )
                                 }
@@ -263,9 +262,8 @@ struct DoseTapApp: App {
             AlarmService.shared.checkForDueAlarm()
 
             Task {
-                await container.alarmService.reconcilePendingRequests(
-                    reason: .appActive,
-                    dose1Time: container.sessionRepository.dose1Time
+                await container.alarmService.reconcileSession(
+                    container.sessionRepository, reason: .appActive
                 )
             }
             
@@ -344,9 +342,8 @@ struct DoseTapApp: App {
         // Trigger session refresh
         SessionRepository.shared.refreshForTimeChange()
         Task { @MainActor in
-            await AlarmService.shared.reconcilePendingRequests(
-                reason: .significantTimeChange,
-                dose1Time: SessionRepository.shared.dose1Time,
+            await AlarmService.shared.reconcileSession(
+                SessionRepository.shared, reason: .significantTimeChange,
                 forceReschedule: true
             )
         }
@@ -374,9 +371,8 @@ struct DoseTapApp: App {
         guard isSetupComplete, !didRunPostSetupBootstrap else { return }
         didRunPostSetupBootstrap = true
         await requestNotificationPermissionIfNeeded()
-        await container.alarmService.reconcilePendingRequests(
-            reason: .appActive,
-            dose1Time: container.sessionRepository.dose1Time
+        await container.alarmService.reconcileSession(
+            container.sessionRepository, reason: .appActive
         )
     }
 

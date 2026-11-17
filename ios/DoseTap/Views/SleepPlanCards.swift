@@ -438,7 +438,7 @@ struct AlarmIndicatorView: View {
                         Button(isRetryingAlarm ? "Retrying…" : "Retry Alarm") {
                             isRetryingAlarm = true
                             Task {
-                                await alarmService.retryLastSchedule(dose1Time: d1)
+                                await alarmService.reconcileSession(sessionRepo, reason: .manualRetry, forceReschedule: true)
                                 isRetryingAlarm = false
                             }
                         }

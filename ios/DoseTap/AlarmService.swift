@@ -203,6 +203,7 @@ public class AlarmService: NSObject, ObservableObject {
     private let criticalAlertsCapabilityFlag = "CriticalAlertsCapabilityEnabled"
     private var notificationSnoozeHandler: (@MainActor () async -> Bool)?
     private var persistedSchedule: PersistedAlarmSchedule?
+    private var reconciliationID: UUID?
     private var scheduleGenerations: [NotificationGroup: UInt64] = [:]
     private var failuresByGroup: [NotificationGroup: AlarmSchedulingFailure] = [:]
     private var wakeScheduleInFlight = false
@@ -418,6 +419,11 @@ public class AlarmService: NSObject, ObservableObject {
     /// - Parameter dose1Time: Time Dose 1 was taken
     @discardableResult
     public func scheduleDose2Reminders(dose1Time: Date) async -> AlarmScheduleResult {
+        reconciliationID = nil
+        return await scheduleWindowGroup(dose1Time: dose1Time)
+    }
+
+    private func scheduleWindowGroup(dose1Time: Date) async -> AlarmScheduleResult {
         guard defaults.string(forKey: Self.noAlarmSessionKey) == nil else { return .notNeeded(reason: "No alarm selected") }
         // Stable identifiers require serialized ownership through cancellation cleanup.
         guard !reminderScheduleInFlight else { return .failed(cancelledFailure()) }
@@ -508,6 +514,11 @@ public class AlarmService: NSObject, ObservableObject {
     ///   - dose1Time: Time of Dose 1 (for window calculations)
     @discardableResult
     public func scheduleDose2Alarm(at time: Date, dose1Time: Date) async -> AlarmScheduleResult {
+        reconciliationID = nil
+        return await scheduleWakeGroup(at: time, dose1Time: dose1Time)
+    }
+
+    private func scheduleWakeGroup(at time: Date, dose1Time: Date) async -> AlarmScheduleResult {
         guard defaults.string(forKey: Self.noAlarmSessionKey) == nil else { return .notNeeded(reason: "No alarm selected") }
         // AlarmKit uses one stable app-owned identifier. Do not allow two
         // reentrant scheduling transactions to race across suspension points:
@@ -838,6 +849,8 @@ public class AlarmService: NSObject, ObservableObject {
         stopVibrationLoop()
         usesSystemSoundFallback = false
         if acknowledge {
+            invalidateScheduling(for: .wake)
+            invalidateScheduling(for: .reminders)
             targetWakeTime = nil
             clearSavedTargetWakeTime()
         }
@@ -1345,6 +1358,7 @@ public class AlarmService: NSObject, ObservableObject {
     }
 
     private func invalidateScheduling(for group: NotificationGroup) {
+        reconciliationID = nil
         _ = beginScheduling(for: group)
     }
 
@@ -1400,6 +1414,87 @@ public class AlarmService: NSObject, ObservableObject {
 
     // MARK: Reconciliation and Retry
 
+    private static let adoptedHandoffKey = "alarmService_adoptedDose1Event"
+
+    /// Stage a committed initial choice before suspension. Retrying the same event must
+    /// preserve a subsequent snooze, acknowledgement or explicit reminder change.
+    @discardableResult
+    func adoptReviewedAlarmChoice(from repository: SessionRepository) throws -> String? {
+        guard let sessionID = repository.activeSessionId, let dose1 = repository.dose1Time,
+              let handoff = try repository.storage.pendingAlarmHandoff(sessionID: sessionID) else { return nil }
+        guard abs(dose1.timeIntervalSince(handoff.dose1)) < 0.001 else { throw EventStorage.AlarmHandoffError.unreadableChoice }
+        guard defaults.string(forKey: Self.adoptedHandoffKey) != handoff.eventID else { return handoff.eventID }
+        invalidateScheduling(for: .wake)
+        invalidateScheduling(for: .reminders)
+        if let minutes = handoff.intervalMinutes {
+            snoozeCount = 0
+            alarmAcknowledged = false
+            alarmScheduled = false
+            reminderScheduled = false
+            allowDose2Reminders()
+            let target = dose1.addingTimeInterval(TimeInterval(minutes * 60))
+            persistedSchedule = makeScheduleMetadata(dose1Time: dose1, targetWakeTime: target,
+                prior: nil, now: nowProvider(), timeZone: timeZoneProvider())
+            targetWakeTime = target
+            savePersistedSchedule()
+        } else {
+            defaults.set(sessionID, forKey: Self.noAlarmSessionKey)
+        }
+        defaults.set(handoff.eventID, forKey: Self.adoptedHandoffKey)
+        return handoff.eventID
+    }
+
+    /// Lifecycle and retry entry point. The active medication projection determines
+    /// eligibility; reconstructing notifications never changes that projection.
+    @discardableResult
+    func reconcileSession(_ repository: SessionRepository, reason: ReconciliationReason,
+                          forceReschedule: Bool = false) async -> AlarmReconciliationReport {
+        func report(_ result: AlarmScheduleResult) -> AlarmReconciliationReport {
+            record(result: result, for: .wake)
+            record(result: result, for: .reminders)
+            return AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
+                                             wakeResult: result, reminderResult: result)
+        }
+        do {
+            guard repository.storage.databaseInitializationFailure == nil else { throw EventStorage.AlarmHandoffError.unreadableChoice }
+            guard let dose1 = repository.dose1Time, repository.dose2Time == nil, !repository.dose2Skipped,
+                  repository.activeSessionEnd == nil, !repository.checkInCompleted else {
+                if targetWakeTime != nil || persistedSchedule != nil || repository.dose2Time != nil || repository.dose2Skipped {
+                    cancelAllAlarms()
+                    clearDose2AlarmState()
+                    let generations = scheduleGenerations
+                    let verified = await verifyAlarmCancellation(additionalIDs: [])
+                    guard generations == scheduleGenerations else {
+                        let stale = AlarmScheduleResult.failed(cancelledFailure())
+                        return AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
+                                                         wakeResult: stale, reminderResult: stale)
+                    }
+                    if !verified {
+                        return report(.failed(AlarmSchedulingFailure(code: .verificationFailed, failedIdentifier: nil,
+                            detail: "Dose 2 reminder cancellation needs verification", previousScheduleRestored: false)))
+                    }
+                }
+                return report(.notNeeded(reason: "No unresolved active Dose 1"))
+            }
+            let handoff = try adoptReviewedAlarmChoice(from: repository)
+            if handoff == nil, let prior = persistedSchedule,
+               abs(prior.dose1Time.timeIntervalSince(dose1)) >= 0.001 {
+                cancelAllAlarms()
+                clearDose2AlarmState()
+                throw EventStorage.AlarmHandoffError.unreadableChoice
+            }
+            let result = await reconcilePendingRequests(reason: reason, dose1Time: dose1, forceReschedule: forceReschedule)
+            if let handoff, result.wakeResult.failure == nil, result.reminderResult.failure == nil {
+                try repository.storage.retireAlarmHandoff(eventID: handoff)
+            }
+            return result
+        } catch {
+            return report(.failed(AlarmSchedulingFailure(code: .missingReconstructionMetadata, failedIdentifier: nil,
+                detail: "The saved Dose 1 reminder choice needs verification. Retry from Tonight.",
+                previousScheduleRestored: false)))
+        }
+    }
+
     /// Reconcile persisted intent with pending notification requests. Medication
     /// deadlines are absolute `Date` values; timezone changes only alter the
     /// calendar representation used by `UNCalendarNotificationTrigger`.
@@ -1426,6 +1521,16 @@ public class AlarmService: NSObject, ObservableObject {
             return AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
                 wakeResult: result, reminderResult: result)
         }
+
+        let superseded = AlarmScheduleResult.failed(cancelledFailure())
+        func cancelledReport() -> AlarmReconciliationReport {
+            AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
+                                      wakeResult: superseded, reminderResult: superseded)
+        }
+        guard !wakeScheduleInFlight, !reminderScheduleInFlight else { return cancelledReport() }
+        let id = UUID()
+        reconciliationID = id
+        defer { if reconciliationID == id { reconciliationID = nil } }
 
         let now = nowProvider()
         let timeZone = timeZoneProvider()
@@ -1493,6 +1598,7 @@ public class AlarmService: NSObject, ObservableObject {
             timeZone: timeZone
         )
         let pending = await notificationClient.pendingRequests()
+        guard reconciliationID == id else { return cancelledReport() }
         let wakeIssues = reconciliationIssues(
             desired: wakeRequests,
             pending: pending,
@@ -1526,7 +1632,7 @@ public class AlarmService: NSObject, ObservableObject {
             }
             record(result: wakeResult, for: .wake)
         } else if wakeRequests.isEmpty {
-            invalidateScheduling(for: .wake)
+            _ = beginScheduling(for: .wake)
             notificationClient.removePendingRequests(withIdentifiers: Self.wakeNotificationIdentifiers)
             alarmScheduled = false
             persistedSchedule?.wakeVerified = false
@@ -1534,7 +1640,7 @@ public class AlarmService: NSObject, ObservableObject {
             wakeResult = .notNeeded(reason: "Absolute wake deadline has passed")
             record(result: wakeResult, for: .wake)
         } else if wakeNeedsRepair {
-            wakeResult = await scheduleDose2Alarm(
+            wakeResult = await scheduleWakeGroup(
                 at: metadata.absoluteWakeDeadline,
                 dose1Time: metadata.dose1Time
             )
@@ -1550,12 +1656,13 @@ public class AlarmService: NSObject, ObservableObject {
             record(result: wakeResult, for: .wake)
         }
 
+        guard reconciliationID == id else { return cancelledReport() }
         let reminderResult: AlarmScheduleResult
         let reminderNeedsRepair = force
             || !reminderIssues.isEmpty
             || !metadata.remindersVerified
         if reminderNeedsRepair {
-            reminderResult = await scheduleDose2Reminders(dose1Time: metadata.dose1Time)
+            reminderResult = await scheduleWindowGroup(dose1Time: metadata.dose1Time)
         } else if reminderRequests.isEmpty {
             reminderResult = .notNeeded(reason: "No enabled future reminders")
             reminderScheduled = false
@@ -1572,6 +1679,7 @@ public class AlarmService: NSObject, ObservableObject {
             record(result: reminderResult, for: .reminders)
         }
 
+        guard reconciliationID == id else { return cancelledReport() }
         persistedSchedule?.lastReconciledTimeZoneIdentifier = timeZone.identifier
         reconciledTimeZoneIdentifier = timeZone.identifier
         savePersistedSchedule()

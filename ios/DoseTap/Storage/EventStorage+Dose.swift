@@ -216,7 +216,7 @@ extension EventStorage {
                     sqlite3_bind_text(s, 3, second.id, -1, SQLITE_TRANSIENT)
                 }
             }
-            try executeMedicationStatement("UPDATE current_session SET dose1_time = ?, dose2_time = ?, dose2_skipped = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?", at: .update) { s in
+            try executeMedicationStatement("UPDATE current_session SET pending_alarm_event_id = NULL, dose1_time = ?, dose2_time = ?, dose2_skipped = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?", at: .update) { s in
                 if let first { sqlite3_bind_text(s, 1, isoFormatter.string(from: first), -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(s, 1) }
                 if let second { sqlite3_bind_text(s, 2, isoFormatter.string(from: second.timestamp), -1, SQLITE_TRANSIENT) } else { sqlite3_bind_null(s, 2) }
                 sqlite3_bind_int(s, 3, rows.contains { $0.eventType == "dose2_skipped" } ? 1 : 0)
@@ -686,6 +686,53 @@ extension EventStorage {
 
     // MARK: - Dose Event Operations
 
+    enum AlarmHandoffError: Error { case unreadableChoice }
+
+    struct PendingAlarmHandoff {
+        let eventID: String
+        let dose1: Date
+        let intervalMinutes: Int?
+    }
+
+    func pendingAlarmHandoff(sessionID: String) throws -> PendingAlarmHandoff? {
+        struct Choice: Decodable {
+            let enabled: Bool
+            let intervalMinutes: Int?
+
+            enum CodingKeys: String, CodingKey {
+                case enabled = "dose2_reminder_enabled"
+                case intervalMinutes = "reminder_interval_minutes"
+            }
+        }
+        let rows: [PendingAlarmHandoff] = try readExportRows("""
+            SELECT c.pending_alarm_event_id, d.timestamp, d.metadata
+            FROM current_session c LEFT JOIN dose_events d
+              ON d.id = c.pending_alarm_event_id AND d.session_id = c.session_id
+              AND d.session_date = c.session_date AND d.timestamp = c.dose1_time AND d.event_type = 'dose1'
+            WHERE c.id = 1 AND c.session_id = ? AND c.pending_alarm_event_id IS NOT NULL
+              AND c.dose2_time IS NULL AND c.dose2_skipped = 0 AND c.session_end_utc IS NULL
+              AND c.terminal_state IS NULL
+            """, binding: sessionID) { row in
+                guard let id = sqlite3_column_text(row, 0), let time = sqlite3_column_text(row, 1),
+                      let dose1 = isoFormatter.date(from: String(cString: time)),
+                      let json = sqlite3_column_text(row, 2) else { throw AlarmHandoffError.unreadableChoice }
+                let choice = try JSONDecoder().decode(Choice.self, from: Data(String(cString: json).utf8))
+                if choice.enabled {
+                    guard let minutes = choice.intervalMinutes,
+                          UserSettingsManager.shared.validTargetOptions.contains(minutes) else { throw AlarmHandoffError.unreadableChoice }
+                }
+                return PendingAlarmHandoff(eventID: String(cString: id), dose1: dose1,
+                    intervalMinutes: choice.enabled ? choice.intervalMinutes : nil)
+            }
+        return rows.first
+    }
+
+    func retireAlarmHandoff(eventID: String) throws {
+        try executeMedicationStatement("UPDATE current_session SET pending_alarm_event_id = NULL WHERE id = 1 AND pending_alarm_event_id = ?", at: .update) { row in
+            sqlite3_bind_text(row, 1, eventID, -1, SQLITE_TRANSIENT)
+        }
+    }
+
     /// Atomically replace Dose 1 before any dependent outcome is recorded.
     /// Completed or snoozed sequences must use the explicit history-edit APIs;
     /// this capture path is not allowed to erase downstream medication events.
@@ -695,7 +742,7 @@ extension EventStorage {
         sessionId: String? = nil,
         sessionDateOverride: String? = nil,
         sessionStart: Date? = nil,
-        metadata: String? = nil
+        metadata: String? = nil, reviewedAlarmChoice: Bool = false
     ) -> MedicationMutationResult {
         let sessionDate = sessionDateOverride ?? sessionDateString(for: timestamp)
         let resolvedSessionId = sessionId ?? sessionDate
@@ -754,8 +801,8 @@ extension EventStorage {
                 INSERT INTO current_session (
                     id, session_date, session_id, session_start_utc, session_end_utc,
                     terminal_state, dose1_time, dose2_time, snooze_count,
-                    dose2_skipped, updated_at
-                ) VALUES (1, ?, ?, ?, NULL, NULL, ?, NULL, 0, 0, CURRENT_TIMESTAMP)
+                    dose2_skipped, pending_alarm_event_id, updated_at
+                ) VALUES (1, ?, ?, ?, NULL, NULL, ?, NULL, 0, 0, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(id) DO UPDATE SET
                     session_date = excluded.session_date,
                     session_id = excluded.session_id,
@@ -766,6 +813,7 @@ extension EventStorage {
                     dose2_time = NULL,
                     snooze_count = 0,
                     dose2_skipped = 0,
+                    pending_alarm_event_id = excluded.pending_alarm_event_id,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 at: .update
@@ -774,6 +822,11 @@ extension EventStorage {
                 sqlite3_bind_text(statement, 2, resolvedSessionId, -1, SQLITE_TRANSIENT)
                 sqlite3_bind_text(statement, 3, startString, -1, SQLITE_TRANSIENT)
                 sqlite3_bind_text(statement, 4, timestampString, -1, SQLITE_TRANSIENT)
+                if reviewedAlarmChoice {
+                    sqlite3_bind_text(statement, 5, eventId, -1, SQLITE_TRANSIENT)
+                } else {
+                    sqlite3_bind_null(statement, 5)
+                }
             }
 
             try executeMedicationStatement(
@@ -924,7 +977,7 @@ extension EventStorage {
                 try executeMedicationStatement(
                     """
                     UPDATE current_session
-                    SET dose2_time = ?,
+                    SET pending_alarm_event_id = NULL, dose2_time = ?,
                         dose2_skipped = 0,
                         terminal_state = CASE
                             WHEN terminal_state = 'incomplete_slept_through' THEN NULL
@@ -1035,7 +1088,7 @@ extension EventStorage {
             try executeMedicationStatement(
                 """
                 UPDATE current_session
-                SET dose2_time = NULL, dose2_skipped = 1, updated_at = CURRENT_TIMESTAMP
+                SET pending_alarm_event_id = NULL, dose2_time = NULL, dose2_skipped = 1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1 AND session_id = ?
                 """,
                 at: .update,
@@ -1094,7 +1147,7 @@ extension EventStorage {
             try executeMedicationStatement(
                 """
                 UPDATE current_session
-                SET snooze_count = ?, updated_at = CURRENT_TIMESTAMP
+                SET pending_alarm_event_id = NULL, snooze_count = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1 AND session_id = ?
                   AND dose1_time IS NOT NULL AND dose2_time IS NULL AND dose2_skipped = 0
                 """,
@@ -1207,7 +1260,7 @@ extension EventStorage {
             switch eventType {
             case .dose1:
                 try executeMedicationStatement(
-                    "UPDATE current_session SET dose1_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
+                    "UPDATE current_session SET pending_alarm_event_id = NULL, dose1_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                     at: .update
                 ) { statement in
                     sqlite3_bind_text(statement, 1, timestampString, -1, SQLITE_TRANSIENT)
@@ -1219,7 +1272,7 @@ extension EventStorage {
                 try executeMedicationStatement(
                     """
                     UPDATE current_session
-                    SET dose2_time = ?, dose2_skipped = 0, updated_at = CURRENT_TIMESTAMP
+                    SET pending_alarm_event_id = NULL, dose2_time = ?, dose2_skipped = 0, updated_at = CURRENT_TIMESTAMP
                     WHERE session_id = ?
                     """,
                     at: .update
@@ -1231,7 +1284,7 @@ extension EventStorage {
                 try executeMedicationStatement(
                     """
                     UPDATE current_session
-                    SET dose2_time = NULL, dose2_skipped = 1, updated_at = CURRENT_TIMESTAMP
+                    SET pending_alarm_event_id = NULL, dose2_time = NULL, dose2_skipped = 1, updated_at = CURRENT_TIMESTAMP
                     WHERE session_id = ?
                     """,
                     at: .update
@@ -1327,7 +1380,7 @@ extension EventStorage {
             try executeMedicationStatement(
                 """
                 UPDATE current_session
-                SET snooze_count = ?, updated_at = CURRENT_TIMESTAMP
+                SET pending_alarm_event_id = NULL, snooze_count = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1 AND session_id = ?
                 """,
                 at: .update,
@@ -1370,7 +1423,7 @@ extension EventStorage {
                 sqlite3_bind_text(statement, 3, CanonicalDoseEventType.dose1.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose1_time = NULL, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
+                "UPDATE current_session SET pending_alarm_event_id = NULL, dose1_time = NULL, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
                 sqlite3_bind_text(statement, 1, resolvedSessionId, -1, SQLITE_TRANSIENT)
@@ -1528,7 +1581,7 @@ extension EventStorage {
                 sqlite3_bind_text(statement, 4, CanonicalDoseEventType.dose1.rawValue, -1, SQLITE_TRANSIENT)
             }
             try executeMedicationStatement(
-                "UPDATE current_session SET dose1_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
+                "UPDATE current_session SET pending_alarm_event_id = NULL, dose1_time = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
                 at: .update
             ) { statement in
                 sqlite3_bind_text(statement, 1, timestampStr, -1, SQLITE_TRANSIENT)
