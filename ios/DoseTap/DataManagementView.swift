@@ -7,6 +7,7 @@ struct DataManagementView: View {
     @State private var sessions: [SessionSummary] = []
     @State private var selectedSessions: Set<String> = []
     @State private var isSelecting = false
+    @State private var showHistoryChangeFailure = false
     @State private var showDeleteConfirmation = false
     @State private var showClearTonightConfirmation = false
     @State private var showClearTonightFailure = false
@@ -126,6 +127,11 @@ struct DataManagementView: View {
             }
         }
         .onAppear { loadSessions() }
+        .alert("History change incomplete", isPresented: $showHistoryChangeFailure) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Review the remaining records and try again.")
+        }
         // Delete Selected Confirmation
         .alert("Delete Selected Sessions?", isPresented: $showDeleteConfirmation) {
             Button("Cancel", role: .cancel) { }
@@ -169,24 +175,25 @@ struct DataManagementView: View {
     }
     
     private func deleteSessions(at offsets: IndexSet) {
-        for index in offsets {
-            let session = sessions[index]
-            // Use SessionRepository to broadcast changes to Tonight tab
-            sessionRepo.deleteSession(sessionDate: session.sessionDate)
-        }
-        sessions.remove(atOffsets: offsets)
+        deleteSessionDates(Set(offsets.map { sessions[$0].sessionDate }))
     }
-    
+
     private func deleteSelectedSessions() {
-        for sessionDate in selectedSessions {
-            // Use SessionRepository to broadcast changes to Tonight tab
-            sessionRepo.deleteSession(sessionDate: sessionDate)
-        }
-        sessions.removeAll { selectedSessions.contains($0.sessionDate) }
-        selectedSessions.removeAll()
-        isSelecting = false
+        deleteSessionDates(selectedSessions)
+        isSelecting = !selectedSessions.isEmpty
     }
-    
+
+    private func deleteSessionDates(_ dates: Set<String>) {
+        for date in dates {
+            if sessionRepo.deleteSession(sessionDate: date) {
+                selectedSessions.remove(date)
+            } else {
+                showHistoryChangeFailure = true
+            }
+        }
+        loadSessions()
+    }
+
     private func clearTonightsEvents() {
         guard sessionRepo.clearTonightsEvents() else {
             showClearTonightFailure = true
@@ -201,7 +208,7 @@ struct DataManagementView: View {
     }
     
     private func clearOldData() {
-        sessionRepo.clearOldData(olderThanDays: 30)
+        if !sessionRepo.clearOldData(olderThanDays: 30) { showHistoryChangeFailure = true }
         loadSessions()
     }
 }

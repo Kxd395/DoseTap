@@ -162,88 +162,86 @@ extension EventStorage {
         storageLog.info("All sleep events cleared")
     }
 
-    /// Clear data older than specified days
-    public func clearOldData(olderThanDays days: Int) {
-        let calendar = Calendar.current
-        guard let cutoffDate = calendar.date(byAdding: .day, value: -days, to: Date()) else { return }
-        let cutoffStr = sessionDateString(for: cutoffDate)
+    private static let datedSessionTables = [
+        "sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions",
+        "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"
+    ]
 
-        sqlite3_exec(db, "BEGIN TRANSACTION", nil, nil, nil)
-
-        let tables = ["sleep_events", "dose_events", "sleep_sessions", "morning_checkins", "checkin_submissions", "medication_events", "symptom_events", "symptom_command_log", "symptom_summaries"]
-        for table in tables {
-            let sql = "DELETE FROM \(table) WHERE session_date < ?"
-            var stmt: OpaquePointer?
-            if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(stmt, 1, cutoffStr, -1, SQLITE_TRANSIENT)
-                sqlite3_step(stmt)
-                sqlite3_finalize(stmt)
+    /// Build 108 added two reviewed collections with an explicit session date.
+    /// Other independent diary collections have no session-deletion relationship.
+    private func datedSessionTablesInCurrentTransaction() throws -> [String] {
+        let imported: [String] = try readExportRows("""
+            SELECT type, lower(name) FROM main.sqlite_master
+            WHERE name COLLATE NOCASE IN ('dashboard_dose_reviews', 'dashboard_provider_associations')
+            ORDER BY name
+            """) { row in
+                guard let type = sqlite3_column_text(row, 0), String(cString: type) == "table",
+                      let name = sqlite3_column_text(row, 1) else { throw ExportReadError.unreadable }
+                return String(cString: name)
             }
-        }
+        return Self.datedSessionTables + imported
+    }
 
-        // pre_sleep_logs does not include session_date; clear by created timestamp instead.
-        let cutoffTimestamp = isoFormatter.string(from: cutoffDate)
-        let preSleepSQL = "DELETE FROM pre_sleep_logs WHERE created_at_utc < ?"
-        var preSleepStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, preSleepSQL, -1, &preSleepStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(preSleepStmt, 1, cutoffTimestamp, -1, SQLITE_TRANSIENT)
-            sqlite3_step(preSleepStmt)
-            sqlite3_finalize(preSleepStmt)
+    /// Clear data older than the specified age, committing all scoped tables together.
+    @discardableResult
+    public func clearOldData(olderThanDays days: Int) -> Bool {
+        var calendar = Calendar.current
+        calendar.timeZone = timeZoneProvider()
+        guard days >= 0, let cutoffDate = calendar.date(byAdding: .day, value: -days, to: nowProvider()) else { return false }
+        let cutoff = sessionDateString(for: cutoffDate)
+        do {
+            try withSQLiteTransaction {
+                for table in try datedSessionTablesInCurrentTransaction() + ["current_session"] {
+                    try executeDateDelete("DELETE FROM \(table) WHERE session_date < ?1", value: cutoff)
+                }
+                try executeDateDelete("DELETE FROM pre_sleep_logs WHERE created_at_utc < ?1", value: isoFormatter.string(from: cutoffDate))
+            }
+            storageLog.info("Old session data cleared")
+            return true
+        } catch {
+            storageLog.error("Old session data could not be cleared")
+            return false
         }
-
-        // Also clean current_session entries
-        let sessionSQL = "DELETE FROM current_session WHERE session_date < ?"
-        var sessionStmt: OpaquePointer?
-        if sqlite3_prepare_v2(db, sessionSQL, -1, &sessionStmt, nil) == SQLITE_OK {
-            sqlite3_bind_text(sessionStmt, 1, cutoffStr, -1, SQLITE_TRANSIENT)
-            sqlite3_step(sessionStmt)
-            sqlite3_finalize(sessionStmt)
-        }
-
-        sqlite3_exec(db, "COMMIT", nil, nil, nil)
-        storageLog.info("Data older than \(days) days cleared")
     }
 
     /// Delete a session by date
-    public func deleteSession(sessionDate: String, recordCloudKitDeletion: Bool = true) {
+    @discardableResult
+    public func deleteSession(sessionDate: String, recordCloudKitDeletion: Bool = true) -> Bool {
         do {
             try withSQLiteTransaction {
                 if recordCloudKitDeletion {
                     try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapSession", recordName: sessionDate)
 
-                    for id in fetchRecordIDsForSession(table: "sleep_events", sessionDate: sessionDate) {
+                    for id in try fetchRecordIDsForSession(table: "sleep_events", sessionDate: sessionDate) {
                         try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapSleepEvent", recordName: id)
                     }
-                    for id in fetchRecordIDsForSession(table: "dose_events", sessionDate: sessionDate) {
+                    for id in try fetchRecordIDsForSession(table: "dose_events", sessionDate: sessionDate) {
                         try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapDoseEvent", recordName: id)
                     }
-                    for id in fetchRecordIDsForSession(table: "morning_checkins", sessionDate: sessionDate) {
+                    for id in try fetchRecordIDsForSession(table: "morning_checkins", sessionDate: sessionDate) {
                         try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapMorningCheckIn", recordName: id)
                     }
-                    for id in fetchRecordIDsForSession(table: "medication_events", sessionDate: sessionDate) {
+                    for id in try fetchRecordIDsForSession(table: "medication_events", sessionDate: sessionDate) {
                         try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapMedicationEvent", recordName: id)
                     }
-                    for id in fetchPreSleepLogIDsForSession(sessionDate: sessionDate) {
+                    for id in try fetchPreSleepLogIDsForSession(sessionDate: sessionDate) {
                         try enqueueCloudKitTombstoneOrThrow(recordType: "DoseTapPreSleepLog", recordName: id)
                     }
                 }
 
                 try deletePreSleepLogsForSessionOrThrow(sessionDate: sessionDate)
 
-                let tables = [
-                    "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
-                    "checkin_submissions", "medication_events", "symptom_events",
-                    "symptom_command_log", "symptom_summaries"
-                ]
-                for table in tables {
-                    try deleteRowsForSessionOrThrow(table: table, sessionDate: sessionDate)
+                for table in try datedSessionTablesInCurrentTransaction() {
+                    try executeDateDelete("DELETE FROM \(table) WHERE \(sessionDeletionPredicate(table: table))", value: sessionDate)
                 }
 
-                try deleteCurrentSessionRowOrThrow(sessionDate: sessionDate)
+                try executeDateDelete("DELETE FROM current_session WHERE session_date = ?1", value: sessionDate)
             }
-            storageLog.info("Session \(sessionDate, privacy: .public) deleted")
+            storageLog.info("Session deleted")
+            return true
         } catch {
-            storageLog.error("Failed to delete session \(sessionDate, privacy: .public): \(error.localizedDescription)")
+            storageLog.error("Session deletion failed")
+            return false
         }
     }
 
@@ -429,22 +427,11 @@ extension EventStorage {
     }
 
     private func deletePreSleepLogsForSessionOrThrow(sessionDate: String) throws {
-        let sql = """
+        try executeDateDelete("""
             DELETE FROM pre_sleep_logs
-            WHERE session_id = ?
-               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?)
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw StorageDeleteError.prepareFailed("delete pre-sleep logs for session", String(cString: sqlite3_errmsg(db)))
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            throw StorageDeleteError.stepFailed("delete pre-sleep logs for session", String(cString: sqlite3_errmsg(db)))
-        }
+            WHERE session_id = ?1
+               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?1)
+            """, value: sessionDate)
     }
 
     /// A date group is not a night relationship for independent medications.
@@ -453,83 +440,39 @@ extension EventStorage {
         "session_date = ?" + (table == "medication_events" ? " AND session_id IS NOT NULL" : "")
     }
 
-    private func deleteRowsForSessionOrThrow(table: String, sessionDate: String) throws {
-        let allowedTables = Set([
-            "sleep_events", "dose_events", "sleep_sessions", "morning_checkins",
-            "checkin_submissions", "medication_events", "symptom_events",
-            "symptom_command_log", "symptom_summaries"
-        ])
-        guard allowedTables.contains(table) else {
-            throw StorageDeleteError.prepareFailed("delete from \(table)", "Unsupported table")
+    private func executeDateDelete(_ sql: String, value: String) throws {
+        guard let db, databaseInitializationFailure == nil else { throw ExportReadError.unreadable }
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
+            throw StorageDeleteError.prepareFailed("date-scoped delete", String(cString: sqlite3_errmsg(db)))
         }
-
-        let sql = "DELETE FROM \(table) WHERE \(sessionDeletionPredicate(table: table))"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw StorageDeleteError.prepareFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            throw StorageDeleteError.stepFailed("delete from \(table)", String(cString: sqlite3_errmsg(db)))
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_bind_text(statement, 1, value, -1, SQLITE_TRANSIENT) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_DONE else {
+            throw StorageDeleteError.stepFailed("date-scoped delete", String(cString: sqlite3_errmsg(db)))
         }
     }
 
-    private func deleteCurrentSessionRowOrThrow(sessionDate: String) throws {
-        let sql = "DELETE FROM current_session WHERE session_date = ?"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw StorageDeleteError.prepareFailed("delete current session", String(cString: sqlite3_errmsg(db)))
-        }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        guard sqlite3_step(stmt) == SQLITE_DONE else {
-            throw StorageDeleteError.stepFailed("delete current session", String(cString: sqlite3_errmsg(db)))
-        }
+    private func fetchRecordIDsForSession(table: String, sessionDate: String) throws -> [String] {
+        let allowed = ["sleep_events", "dose_events", "morning_checkins", "medication_events"]
+        guard allowed.contains(table) else { throw ExportReadError.unreadable }
+        return try readExportRows("SELECT id FROM \(table) WHERE \(sessionDeletionPredicate(table: table))",
+                                  binding: sessionDate, decode: readDeletionID)
     }
 
-    private func fetchRecordIDsForSession(table: String, sessionDate: String) -> [String] {
-        let allowedTables = Set(["sleep_events", "dose_events", "morning_checkins", "medication_events"])
-        guard allowedTables.contains(table) else { return [] }
-
-        let sql = "SELECT id FROM \(table) WHERE \(sessionDeletionPredicate(table: table))"
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        var ids: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let idPtr = sqlite3_column_text(stmt, 0) {
-                ids.append(String(cString: idPtr))
-            }
-        }
-        return ids
+    private func fetchPreSleepLogIDsForSession(sessionDate: String) throws -> [String] {
+        try readExportRows("""
+            SELECT id FROM pre_sleep_logs
+            WHERE session_id = ?1
+               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?1)
+            """, binding: sessionDate, decode: readDeletionID)
     }
 
-    private func fetchPreSleepLogIDsForSession(sessionDate: String) -> [String] {
-        let sql = """
-            SELECT id
-            FROM pre_sleep_logs
-            WHERE session_id = ?
-               OR session_id IN (SELECT session_id FROM sleep_sessions WHERE session_date = ?)
-        """
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
-        defer { sqlite3_finalize(stmt) }
-
-        sqlite3_bind_text(stmt, 1, sessionDate, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_text(stmt, 2, sessionDate, -1, SQLITE_TRANSIENT)
-
-        var ids: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let idPtr = sqlite3_column_text(stmt, 0) {
-                ids.append(String(cString: idPtr))
-            }
-        }
-        return ids
+    private func readDeletionID(_ row: OpaquePointer) throws -> String {
+        guard let raw = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
+        let id = String(cString: raw)
+        guard !id.isEmpty, id.utf8.count == sqlite3_column_bytes(row, 0) else { throw ExportReadError.unreadable }
+        return id
     }
 
     private func deleteCheckInSubmission(sourceRecordId: String, checkInType: CheckInType) {

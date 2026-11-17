@@ -28,9 +28,14 @@ public final class SystemNotificationScheduler: NotificationScheduling {
     public static let shared = SystemNotificationScheduler()
     
     @MainActor public func cancelNotifications(withIdentifiers ids: [String]) {
+        if Set(ids) == Set(AlarmService.wakeNotificationIdentifiers + AlarmService.reminderNotificationIdentifiers) {
+            // Only the deleted session's dose alarms and reminders use these identifiers.
+            AlarmService.shared.cancelAllAlarms()
+            AlarmService.shared.clearDose2AlarmState()
+            return
+        }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
         if ids.contains("dosetap_dose2_alarm") {
-            // This cancellation path never reads SessionRepository.shared.
             AlarmService.shared.cancelWakeAlarms()
         }
     }
@@ -572,32 +577,22 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Delete a session by date string. If it's the active session, clears state.
     /// Also cancels any pending notifications for the session.
-    public func deleteSession(sessionDate: String) {
-        let wasActiveSession = (sessionDate == activeSessionDate) || 
-                               (sessionDate == storage.currentSessionDate())
-        
-        // Delete from storage
-        storage.deleteSession(sessionDate: sessionDate)
-        
-        // If we deleted the active session, clear in-memory state AND cancel notifications
-        if wasActiveSession {
-            // P0-3 FIX: Cancel any pending notifications for this session
-            // Notifications should not fire for deleted sessions
+    @discardableResult
+    public func deleteSession(sessionDate: String) -> Bool {
+        guard deleteStoredSession(sessionDate: sessionDate, recordCloudKitDeletion: true) else { return false }
+        sessionDidChange.send()
+        return true
+    }
+
+    /// Shared by local history actions and inbound sync. The calendar's current
+    /// treatment date can advance while the previous active night still owns alarms.
+    func deleteStoredSession(sessionDate: String, recordCloudKitDeletion: Bool) -> Bool {
+        guard storage.deleteSession(sessionDate: sessionDate, recordCloudKitDeletion: recordCloudKitDeletion) else { return false }
+        if activeSessionDate == sessionDate {
             cancelPendingNotifications()
             clearInMemoryState()
-            
-            repoLogger.info("SessionRepo: Active session deleted, state and notifications cleared")
-            #if canImport(OSLog)
-            logger.info("Active session \(sessionDate, privacy: .public) deleted; state + notifications cleared")
-            #endif
-        } else {
-            repoLogger.info("SessionRepo: Inactive session \(sessionDate) deleted, active state preserved")
-            #if canImport(OSLog)
-            logger.info("Inactive session \(sessionDate, privacy: .public) deleted; active state preserved")
-            #endif
         }
-        
-        sessionDidChange.send()
+        return true
     }
 
     /// Async compatibility wrapper for test/API parity.
@@ -1014,13 +1009,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     
     /// Clear tonight's session (for reset/testing)
     public func clearTonight() {
-        let currentDate = activeSessionDate ?? currentSessionKey
-        storage.deleteSession(sessionDate: currentDate)
-        cancelPendingNotifications()
-        
-        clearInMemoryState()
-        
-        sessionDidChange.send()
+        deleteSession(sessionDate: activeSessionDate ?? currentSessionKey)
     }
     
     // MARK: - Session Finalization (Wake Up & Check-In)
@@ -1434,9 +1423,11 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     }
     
     /// Clear old data older than specified days
-    public func clearOldData(olderThanDays days: Int) {
-        storage.clearOldData(olderThanDays: days)
+    @discardableResult
+    public func clearOldData(olderThanDays days: Int) -> Bool {
+        guard storage.clearOldData(olderThanDays: days) else { return false }
         sessionDidChange.send()
+        return true
     }
     
 }

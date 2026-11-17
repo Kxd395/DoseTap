@@ -90,6 +90,7 @@ final class DeferredCloudKitSyncService: ObservableObject {
         case accountNotAvailable
         case zoneSetupFailed
         case syncDisabledByBuild
+        case sessionDeletionFailed
 
         var errorDescription: String? {
             switch self {
@@ -99,6 +100,8 @@ final class DeferredCloudKitSyncService: ObservableObject {
                 return "iCloud account is not available for private database sync."
             case .zoneSetupFailed:
                 return "Could not initialize CloudKit zone."
+            case .sessionDeletionFailed:
+                return "A downloaded session deletion could not be applied. Retry sync."
             case .syncDisabledByBuild:
                 return "Cloud sync is disabled for this build."
             }
@@ -152,7 +155,7 @@ final class DeferredCloudKitSyncService: ObservableObject {
         let changes = try await fetchZoneChangesWithRecovery(previousToken: previousToken)
 
         applyChangedRecords(changes.changedRecords)
-        applyDeletedRecords(changes.deletedRecords)
+        try applyDeletedRecords(changes.deletedRecords)
         sessionRepo.finalizeSyncImport()
         saveServerChangeToken(changes.newToken)
 
@@ -522,15 +525,15 @@ final class DeferredCloudKitSyncService: ObservableObject {
         applyMedicationRecords(medicationRecords)
     }
 
-    private func applyDeletedRecords(_ records: [ZoneDeletedRecord]) {
+    private func applyDeletedRecords(_ records: [ZoneDeletedRecord]) throws {
         guard !records.isEmpty else { return }
 
         for deleted in records {
             switch deleted.recordType {
             case sessionRecordType:
                 let key = deleted.recordID.recordName
-                if looksLikeSessionDate(key) {
-                    sessionRepo.deleteSessionFromSync(sessionDate: key)
+                if looksLikeSessionDate(key), !sessionRepo.deleteSessionFromSync(sessionDate: key) {
+                    throw SyncError.sessionDeletionFailed
                 }
             case sleepEventRecordType:
                 sessionRepo.deleteSleepEventFromSync(id: deleted.recordID.recordName)
@@ -544,8 +547,8 @@ final class DeferredCloudKitSyncService: ObservableObject {
                 sessionRepo.deleteMedicationEventFromSync(id: deleted.recordID.recordName)
             default:
                 let key = deleted.recordID.recordName
-                if looksLikeSessionDate(key) {
-                    sessionRepo.deleteSessionFromSync(sessionDate: key)
+                if looksLikeSessionDate(key), !sessionRepo.deleteSessionFromSync(sessionDate: key) {
+                    throw SyncError.sessionDeletionFailed
                 }
             }
         }
