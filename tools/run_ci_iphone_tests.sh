@@ -14,10 +14,13 @@ case "$mode" in
       DoseTapUITests/DoseTapUITests/testQuickLogAvailabilityBeforeDose2
       DoseTapUITests/DoseTapUITests/testResetCleanupWarningSurvivesSetupAndRelaunch
       DoseTapUITests/DoseTapUITests/testResetCleanupWarningLargestText
+      DoseTapUITests/DoseTapDiaryHistoryUITests/testOriginalDiaryRecordsReopenWithRevisionsAndZero
+      DoseTapUITests/DoseTapUITests/testExcelWorkbookExportPresentsCompletedShareSheet
     ) ;;
   exports)
     scheme=DoseTap
     tests=(
+      DoseTapTests/Build108UpgradeExportTests/testManualAndScheduledExportsFromBuild108Database
       DoseTapTests/ExportIntegrityTests/test_studioExport_preservesCheckInPayloadsAndInventoryRows
       DoseTapTests/ExportRecordFidelityTests/testConflictingSessionsExportAllSourcesWithoutCombinedSummariesOrRecordChanges
       DoseTapTests/ExportRecordFidelityTests/testMedicationOnlySessionReachesActualArchiveWithStoredFields
