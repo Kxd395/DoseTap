@@ -550,6 +550,7 @@ struct GranularPainEntryEditorView: View {
 }
 
 struct GranularPainEntryRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let entry: PreSleepLogAnswers.PainEntry
 
     private var detailText: String {
@@ -562,10 +563,11 @@ struct GranularPainEntryRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout())
+            layout {
                 Text("\(entry.area.displayText) (\(entry.side.displayText))")
                     .font(.subheadline.weight(.semibold))
-                Spacer()
+                if !typeSize.isAccessibilitySize { Spacer() }
                 Text("\(entry.intensity)/10")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(.red)

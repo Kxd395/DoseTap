@@ -205,6 +205,8 @@ Current Quick Log event names (from `UserSettingsManager.allAvailableEvents`):
 
 ### Morning Check-In
 
+The section menu scrolls to sleep quality, night context, symptoms, or notes. Choosing a section preserves the current answers.
+
 - DOSETAP-51 remembered morning setup: both the saved-settings path and prior-check-in fallback may restore only the therapy device, room temperature, noise setup and sleep aid. They do not restore daily outcomes, symptoms, therapy use/compliance, stress, notes, work context or clinical answers. Room/equipment choices remain inactive until their current-morning section is selected. Remembering setup remains optional; switching it off does not clear this morning's answers.
 - Newly saved morning preferences contain only those four setup fields. Legacy preference payloads are read through the same whitelist without rewriting historical check-ins. Explicit existing-night/History editing still loads that night's answers. The existing fixed rating and Boolean defaults remain a known limitation; removing cross-night copying does not make every untouched control an unanswered observation. Optional-answer/schema work, substance defaults and caffeine unit handling remain separate follow-ups.
 

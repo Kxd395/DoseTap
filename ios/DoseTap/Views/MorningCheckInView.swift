@@ -17,6 +17,13 @@ public struct MorningCheckInView: View {
     @State private var usingSavedPainPattern = false
     @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
 
+    private enum SectionLink: String, CaseIterable {
+        case sleep = "Sleep quality"
+        case night = "Night context"
+        case symptoms = "Symptoms"
+        case notes = "Notes"
+    }
+
     let onComplete: () -> Void
 
     init(history: HistoryQuestionnaireSnapshot, existing: StoredMorningCheckIn?, referenceTime: Date,
@@ -44,11 +51,52 @@ public struct MorningCheckInView: View {
 
     public var body: some View {
         NavigationStack {
-            GeometryReader { geometry in
+            ScrollViewReader { scroll in
+                questionnaire
+                .background(Color(.systemGroupedBackground))
+                .navigationTitle("Morning Check-In")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            ForEach(SectionLink.allCases, id: \.self) { section in
+                                Button(section.rawValue) { scroll.scrollTo(section, anchor: .top) }
+                            }
+                        } label: {
+                            Label("Go to section", systemImage: "list.bullet")
+                        }
+                        .accessibilityIdentifier("morning-section-menu")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(viewModel.isHistory ? "Cancel" : "Close check-in") {
+                            dismiss()
+                            onComplete()
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showPainEntryEditor) {
+                GranularPainEntryEditorView(initialEntry: editingPainEntry,
+                                           replacesInitialEntry: !usingSavedPainPattern,
+                                           isMorningPatternReview: usingSavedPainPattern,
+                                           existingMorningEntries: viewModel.painEntries) { result in
+                    viewModel.upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
+                }
+                // The sheet can be created before its bound entry arrives. Reset the
+                // editor state when the entry or review mode changes.
+                .id("\(editingPainEntry?.entryKey ?? "new")-\(usingSavedPainPattern)")
+            }
+        }
+    }
+
+    private var questionnaire: some View {
+        GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 24) {
                     headerSection
                     MorningCheckInQuickModeSection(viewModel: viewModel)
+                        .id(SectionLink.sleep)
                     MorningSleepingSetupSection(viewModel: viewModel)
                     if !viewModel.isHistory {
                         if viewModel.hasCommittedDoseReconciliation {
@@ -59,10 +107,12 @@ public struct MorningCheckInView: View {
                     }
                     else { Text("Treatment night: \(viewModel.sessionDate). These answers do not add doses or close tonight's session. Use Add / Correct Records for medication changes.").font(.footnote) }
                     MorningCheckInNightContextSection(viewModel: viewModel)
+                        .id(SectionLink.night)
                     MorningCheckInMorningFunctioningSection(viewModel: viewModel)
                     MorningCheckInWorkSafetySection(viewModel: viewModel)
                     MorningCheckInClinicalContextSection(viewModel: viewModel)
                     MorningCheckInSymptomTogglesSection(viewModel: viewModel)
+                        .id(SectionLink.symptoms)
                     if viewModel.hasPhysicalSymptoms {
                         MorningCheckInPhysicalSymptomsSection(
                             viewModel: viewModel,
@@ -78,6 +128,7 @@ public struct MorningCheckInView: View {
                     MorningCheckInSleepTherapySection(viewModel: viewModel)
                     MorningCheckInNarcolepsySection(viewModel: viewModel)
                     MorningCheckInNotesSection(viewModel: viewModel)
+                        .id(SectionLink.notes)
                     if !viewModel.isHistory { MorningCheckInRememberSettingsSection(viewModel: viewModel) }
                     MorningCheckInSubmitSection(
                         viewModel: viewModel,
@@ -87,30 +138,6 @@ public struct MorningCheckInView: View {
                 }
                 .padding()
                 .frame(width: geometry.size.width)
-            }
-            }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("Morning Check-In")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(viewModel.isHistory ? "Cancel" : "Close check-in") {
-                        dismiss()
-                        onComplete()
-                    }
-                    .foregroundColor(.secondary)
-                }
-            }
-            .sheet(isPresented: $showPainEntryEditor) {
-                GranularPainEntryEditorView(initialEntry: editingPainEntry,
-                                           replacesInitialEntry: !usingSavedPainPattern,
-                                           isMorningPatternReview: usingSavedPainPattern,
-                                           existingMorningEntries: viewModel.painEntries) { result in
-                    viewModel.upsertPainEntries(result.entries, replacingEntryKey: result.replacedEntryKey)
-                }
-                // The sheet can be created before its bound entry arrives. Reset the
-                // editor state when the entry or review mode changes.
-                .id("\(editingPainEntry?.entryKey ?? "new")-\(usingSavedPainPattern)")
             }
         }
     }

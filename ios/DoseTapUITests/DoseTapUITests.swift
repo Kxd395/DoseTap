@@ -2113,7 +2113,16 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertFalse(back.exists, "Remembering is not a nightly observation")
         XCTAssertFalse(feet.exists)
         let useFeetFirst = app.buttons["use-pain-ankle_foot|both"]
-        reveal(useFeetFirst); useFeetFirst.tap()
+        reveal(useFeetFirst)
+        if largeText {
+            let footer = app.buttons["Next"].firstMatch
+            for _ in 0..<12 where useFeetFirst.frame.midY >= footer.frame.minY - 12 {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.65))
+                    .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.44)))
+            }
+            XCTAssertLessThan(useFeetFirst.frame.midY, footer.frame.minY)
+        }
+        useFeetFirst.tap()
         XCTAssertTrue(app.navigationBars["Review Saved Pain"].waitForExistence(timeout: 5))
         let selectedFeet = app.buttons["pain-area-ankle_foot"]
         reveal(selectedFeet)
@@ -2286,6 +2295,12 @@ final class DoseTapUITests: XCTestCase {
         launchApp()
         let finish = app.buttons["Finish"].firstMatch
         XCTAssertTrue(finish.waitForExistence(timeout: 15)); finish.tap()
+        if largeText {
+            let menu = app.buttons["morning-section-menu"]
+            XCTAssertTrue(menu.waitForExistence(timeout: 5))
+            menu.tap()
+            app.buttons["Symptoms"].tap()
+        }
         let physical = app.buttons["Physical Symptoms"].firstMatch; reveal(physical); physical.tap()
         let useFeet = app.buttons["morning-use-pain-ankle_foot|both"]
         reveal(useFeet)
