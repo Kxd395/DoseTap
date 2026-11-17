@@ -182,25 +182,40 @@ extension EventStorage {
         return Self.datedSessionTables + imported
     }
 
-    /// Clear data older than the specified age, committing all scoped tables together.
+    enum RetentionOutcome {
+        case committed(deletedCurrentSessionDate: String?)
+        case failed
+    }
+
     @discardableResult
     public func clearOldData(olderThanDays days: Int) -> Bool {
+        if case .committed = pruneOldSessionData(olderThanDays: days) { return true }
+        return false
+    }
+
+    /// Return the actual current-session row removed, only after the transaction commits.
+    func pruneOldSessionData(olderThanDays days: Int) -> RetentionOutcome {
         var calendar = Calendar.current
         calendar.timeZone = timeZoneProvider()
-        guard days >= 0, let cutoffDate = calendar.date(byAdding: .day, value: -days, to: nowProvider()) else { return false }
+        guard days >= 0, let cutoffDate = calendar.date(byAdding: .day, value: -days, to: nowProvider()) else { return .failed }
         let cutoff = sessionDateString(for: cutoffDate)
         do {
-            try withSQLiteTransaction {
-                for table in try datedSessionTablesInCurrentTransaction() + ["current_session"] {
+            let removedDate: String? = try withSQLiteTransaction {
+                for table in try datedSessionTablesInCurrentTransaction() {
                     try executeDateDelete("DELETE FROM \(table) WHERE session_date < ?1", value: cutoff)
                 }
                 try executeDateDelete("DELETE FROM pre_sleep_logs WHERE created_at_utc < ?1", value: isoFormatter.string(from: cutoffDate))
+                let deleted = try readExportRows("""
+                    DELETE FROM current_session WHERE session_date < ?1 RETURNING session_date
+                    """, binding: cutoff, decode: readDeletionID)
+                guard deleted.count <= 1 else { throw ExportReadError.unreadable }
+                return deleted.first
             }
             storageLog.info("Old session data cleared")
-            return true
+            return .committed(deletedCurrentSessionDate: removedDate)
         } catch {
             storageLog.error("Old session data could not be cleared")
-            return false
+            return .failed
         }
     }
 

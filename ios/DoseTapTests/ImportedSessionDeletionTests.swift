@@ -154,6 +154,38 @@ final class ImportedSessionDeletionTests: XCTestCase {
         XCTAssertTrue(storage.fetchCloudKitTombstones().isEmpty)
     }
 
+    func testRetentionClearsCachedDoseAndAlarmsOnlyAfterDeletingTheCurrentRow() throws {
+        let storage = EventStorage.inMemory()
+        let scheduler = FakeNotificationScheduler()
+        var now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-21T23:00:00Z"))
+        let dose = now
+        let repository = SessionRepository(storage: storage, notificationScheduler: scheduler,
+            clock: { now }, timeZoneProvider: { TimeZone(secondsFromGMT: 0)! })
+        XCTAssertTrue(repository.setDose1Time(dose).isCommitted)
+        let active = try XCTUnwrap(repository.activeSessionId)
+        scheduler.reset()
+        XCTAssertTrue(repository.clearOldData(olderThanDays: 30))
+        XCTAssertEqual(repository.activeSessionId, active)
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+
+        now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-11-05T23:00:00Z"))
+        sqlite3_commit_hook(storage.db, { _ in 1 }, nil)
+        XCTAssertFalse(repository.clearOldData(olderThanDays: 30))
+        sqlite3_commit_hook(storage.db, nil, nil)
+        XCTAssertEqual(repository.activeSessionId, active)
+        XCTAssertEqual(storage.loadCurrentSessionState().dose1Time, dose)
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+
+        XCTAssertTrue(repository.clearOldData(olderThanDays: 30))
+        XCTAssertNil(repository.activeSessionId)
+        XCTAssertNil(repository.dose1Time)
+        XCTAssertNil(storage.loadCurrentSessionState().dose1Time)
+        XCTAssertEqual(scheduler.cancelledIdentifiers, SessionRepository.sessionNotificationIdentifiers)
+        scheduler.reset()
+        XCTAssertTrue(repository.clearOldData(olderThanDays: 30))
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+    }
+
     func testFailedDeleteRetainsActiveMedicationAndReminders() throws {
         let storage = EventStorage.inMemory()
         let scheduler = FakeNotificationScheduler()

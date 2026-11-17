@@ -588,11 +588,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// treatment date can advance while the previous active night still owns alarms.
     func deleteStoredSession(sessionDate: String, recordCloudKitDeletion: Bool) -> Bool {
         guard storage.deleteSession(sessionDate: sessionDate, recordCloudKitDeletion: recordCloudKitDeletion) else { return false }
-        if activeSessionDate == sessionDate {
-            cancelPendingNotifications()
-            clearInMemoryState()
-        }
+        finishDeletingActiveSession(on: sessionDate)
         return true
+    }
+
+    private func finishDeletingActiveSession(on deletedDate: String?) {
+        guard let deletedDate, activeSessionDate == deletedDate else { return }
+        cancelPendingNotifications()
+        clearInMemoryState()
     }
 
     /// Async compatibility wrapper for test/API parity.
@@ -1425,7 +1428,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     /// Clear old data older than specified days
     @discardableResult
     public func clearOldData(olderThanDays days: Int) -> Bool {
-        guard storage.clearOldData(olderThanDays: days) else { return false }
+        guard case let .committed(deletedDate) = storage.pruneOldSessionData(olderThanDays: days) else { return false }
+        finishDeletingActiveSession(on: deletedDate)
         sessionDidChange.send()
         return true
     }
