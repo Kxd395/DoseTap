@@ -113,6 +113,28 @@ public class EventStorage {
     }
 
     private convenience init() {
+        #if DEBUG && targetEnvironment(simulator)
+        let process = ProcessInfo.processInfo
+        if process.arguments.contains("--uitesting"), process.arguments.contains("--uitesting-independent-diary"),
+           let identifier = process.environment["DOSETAP_DIARY_TEST_ID"].flatMap(UUID.init(uuidString:)) {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ui-diary-\(identifier.uuidString).sqlite")
+            do {
+                if !FileManager.default.fileExists(atPath: url.path) {
+                    guard let encoded = process.environment["DOSETAP_DIARY_TEST_FIXTURE"],
+                          let data = Data(base64Encoded: encoded) else { throw CocoaError(.fileReadCorruptFile) }
+                    let sqlite = try (data as NSData).decompressed(using: .zlib)
+                    try (sqlite as Data).write(to: url, options: .atomic)
+                }
+                self.init(dbPath: url.path)
+            } catch {
+                // A failed fixture gets an isolated empty store. The intended records must exist for the test to pass.
+                storageLog.error("Diary UI test fixture could not be opened.")
+                self.init(dbPath: ":memory:")
+            }
+            return
+        }
+        #endif
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         self.init(dbPath: documentsPath.appendingPathComponent("dosetap_events.sqlite").path)
     }

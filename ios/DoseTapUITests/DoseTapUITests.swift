@@ -1,4 +1,5 @@
 import XCTest
+import SQLite3
 
 /// Core UI smoke tests for DoseTap.
 /// These tests verify basic app lifecycle, navigation, and critical user flows.
@@ -357,6 +358,16 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(export.isHittable)
         captureDashboard("Excel and Studio export choices")
         export.tap()
+        let review = app.alerts["Create full export?"]
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        captureDashboard("Full export privacy review before creating a file")
+        review.buttons["Cancel"].tap()
+        XCTAssertFalse(app.otherElements["settings.exportProgress"].exists)
+        XCTAssertFalse(app.cells["Save to Files"].exists)
+        XCTAssertTrue(export.isEnabled)
+        export.tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        review.buttons["settings.confirmFullExport"].firstMatch.tap()
         let save = app.cells["Save to Files"]
         XCTAssertTrue(save.waitForExistence(timeout: 45), "Completed workbook should open the native share sheet")
         XCTAssertFalse(app.alerts["Export Failed"].exists)
@@ -365,6 +376,8 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(export.waitForExistence(timeout: 5))
         XCTAssertTrue(export.isEnabled)
         export.tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        review.buttons["settings.confirmFullExport"].firstMatch.tap()
         XCTAssertTrue(save.waitForExistence(timeout: 45), "A second export should publish another completed workbook")
         captureDashboard("Second completed Excel workbook ready to save")
     }
@@ -2607,5 +2620,100 @@ final class DoseTapUITests: XCTestCase {
         }
         // This bounded journey verifies 50 switches without claiming general stability.
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3))
+    }
+}
+
+final class DoseTapDiaryHistoryUITests: XCTestCase {
+    func testOriginalDiaryRecordsReopenWithRevisionsAndZero() throws {
+        let app = try launchDiaryFixture()
+
+        func openCollection(_ table: String) {
+            let history = app.buttons["History"].firstMatch
+            XCTAssertTrue(history.waitForExistence(timeout: 15))
+            history.tap()
+            app.buttons["history-diary-records"].tap()
+            app.buttons["diary-collection-\(table)"].tap()
+        }
+
+        openCollection("daytime_checkins")
+        let original = app.buttons["diary-record-0FF5F5C9-9733-4072-9DDB-29C7A6E17D17"]
+        let corrected = app.buttons["diary-record-754DC874-998B-440F-A093-24328DDDC735"]
+        XCTAssertTrue(original.waitForExistence(timeout: 8))
+        XCTAssertTrue(original.label.contains("Sleepiness 0/10"))
+        XCTAssertTrue(corrected.exists)
+        original.tap()
+        XCTAssertTrue(app.navigationBars["Sleepiness 0/10"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.firstMatch.tap()
+        corrected.tap()
+        let reason = app.descendants(matching: .any)["diary-field-Correction Reason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        XCTAssertEqual(reason.value as? String, "Synthetic revision")
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "DOSETAP_DIARY_TEST_FIXTURE")
+        app.launch()
+        openCollection("nap_diary")
+        app.buttons["diary-record-1"].tap()
+        app.buttons["Episodes (1)"].tap()
+        let day = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "2026-09-21")).firstMatch
+        XCTAssertTrue(day.waitForExistence(timeout: 5))
+        day.tap()
+        let duration = app.descendants(matching: .any)["diary-field-Estimated Sleep Minutes"]
+        XCTAssertTrue(duration.waitForExistence(timeout: 5))
+        XCTAssertEqual(duration.value as? String, "20")
+    }
+
+    func testAllOriginalDiaryCollectionsOpen() throws {
+        let app = try launchDiaryFixture()
+        let collections = [
+            ("daytime_checkins", "0FF5F5C9-9733-4072-9DDB-29C7A6E17D17", "Sleepiness 0/10"),
+            ("daytime_events", "8F218F20-BF66-46C5-B3F0-7038A18F4F38", "Unplanned sleep"),
+            ("nap_diary", "1", "Nap diary"),
+            ("physician_review_records", "31D8ECF4-A164-4C1D-ACE1-07169713057D", "Physician visit"),
+            ("daytime_prompt_state", "1", "Prompt history"),
+            ("work_block_context", "1", "Work history"),
+            ("dashboard_dose_reviews", "session:synthetic-review", "Dose history review"),
+            ("dashboard_provider_associations", "apple-health:synthetic-episode", "apple-health")
+        ]
+        XCTAssertTrue(app.buttons["History"].firstMatch.waitForExistence(timeout: 15))
+        app.buttons["History"].firstMatch.tap()
+        app.buttons["history-diary-records"].tap()
+        for (table, id, title) in collections {
+            let collection = app.buttons["diary-collection-\(table)"]
+            for _ in 0..<4 where !collection.isHittable { app.swipeUp() }
+            collection.tap()
+            let row = app.buttons["diary-record-\(id)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 5), table)
+            row.tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), table)
+            app.navigationBars.buttons.firstMatch.tap()
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+    }
+
+    private func launchDiaryFixture() throws -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitesting-independent-diary", "-setup_completed_v2", "YES"]
+        app.launchEnvironment["DOSETAP_DIARY_TEST_ID"] = UUID().uuidString
+        app.launchEnvironment["DOSETAP_DIARY_TEST_FIXTURE"] = try fixtureBytes()
+        app.launch()
+        return app
+    }
+
+    private func fixtureBytes() throws -> String {
+        let fixture = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Build108SyntheticUpgrade", withExtension: "sql"))
+        let sql = try String(contentsOf: fixture, encoding: .utf8)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var database: OpaquePointer?
+        guard sqlite3_open(url.path, &database) == SQLITE_OK, let database else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let applied = sqlite3_exec(database, sql, nil, nil, nil)
+        let closed = sqlite3_close(database)
+        XCTAssertEqual(applied, SQLITE_OK)
+        XCTAssertEqual(closed, SQLITE_OK)
+        return try (Data(contentsOf: url) as NSData).compressed(using: .zlib).base64EncodedString()
     }
 }
