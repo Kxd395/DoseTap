@@ -1621,8 +1621,10 @@ final class DoseTapUITests: XCTestCase {
                 let origin = app.coordinate(withNormalizedOffset: .zero)
                 let upper = top + (bottom - top) * 0.25
                 let lower = top + (bottom - top) * 0.65
-                let start = origin.withOffset(CGVector(dx: app.frame.midX, dy: goDown ? upper : lower))
-                let end = origin.withOffset(CGVector(dx: app.frame.midX, dy: goDown ? lower : upper))
+                // The compact time picker can consume drags starting inside its row.
+                let scrollX = app.frame.width - 10
+                let start = origin.withOffset(CGVector(dx: scrollX, dy: goDown ? upper : lower))
+                let end = origin.withOffset(CGVector(dx: scrollX, dy: goDown ? lower : upper))
                 start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             }
             XCTFail("Schedule control not reachable: \(control)")
@@ -1633,7 +1635,10 @@ final class DoseTapUITests: XCTestCase {
             let link = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Weekly Schedule")).firstMatch
             // Opening the Settings link requires its tappable portion, not
             // the full-row visibility used for the planner's switches.
-            for _ in 0..<60 where !link.isHittable { app.swipeUp() }
+            for _ in 0..<60 {
+                if link.exists && link.isHittable { break }
+                app.swipeUp()
+            }
             XCTAssertTrue(link.isHittable); link.tap()
         }
         func set(_ id: String, _ on: Bool, down: Bool = false) {
@@ -1643,7 +1648,6 @@ final class DoseTapUITests: XCTestCase {
         }
         open()
         set("weekly-work-known", false); set("weekly-work-known", true)
-        let legacy = app.switches["weekly-review-legacy"]
         if !app.buttons["weekly-save"].isEnabled { set("weekly-review-legacy", true) }
         captureDashboard("Weekly schedule header and legacy review")
         set("weekly-required-2", false)
