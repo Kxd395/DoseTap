@@ -1414,6 +1414,87 @@ public class AlarmService: NSObject, ObservableObject {
 
     // MARK: Reconciliation and Retry
 
+    private static let adoptedHandoffKey = "alarmService_adoptedDose1Event"
+
+    /// Stage a committed initial choice before suspension. Retrying the same event must
+    /// preserve a subsequent snooze, acknowledgement or explicit reminder change.
+    @discardableResult
+    func adoptReviewedAlarmChoice(from repository: SessionRepository) throws -> String? {
+        guard let sessionID = repository.activeSessionId, let dose1 = repository.dose1Time,
+              let handoff = try repository.storage.pendingAlarmHandoff(sessionID: sessionID) else { return nil }
+        guard abs(dose1.timeIntervalSince(handoff.dose1)) < 0.001 else { throw EventStorage.AlarmHandoffError.unreadableChoice }
+        guard defaults.string(forKey: Self.adoptedHandoffKey) != handoff.eventID else { return handoff.eventID }
+        invalidateScheduling(for: .wake)
+        invalidateScheduling(for: .reminders)
+        if let minutes = handoff.intervalMinutes {
+            snoozeCount = 0
+            alarmAcknowledged = false
+            alarmScheduled = false
+            reminderScheduled = false
+            allowDose2Reminders()
+            let target = dose1.addingTimeInterval(TimeInterval(minutes * 60))
+            persistedSchedule = makeScheduleMetadata(dose1Time: dose1, targetWakeTime: target,
+                prior: nil, now: nowProvider(), timeZone: timeZoneProvider())
+            targetWakeTime = target
+            savePersistedSchedule()
+        } else {
+            defaults.set(sessionID, forKey: Self.noAlarmSessionKey)
+        }
+        defaults.set(handoff.eventID, forKey: Self.adoptedHandoffKey)
+        return handoff.eventID
+    }
+
+    /// Lifecycle and retry entry point. The active medication projection determines
+    /// eligibility; reconstructing notifications never changes that projection.
+    @discardableResult
+    func reconcileSession(_ repository: SessionRepository, reason: ReconciliationReason,
+                          forceReschedule: Bool = false) async -> AlarmReconciliationReport {
+        func report(_ result: AlarmScheduleResult) -> AlarmReconciliationReport {
+            record(result: result, for: .wake)
+            record(result: result, for: .reminders)
+            return AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
+                                             wakeResult: result, reminderResult: result)
+        }
+        do {
+            guard repository.storage.databaseInitializationFailure == nil else { throw EventStorage.AlarmHandoffError.unreadableChoice }
+            guard let dose1 = repository.dose1Time, repository.dose2Time == nil, !repository.dose2Skipped,
+                  repository.activeSessionEnd == nil, !repository.checkInCompleted else {
+                if targetWakeTime != nil || persistedSchedule != nil || repository.dose2Time != nil || repository.dose2Skipped {
+                    cancelAllAlarms()
+                    clearDose2AlarmState()
+                    let generations = scheduleGenerations
+                    let verified = await verifyAlarmCancellation(additionalIDs: [])
+                    guard generations == scheduleGenerations else {
+                        let stale = AlarmScheduleResult.failed(cancelledFailure())
+                        return AlarmReconciliationReport(reason: reason, detectedMissingIdentifiers: [], repairedIdentifiers: [],
+                                                         wakeResult: stale, reminderResult: stale)
+                    }
+                    if !verified {
+                        return report(.failed(AlarmSchedulingFailure(code: .verificationFailed, failedIdentifier: nil,
+                            detail: "Dose 2 reminder cancellation needs verification", previousScheduleRestored: false)))
+                    }
+                }
+                return report(.notNeeded(reason: "No unresolved active Dose 1"))
+            }
+            let handoff = try adoptReviewedAlarmChoice(from: repository)
+            if handoff == nil, let prior = persistedSchedule,
+               abs(prior.dose1Time.timeIntervalSince(dose1)) >= 0.001 {
+                cancelAllAlarms()
+                clearDose2AlarmState()
+                throw EventStorage.AlarmHandoffError.unreadableChoice
+            }
+            let result = await reconcilePendingRequests(reason: reason, dose1Time: dose1, forceReschedule: forceReschedule)
+            if let handoff, result.wakeResult.failure == nil, result.reminderResult.failure == nil {
+                try repository.storage.retireAlarmHandoff(eventID: handoff)
+            }
+            return result
+        } catch {
+            return report(.failed(AlarmSchedulingFailure(code: .missingReconstructionMetadata, failedIdentifier: nil,
+                detail: "The saved Dose 1 reminder choice needs verification. Retry from Tonight.",
+                previousScheduleRestored: false)))
+        }
+    }
+
     /// Reconcile persisted intent with pending notification requests. Medication
     /// deadlines are absolute `Date` values; timezone changes only alter the
     /// calendar representation used by `UNCalendarNotificationTrigger`.
