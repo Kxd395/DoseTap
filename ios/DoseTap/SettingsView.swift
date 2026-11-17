@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State var showingResetError = false
     @State var resetErrorMessage = ""
     @State var showingExportSuccess = false
+    @State var showingFullExportReview = false
     @State var exportArchive: StudioExportArchive?
     @State var isExporting = false
     @State var exportStatus = ""

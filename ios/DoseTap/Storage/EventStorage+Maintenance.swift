@@ -48,6 +48,16 @@ extension EventStorage {
         }
     }
 
+    /// Ordered for deletion of dependent records before their sources.
+    private static let resetTables = [
+        "confirmed_medication_administrations", "medication_preset_revisions",
+        "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
+        "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
+        "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule", "supply_state"
+    ]
+    /// Migration receipts and sync tombstones are owned by this schema and retained during reset.
+    static let nativeStorageTables = Set(resetTables + ["schema_migrations", "cloudkit_tombstones"])
+
     /// Reset source collections atomically; callers may publish only after true.
     @discardableResult
     public func clearAllData() -> Bool {
@@ -61,12 +71,6 @@ extension EventStorage {
             lastDataResetFailure = DataResetFailure(stage: "preflight", sqliteCode: SQLITE_MISUSE, rollbackFailed: false)
             return false
         }
-        let tables = [
-            "confirmed_medication_administrations", "medication_preset_revisions",
-            "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
-            "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
-            "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule", "supply_state"
-        ]
         func execute(_ sql: String, at point: MedicationStorageFaultPoint) throws {
             if let failure = injectedMedicationFailure(at: point) {
                 throw DataResetFailure(stage: String(describing: point), sqliteCode: failure.sqliteCode ?? SQLITE_IOERR, rollbackFailed: false)
@@ -88,11 +92,10 @@ extension EventStorage {
                 guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
                 return String(cString: name)
             }
-            let supported = Set(tables + ["schema_migrations", "cloudkit_tombstones"])
-            guard Set(existing).isSubset(of: supported) else {
+            guard Set(existing).isSubset(of: Self.nativeStorageTables) else {
                 throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
             }
-            for table in tables { try execute("DELETE FROM \(table)", at: .delete) }
+            for table in Self.resetTables { try execute("DELETE FROM \(table)", at: .delete) }
             try execute("COMMIT", at: .commit)
             storageLog.info("Local clinical database reset committed")
             return true

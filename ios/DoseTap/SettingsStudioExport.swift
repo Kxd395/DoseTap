@@ -26,7 +26,8 @@ struct StudioBundleExporter {
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
         consent: InsightsConsentState?,
-        whoopEnrichment: InsightsWHOOPEnrichment? = nil
+        whoopEnrichment: InsightsWHOOPEnrichment? = nil,
+        includeIndependentRecords: Bool = false
     ) throws -> InsightsBundleExport {
         let sortedSessionDates = sessionDates.sorted(by: >)
         let windowAssessments = repo.reviewedWindowAssessments(sessionDates: sortedSessionDates)
@@ -122,8 +123,8 @@ struct StudioBundleExporter {
         let supplyEncoder = JSONEncoder()
         supplyEncoder.outputFormatting = [.sortedKeys]
         return InsightsBundleExport(
-            schemaVersion: 5,
-            exportVersion: "3.0",
+            schemaVersion: includeIndependentRecords ? 6 : 5,
+            exportVersion: includeIndependentRecords ? "3.1" : "3.0",
             appVersion: bundleVersionString(),
             exportedAtUTC: Date(),
             timeZoneIdentifier: TimeZone.current.identifier,
@@ -131,8 +132,12 @@ struct StudioBundleExporter {
             consent: consent,
             exportWarnings: buildBundleExportWarnings(sessions: sessions)
                 + (whoopEnrichment?.warnings(hasExportedSleep: sessions.contains { $0.whoop != nil }) ?? [])
-                + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : []),
+                + (consent == nil ? ["Local snapshot only; provider enrichment was not fetched."] : [])
+                + (includeIndependentRecords ? [] : ["This local subset excludes independent daytime, nap, prompt, physician-review, work-context and dashboard review records. Use the full manual export to include them."]),
             whoopEnrichment: whoopEnrichment,
+            archiveScope: includeIndependentRecords ? "manual_full_local_records" : "local_subset",
+            independentRecordsIncluded: includeIndependentRecords,
+            independentSourceRecords: try (includeIndependentRecords ? repo.exportIndependentSourceRecords() : nil),
             medicationPresetLedger: try repo.medicationPresetExportSnapshot(),
             supplyStateJSON: String(decoding: try supplyEncoder.encode(supply), as: UTF8.self),
             supplyStateEncoding: "json-date-seconds-since-2001-v1",
@@ -256,7 +261,8 @@ struct StudioBundleExporter {
             sessionDates: sessionDates,
             enrichmentBySessionDate: enrichment.sessions,
             consent: consentState,
-            whoopEnrichment: enrichment.whoop
+            whoopEnrichment: enrichment.whoop,
+            includeIndependentRecords: true
         )
     }
 
@@ -275,7 +281,8 @@ struct StudioBundleExporter {
         sessionDates: [String],
         enrichmentBySessionDate: [String: StudioExportSessionContext],
         consent: InsightsConsentState?,
-        whoopEnrichment: InsightsWHOOPEnrichment? = nil
+        whoopEnrichment: InsightsWHOOPEnrichment? = nil,
+        includeIndependentRecords: Bool = false
     ) throws {
         try Task.checkCancellation()
         try buildStudioEventsCSV(using: repo, sessionDates: sessionDates)
@@ -291,7 +298,8 @@ struct StudioBundleExporter {
                 sessionDates: sessionDates,
                 enrichmentBySessionDate: enrichmentBySessionDate,
                 consent: consent,
-                whoopEnrichment: whoopEnrichment
+                whoopEnrichment: whoopEnrichment,
+                includeIndependentRecords: includeIndependentRecords
             )
         let reviewed = try StudioDoseTimingExport.prepare(bundleData: encoder.encode(bundle))
         try reviewed.sessionsCSV.write(to: directory.appendingPathComponent("sessions.csv"), atomically: true, encoding: .utf8)
@@ -303,7 +311,8 @@ struct StudioBundleExporter {
     #if DEBUG
     func buildStudioInsightsBundleDataForTesting(
         using repo: SessionRepository,
-        sessionDates: [String]
+        sessionDates: [String],
+        includeIndependentRecords: Bool = false
     ) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -319,7 +328,8 @@ struct StudioBundleExporter {
                     appleHealthAuthorized: false,
                     whoopEnabled: false,
                     whoopConnected: false
-                )
+                ),
+                includeIndependentRecords: includeIndependentRecords
             )
         )).bundleData
     }
@@ -1404,6 +1414,7 @@ private struct InsightsBundleExport: Encodable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion, exportVersion, appVersion, exportedAtUTC, timeZoneIdentifier, localOffsetMinutes
         case consent, exportWarnings, whoopEnrichment, medicationPresetLedger, supplyStateJSON, supplyStateEncoding
+        case archiveScope, independentRecordsIncluded, independentSourceRecords
         case sessions = "dateGroups"
     }
     let schemaVersion: Int
@@ -1415,6 +1426,9 @@ private struct InsightsBundleExport: Encodable {
     let consent: InsightsConsentState?
     let exportWarnings: [String]
     let whoopEnrichment: InsightsWHOOPEnrichment?
+    let archiveScope: String
+    let independentRecordsIncluded: Bool
+    let independentSourceRecords: [StoredExportSourceRecord]?
     let medicationPresetLedger: MedicationPresetExportSnapshot
     let supplyStateJSON: String
     let supplyStateEncoding: String

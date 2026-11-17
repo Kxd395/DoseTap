@@ -115,8 +115,8 @@ enum StudioExportFailureMessage {
                 guidance = "Keep your records intact and try again. If it continues, report this message."
             }
             explanation = "\(failure.detail) [\(failure.code.rawValue)]\n\n\(guidance)"
-        } else if error is ExportReadError {
-            explanation = "Some stored records could not be read completely. Keep your records intact and try again. If it continues, report this message."
+        } else if let readError = error as? ExportReadError {
+            explanation = readError.localizedDescription
         } else if error is DecodingError {
             explanation = "A stored record could not be decoded. Keep your records intact and report this message."
         } else {

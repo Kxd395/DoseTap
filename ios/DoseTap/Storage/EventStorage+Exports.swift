@@ -601,7 +601,16 @@ extension EventStorage {
 
 enum ExportReadError: Error, LocalizedError {
     case unreadable
-    var errorDescription: String? { "Export could not read all required stored records. No archive was published. Please retry." }
+    case incompatibleSchema
+
+    var errorDescription: String? {
+        switch self {
+        case .unreadable:
+            return "Some stored records could not be read completely. Keep your records intact and try again. If it continues, report this message."
+        case .incompatibleSchema:
+            return "This database contains collections this version of DoseTap cannot export. Use a compatible version to create a full archive."
+        }
+    }
 }
 
 struct StoredEventExportRecord: Encodable {
