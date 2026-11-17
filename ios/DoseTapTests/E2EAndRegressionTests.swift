@@ -350,7 +350,8 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         let calendar = Calendar.current
         let currentMinute = calendar.component(.hour, from: now) * 60
             + calendar.component(.minute, from: now)
-        return (currentMinute + 1) % (24 * 60)
+        // Leave several hours on either side of the simulated Dose 2 window.
+        return (currentMinute + 6 * 60) % (24 * 60)
     }
 
     func test_dueAlarm_doesNotRing_afterSessionCompleted() async {
@@ -517,7 +518,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
 
         let result = await FlicButtonService.shared.handleGesture(.doublePress)
 
-        XCTAssertTrue(result.success, "Flic snooze should succeed when an alarm is scheduled.")
+        XCTAssertTrue(result.success, result.message ?? "Flic snooze should succeed when an alarm is scheduled.")
         XCTAssertEqual(repo.snoozeCount, 1, "Successful Flic snooze should update session state.")
         XCTAssertEqual(alarm.snoozeCount, 1, "Successful Flic snooze should update alarm state.")
         XCTAssertNotNil(alarm.targetWakeTime, "Successful Flic snooze should keep an active wake target.")
@@ -615,6 +616,10 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
     }
 
     func test_retrospectiveOccurrence_correctsSkipAndPreservesActualTime() async {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        let coordinator = DoseActionCoordinator(core: core, alarmService: alarm, eventLogger: EventLogger.shared,
+                                               undoState: undoState, sessionRepo: repo)
         let dose1Time = Date().addingTimeInterval(-160 * 60)
         let actualDose2Time = Date().addingTimeInterval(-30)
         repo.setDose1Time(dose1Time)
@@ -623,7 +628,7 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
               let sessionDate = repo.activeSessionDate else {
             return XCTFail("Precondition: an active session must exist after Dose 1.")
         }
-        EventStorage.shared.updateTerminalState(
+        storage.updateTerminalState(
             sessionDate: sessionDate,
             sessionId: sessionId,
             state: "incomplete_slept_through"
@@ -638,13 +643,13 @@ final class AlarmAndSetupRegressionTests: XCTestCase {
         )
 
         guard case .success = result else {
-            XCTFail("A confirmed retrospective occurrence should correct the skip.")
+            XCTFail("A confirmed retrospective occurrence should correct the skip. Received \(result)")
             return
         }
         XCTAssertEqual(repo.dose2Time, actualDose2Time, "Correction should preserve the actual occurrence time.")
         XCTAssertFalse(repo.dose2Skipped, "Confirmed after-skip correction should clear the skip marker.")
         XCTAssertNil(
-            EventStorage.shared.loadCurrentSessionState().terminalState,
+            storage.loadCurrentSessionState().terminalState,
             "Correcting a legacy auto-inferred skip must clear its stale terminal marker."
         )
     }
