@@ -505,6 +505,23 @@ final class StorageResetFailureTests: XCTestCase {
         return (storage, repository, scheduler)
     }
 
+    func testSameVersionWithAdditionalCollectionRefusesPartialReset() throws {
+        let (storage, repository, scheduler) = try fixture()
+        let date = try XCTUnwrap(repository.activeSessionDate)
+        let session = try XCTUnwrap(repository.activeSessionId)
+        XCTAssertEqual(sqlite3_exec(storage.db, """
+            CREATE TABLE nap_diary (id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL);
+            INSERT INTO nap_diary VALUES (1, 'synthetic nap');
+            """, nil, nil, nil), SQLITE_OK)
+        XCTAssertFalse(repository.clearAllData())
+        XCTAssertEqual(repository.lastDataResetFailure?.stage, "unsupportedSchema")
+        XCTAssertEqual(repository.activeSessionId, session)
+        XCTAssertEqual(storage.fetchRowCount(table: "dose_events", sessionDate: date), 1)
+        XCTAssertTrue(scheduler.cancelledIdentifiers.isEmpty)
+        let payloads = try storage.readExportRows("SELECT payload FROM nap_diary") { String(cString: sqlite3_column_text($0, 0)) }
+        XCTAssertEqual(payloads, ["synthetic nap"])
+    }
+
     func test_beginDeleteAndCommitFailuresLeaveSessionAndNotificationsUntouched() throws {
         for point: MedicationStorageFaultPoint in [.begin, .delete, .commit] {
             let (storage, repository, scheduler) = try fixture()
