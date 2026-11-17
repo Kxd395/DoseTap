@@ -200,6 +200,8 @@ Morning preferences (`morningCheckIn.savedSettings` in UserDefaults) contain onl
 
 ## Medication records
 
+`current_session.pending_alarm_event_id` references the reviewed Dose 1 row until its reminder handoff is verified. Existing records start with a null marker. This field tracks delivery of a saved choice and carries no medication outcome.
+
 `dose_events` owns the canonical medication action history for the two-dose treatment flow. `current_session` is a projection used by active UI state and must agree with that history after each committed mutation. The transaction and failure contract is `docs/SSOT/dose-state-persistence.md`.
 
 Common `dose_events.event_type` values include `dose1`, `dose2`, `extra_dose`, `dose2_skipped`, and `snooze`. Metadata may carry registration surface, early/late/extra classification, action correlation, or snooze count. A metadata field is meaningful only when the writing contract defines it; consumers must tolerate missing legacy keys.

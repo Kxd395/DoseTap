@@ -255,9 +255,14 @@ final class DoseActionCoordinator: ObservableObject {
             }
             metadata = String(decoding: data, as: UTF8.self)
         }
-        let mutationResult = sessionRepo.setDose1Time(decisionTime, metadata: metadata)
+        let mutationResult = sessionRepo.setDose1Time(decisionTime, metadata: metadata, reviewedAlarmChoice: true)
         if mutationResult.isCommitted, let review, let sessionId = sessionRepo.activeSessionId {
             savedDose1Review = (review.id, sessionId, decisionTime, recordedAt ?? decisionTime)
+        }
+        if mutationResult.isCommitted {
+            // The SQLite marker remains retryable if the process ends during handoff.
+            do { try alarmService.adoptReviewedAlarmChoice(from: sessionRepo) }
+            catch { coordinatorLog.error("Initial alarm handoff needs reconciliation") }
         }
         await logDoseMutationResult(
             mutationResult,
@@ -298,30 +303,23 @@ final class DoseActionCoordinator: ObservableObject {
             UserSettingsManager.shared.dose2ReminderEnabled = reminderEnabled
             if reminderEnabled { UserSettingsManager.shared.targetIntervalMinutes = target }
         }
-        if !reminderEnabled { return await disableDose1Reminders(sessionId: committedSession, dose1: decisionTime) }
-        alarmService.allowDose2Reminders()
-        let wakeTime = decisionTime.addingTimeInterval(Double(target) * 60)
-        let wakeResult = await alarmService.scheduleDose2Alarm(
-            at: wakeTime,
-            dose1Time: decisionTime
-        )
+        let report = await alarmService.reconcileSession(sessionRepo, reason: .manualRetry)
         guard dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
             return .attentionRequired(message: "Dose 1 was logged. The session changed during alarm setup; review tonight.")
         }
-        let reminderResult = await alarmService.scheduleDose2Reminders(
-            dose1Time: decisionTime
-        )
-        guard dose1AlarmStillApplies(sessionId: committedSession, dose1: decisionTime) else {
-            return .attentionRequired(message: "Dose 1 was logged. The session changed during reminder setup; review tonight.")
+        let schedulingFailures = [report.wakeResult, report.reminderResult].compactMap(\.failure)
+        if !reminderEnabled && schedulingFailures.isEmpty {
+            return .success(message: "Dose 1 is saved. No Dose 2 alarm or reminders for this session.")
         }
-
-        let schedulingFailures = [wakeResult, reminderResult].compactMap(\.failure)
         if !schedulingFailures.isEmpty {
             let messages = Array(Set(schedulingFailures.map(\.userMessage))).sorted()
             coordinatorLog.error("Dose 1 committed, but notification scheduling needs retry")
             return .attentionRequired(
                 message: "Dose 1 was logged. \(messages.joined(separator: " "))"
             )
+        }
+        guard alarmService.alarmScheduled else {
+            return .attentionRequired(message: "Dose 1 is recorded. No future Dose 2 wake alarm is scheduled. Review the reminder in Tonight.")
         }
         return .success(message: "✓ Dose 1 logged")
     }

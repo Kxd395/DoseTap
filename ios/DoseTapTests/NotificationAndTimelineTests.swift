@@ -131,6 +131,7 @@ final class AlarmSchedulingTests: XCTestCase {
         var failingIdentifiers: Set<String> = []
         var remainingFailureCounts: [String: Int] = [:]
         var silentlyDroppedIdentifiers: Set<String> = []
+        var onPendingRead: (() async -> Void)?
         var onAdd: ((UNNotificationRequest) -> Void)?
         var onAuthorization: (() async -> Void)?
         var ignoresRemoval = false
@@ -173,7 +174,11 @@ final class AlarmSchedulingTests: XCTestCase {
         }
 
         func pendingRequests() async -> [UNNotificationRequest] {
-            Array(requestsByIdentifier.values)
+            let callback = onPendingRead
+            onPendingRead = nil
+            let snapshot = Array(requestsByIdentifier.values)
+            await callback?()
+            return snapshot
         }
 
         func removePendingRequests(withIdentifiers identifiers: [String]) {
@@ -568,6 +573,153 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertEqual(result.failure?.code, .cancelled)
         XCTAssertFalse(service.alarmScheduled)
         XCTAssertTrue(client.requestsByIdentifier.isEmpty, "Cancellation must win even when an add is in flight")
+    }
+
+    func testRestartRecoversReviewedDoseAfterCommitBeforeAlarmSetup() async throws {
+        let env = makeEnvironment()
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, clock: { env.now }, timeZoneProvider: { env.timeZone })
+        let choice = #"{"dose2_reminder_enabled":true,"reminder_interval_minutes":195}"#
+        XCTAssertTrue(repo.setDose1Time(env.now, metadata: choice, reviewedAlarmChoice: true).isCommitted)
+        let session = try XCTUnwrap(repo.activeSessionId)
+        let originalEvents = repo.fetchDoseEventsForActiveSession()
+        let restarted = SessionRepository(storage: storage, clock: { env.now }, timeZoneProvider: { env.timeZone })
+        let client = FakeNotificationCenter()
+        let defaults = makeDefaults()
+        let alarms = makeService(client: client, environment: env, defaults: defaults)
+        let report = await alarms.reconcileSession(restarted, reason: .appActive)
+        XCTAssertNil(report.wakeResult.failure)
+        XCTAssertTrue(alarms.alarmScheduled)
+        XCTAssertEqual(try XCTUnwrap(alarms.targetWakeTime).timeIntervalSince(env.now), 195 * 60, accuracy: 0.001)
+        XCTAssertTrue(alarms.reminderScheduled)
+        XCTAssertNil(try storage.pendingAlarmHandoff(sessionID: session))
+        XCTAssertEqual(restarted.fetchDoseEventsForActiveSession(), originalEvents)
+
+        alarms.acknowledgeAlarm()
+        let afterAcknowledgement = makeService(client: client, environment: env, defaults: defaults)
+        _ = await afterAcknowledgement.reconcileSession(restarted, reason: .appActive)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(afterAcknowledgement.targetWakeTime)
+    }
+
+    func testInterruptedNoAlarmChoiceCancelsPreviousScheduleAndSurvivesRestart() async throws {
+        let env = makeEnvironment()
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, clock: { env.now }, timeZoneProvider: { env.timeZone })
+        let client = FakeNotificationCenter()
+        let defaults = makeDefaults()
+        let old = makeService(client: client, environment: env, defaults: defaults)
+        _ = await old.scheduleDose2Alarm(at: env.now.addingTimeInterval(3600), dose1Time: env.now)
+        XCTAssertTrue(repo.setDose1Time(env.now, metadata: #"{"dose2_reminder_enabled":false}"#, reviewedAlarmChoice: true).isCommitted)
+        let session = try XCTUnwrap(repo.activeSessionId)
+        let restarted = makeService(client: client, environment: env, defaults: defaults)
+        let report = await restarted.reconcileSession(repo, reason: .appActive)
+        XCTAssertNil(report.wakeResult.failure)
+        XCTAssertTrue(restarted.dose2RemindersDisabled(sessionId: session))
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(try storage.pendingAlarmHandoff(sessionID: session))
+        XCTAssertNotNil(repo.dose1Time)
+    }
+
+    func testLegacyDoseWithoutPendingChoiceDoesNotInventReminder() async {
+        let env = makeEnvironment()
+        let repo = SessionRepository(storage: .inMemory(), clock: { env.now }, timeZoneProvider: { env.timeZone })
+        XCTAssertTrue(repo.setDose1Time(env.now).isCommitted)
+        let client = FakeNotificationCenter()
+        let alarms = makeService(client: client, environment: env)
+        _ = await alarms.reconcileSession(repo, reason: .appActive)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(alarms.targetWakeTime)
+    }
+
+    func testEditedAlarmSurvivesRestartBeforeHandoffRetires() async throws {
+        let env = makeEnvironment()
+        let repo = SessionRepository(storage: .inMemory(), clock: { env.now }, timeZoneProvider: { env.timeZone })
+        let choice = #"{"dose2_reminder_enabled":true,"reminder_interval_minutes":165}"#
+        XCTAssertTrue(repo.setDose1Time(env.now, metadata: choice, reviewedAlarmChoice: true).isCommitted)
+        let defaults = makeDefaults()
+        let client = FakeNotificationCenter()
+        let original = makeService(client: client, environment: env, defaults: defaults)
+        XCTAssertNotNil(try original.adoptReviewedAlarmChoice(from: repo))
+        let edited = env.now.addingTimeInterval(195 * 60)
+        _ = await original.scheduleDose2Alarm(at: edited, dose1Time: env.now)
+        let restarted = makeService(client: client, environment: env, defaults: defaults)
+        let report = await restarted.reconcileSession(repo, reason: .appActive)
+        XCTAssertNil(report.wakeResult.failure)
+        XCTAssertEqual(try XCTUnwrap(restarted.targetWakeTime).timeIntervalSince(edited), 0, accuracy: 0.001)
+    }
+
+    func testLegacyNightCannotRecreateAnotherNightsAlarm() async throws {
+        let env = makeEnvironment()
+        let repo = SessionRepository(storage: .inMemory(), clock: { env.now }, timeZoneProvider: { env.timeZone })
+        let client = FakeNotificationCenter()
+        let service = makeService(client: client, environment: env)
+        _ = await service.scheduleDose2Alarm(at: env.now.addingTimeInterval(3600),
+                                             dose1Time: env.now.addingTimeInterval(-7200))
+        XCTAssertTrue(repo.setDose1Time(env.now).isCommitted)
+        let report = await service.reconcileSession(repo, reason: .appActive)
+        XCTAssertEqual(report.wakeResult.failure?.code, .missingReconstructionMetadata)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(service.targetWakeTime)
+    }
+
+    func testRolledBackDoseCannotPublishAnAlarmHandoff() async throws {
+        let env = makeEnvironment()
+        let storage = EventStorage.inMemory()
+        storage.medicationFaultInjector = { $0 == .commit ? MedicationStorageInjectedFailure(code: .diskFull, detail: "Injected") : nil }
+        let choice = #"{"dose2_reminder_enabled":true,"reminder_interval_minutes":195}"#
+        XCTAssertFalse(storage.saveDose1(timestamp: env.now, sessionId: "rollback", metadata: choice, reviewedAlarmChoice: true).isCommitted)
+        XCTAssertNil(try storage.pendingAlarmHandoff(sessionID: "rollback"))
+        XCTAssertNil(storage.loadCurrentSessionState().dose1Time)
+    }
+
+    func testCompletedDoseCannotRecoverInterruptedWakeOrReminders() async {
+        let env = makeEnvironment()
+        let repo = SessionRepository(storage: .inMemory(), clock: { env.now }, timeZoneProvider: { env.timeZone })
+        let client = FakeNotificationCenter()
+        let alarms = makeService(client: client, environment: env)
+        let dose1 = env.now.addingTimeInterval(-165 * 60)
+        let choice = #"{"dose2_reminder_enabled":true,"reminder_interval_minutes":195}"#
+        XCTAssertTrue(repo.setDose1Time(dose1, metadata: choice, reviewedAlarmChoice: true).isCommitted)
+        _ = await alarms.scheduleDose2Alarm(at: env.now.addingTimeInterval(1800), dose1Time: dose1)
+        XCTAssertTrue(repo.setDose2Time(env.now).isCommitted)
+        _ = await alarms.reconcileSession(repo, reason: .appActive)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(alarms.targetWakeTime)
+        XCTAssertNotNil(repo.dose2Time)
+    }
+
+    func testCompletionDuringPendingReadSupersedesReconciliation() async {
+        let client = FakeNotificationCenter()
+        let env = makeEnvironment()
+        let service = makeService(client: client, environment: env)
+        _ = await service.scheduleDose2Alarm(at: env.now.addingTimeInterval(165 * 60), dose1Time: env.now)
+        client.onPendingRead = {
+            let completion = await service.completeDose2Reminders(sessionId: "night", activeSessionId: { "night" })
+            XCTAssertEqual(completion, .cancelled)
+        }
+        let report = await service.reconcilePendingRequests(reason: .appActive, forceReschedule: true)
+        XCTAssertEqual(report.wakeResult.failure?.code, .cancelled)
+        XCTAssertTrue(report.repairedIdentifiers.isEmpty)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(service.targetWakeTime)
+        XCTAssertFalse(service.alarmScheduled)
+    }
+
+    func testCancellationDuringWakeRepairCannotRestartWindowReminders() async {
+        let client = FakeNotificationCenter()
+        let env = makeEnvironment()
+        let service = makeService(client: client, environment: env)
+        _ = await service.scheduleDose2Alarm(at: env.now.addingTimeInterval(165 * 60), dose1Time: env.now)
+        client.onAuthorization = {
+            service.cancelAllAlarms()
+            service.clearDose2AlarmState()
+        }
+        let report = await service.reconcilePendingRequests(reason: .appActive, forceReschedule: true)
+        XCTAssertEqual(report.reminderResult.failure?.code, .cancelled)
+        XCTAssertTrue(client.requestsByIdentifier.isEmpty)
+        XCTAssertNil(service.targetWakeTime)
+        XCTAssertFalse(service.reminderScheduled)
     }
 
     func test_restartRequiresAndThenCompletesPendingRequestReconciliation() async throws {
