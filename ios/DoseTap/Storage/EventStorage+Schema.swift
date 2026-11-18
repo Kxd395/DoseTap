@@ -426,6 +426,7 @@ extension EventStorage {
             AddColumnMigration(table: "morning_checkins", column: "sleep_therapy_json", sql: "ALTER TABLE morning_checkins ADD COLUMN sleep_therapy_json TEXT"),
             // P0: Session terminal state - distinguishes: completed, skipped, expired, aborted
             AddColumnMigration(table: "current_session", column: "terminal_state", sql: "ALTER TABLE current_session ADD COLUMN terminal_state TEXT"),
+            AddColumnMigration(table: "current_session", column: "pending_alarm_event_id", sql: "ALTER TABLE current_session ADD COLUMN pending_alarm_event_id TEXT"),
             // Session lifecycle metadata (non-calendar)
             AddColumnMigration(table: "current_session", column: "session_id", sql: "ALTER TABLE current_session ADD COLUMN session_id TEXT"),
             AddColumnMigration(table: "current_session", column: "session_start_utc", sql: "ALTER TABLE current_session ADD COLUMN session_start_utc TEXT"),

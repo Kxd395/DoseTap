@@ -23,7 +23,7 @@ extension EventStorage {
         let startStr = isoFormatter.string(from: start)
         let updateSQL = """
         UPDATE current_session
-        SET session_date = ?,
+        SET pending_alarm_event_id = NULL, session_date = ?,
             session_id = ?,
             session_start_utc = ?,
             session_end_utc = NULL,
@@ -53,7 +53,7 @@ extension EventStorage {
         let endStr = isoFormatter.string(from: end)
         let updateSQL = """
         UPDATE current_session
-        SET session_end_utc = ?,
+        SET pending_alarm_event_id = NULL, session_end_utc = ?,
             terminal_state = ?,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = 1 AND session_id = ?
@@ -241,7 +241,7 @@ extension EventStorage {
         if needsReset {
             let resetSQL = """
             UPDATE current_session
-            SET dose1_time = NULL,
+            SET pending_alarm_event_id = NULL, dose1_time = NULL,
                 dose2_time = NULL,
                 snooze_count = 0,
                 dose2_skipped = 0,

@@ -627,7 +627,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
 
     /// Record dose 1 time
     @discardableResult
-    public func setDose1Time(_ time: Date, metadata: String? = nil) -> MedicationMutationResult {
+    public func setDose1Time(_ time: Date, metadata: String? = nil, reviewedAlarmChoice: Bool = false) -> MedicationMutationResult {
         evaluateSessionBoundaries(reason: "set_dose1_preflight")
         let session = medicationSessionCandidate(for: time)
         let result = recordMedicationMutation(storage.saveDose1(
@@ -635,7 +635,7 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             sessionId: session.sessionId,
             sessionDateOverride: session.sessionDate,
             sessionStart: session.sessionStart,
-            metadata: metadata
+            metadata: metadata, reviewedAlarmChoice: reviewedAlarmChoice
         ))
         guard result.isCommitted else {
             return result
