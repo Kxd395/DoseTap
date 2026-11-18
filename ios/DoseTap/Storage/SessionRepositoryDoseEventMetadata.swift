@@ -3,6 +3,24 @@ import Foundation
 
 @MainActor
 extension SessionRepository {
+    func morningDoseEventMetadata(
+        eventType: CanonicalDoseEventType,
+        sessionDate: String,
+        amountMg: Int? = nil,
+        reason: String? = nil,
+        reasonNotes: String? = nil,
+        isEstimate: Bool = false,
+        estimatedTiming: MedicationTiming? = nil
+    ) -> String? {
+        let existingMetadata = fetchDoseEvents(forSessionDate: sessionDate)
+            .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == eventType }?.metadata
+        return doseEventMetadata(
+            existingMetadata: existingMetadata, amountMg: amountMg, source: "morning_reconciliation",
+            reason: reason, reasonNotes: reasonNotes, estimatedAt: isEstimate ? clock() : nil,
+            estimatedTiming: estimatedTiming
+        )
+    }
+
     func doseEventMetadata(
         existingMetadata: String? = nil,
         amountMg: Int?,

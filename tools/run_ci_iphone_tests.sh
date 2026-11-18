@@ -15,6 +15,7 @@ case "$mode" in
       DoseTapUITests/DoseTapUITests/testResetCleanupWarningSurvivesSetupAndRelaunch
       DoseTapUITests/DoseTapUITests/testResetCleanupWarningLargestText
       DoseTapUITests/DoseTapDiaryHistoryUITests/testOriginalDiaryRecordsReopenWithRevisionsAndZero
+      DoseTapUITests/DoseTapDiaryHistoryUITests/testManualDaytimeZeroAndCorrectionSurviveRelaunch
       DoseTapUITests/DoseTapUITests/testExcelWorkbookExportPresentsCompletedShareSheet
     ) ;;
   exports)

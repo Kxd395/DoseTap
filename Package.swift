@@ -27,6 +27,9 @@ let package = Package(
                 "DashboardReportingRange.swift",
                 "DashboardQuestionnaireProjection.swift",
                 "DashboardDiaryAnalysis.swift",
+                "DaytimeCheckIn.swift",
+                "DaytimeEventReview.swift",
+                "DaytimeSourceLink.swift",
                 "APIErrors.swift",
                 "OfflineQueue.swift",
                 "EventRateLimiter.swift",
@@ -91,6 +94,7 @@ let package = Package(
             dependencies: ["DoseCore"],
             path: "Tests/DoseCoreTests",
             sources: [
+                "DaytimeAuthoringTests.swift",
                 "ExcelWorkbookWriterTests.swift",
                 "StudioWorkbookProjectionTests.swift",
                 "StudioWorkbookMedicationTests.swift",
