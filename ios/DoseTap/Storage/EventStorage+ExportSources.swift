@@ -58,53 +58,66 @@ struct ExportSourceSnapshot {
 
 @MainActor
 extension EventStorage {
-    /// Build 108 stores these records independently of any night. Native main databases have none of these tables.
+    /// Read archive rows without changing their stored identity or payload.
     func exportIndependentSourceRecords(in requestedTable: String? = nil) throws -> [StoredExportSourceRecord] {
-        let tables = StudioIndependentSourceRecord.sourceTables
-        if let requestedTable, !tables.contains(requestedTable) { throw ExportReadError.unreadable }
+        if let requestedTable, !StudioIndependentSourceRecord.sourceTables.contains(requestedTable) {
+            throw ExportReadError.unreadable
+        }
         guard databaseInitializationFailure == nil, db != nil else { throw ExportReadError.unreadable }
         return try withSQLiteTransaction {
-            let objects = try readExportRows("""
-                SELECT name, type FROM main.sqlite_schema WHERE name NOT GLOB 'sqlite_*'
-                """, binding: nil) { row in
-                guard let name = sqlite3_column_text(row, 0), let type = sqlite3_column_text(row, 1) else {
-                    throw ExportReadError.unreadable
-                }
-                return (String(cString: name), String(cString: type))
-            }
-            if requestedTable == nil {
-                let existingTables = Set(objects.filter { $0.1 == "table" }.map { $0.0 })
-                guard existingTables.isSubset(of: Self.nativeStorageTables.union(tables)) else {
-                    throw ExportReadError.incompatibleSchema
-                }
-            }
-            let independent = objects.filter { tables.contains($0.0.lowercased()) }
-            guard !independent.isEmpty else { return [] }
-            guard independent.allSatisfy({ $0.1 == "table" }), Set(independent.map { $0.0 }) == Set(tables) else {
-                throw ExportReadError.unreadable
-            }
-
-            return try (requestedTable.map { [$0] } ?? tables).flatMap { table -> [StoredExportSourceRecord] in
-                guard let key = StudioIndependentSourceRecord.primaryKeys[table] else { throw ExportReadError.unreadable }
-                let columns = try readExportRows("SELECT name, pk FROM pragma_table_info(?1, 'main')", binding: table) { row in
-                    guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
-                    return (String(cString: name), sqlite3_column_int(row, 1))
-                }
-                let primaryKeys = columns.filter { $0.1 > 0 }.map { $0.0 }
-                guard primaryKeys == [key],
-                      let required = Self.independentRecordColumns[table],
-                      required.isSubset(of: Set(columns.map { $0.0 })) else { throw ExportReadError.unreadable }
-
-                let records = try readExportSourceRows(table: table,
-                    sql: "SELECT * FROM main.\(table) ORDER BY rowid", sessionDate: nil)
-                for row in records {
-                    guard let id = row.columns[key], id.integer != nil || id.text?.isEmpty == false else {
-                        throw ExportReadError.unreadable
-                    }
-                }
-                return records
+            let tables = try independentRecordTables(checkUnknownTables: requestedTable == nil)
+            return try (requestedTable.map { [$0] } ?? tables).filter(tables.contains).flatMap { table in
+                try readIndependentRecords(table: table)
             }
         }
+    }
+
+    /// Must run inside the caller's SQLite transaction.
+    func independentRecordTables(checkUnknownTables: Bool = false) throws -> [String] {
+        let tables = StudioIndependentSourceRecord.sourceTables
+        let objects = try readExportRows("""
+            SELECT name, type FROM main.sqlite_schema WHERE name NOT GLOB 'sqlite_*'
+            """) { row in
+            guard let name = sqlite3_column_text(row, 0), let type = sqlite3_column_text(row, 1) else {
+                throw ExportReadError.unreadable
+            }
+            return (String(cString: name), String(cString: type))
+        }
+        if checkUnknownTables {
+            let existing = Set(objects.filter { $0.1 == "table" }.map { $0.0 })
+            guard existing.isSubset(of: Self.nativeStorageTables.union(tables)) else {
+                throw ExportReadError.incompatibleSchema
+            }
+        }
+        let independent = objects.filter { tables.contains($0.0.lowercased()) }
+        guard independent.allSatisfy({ $0.1 == "table" }) else { throw ExportReadError.unreadable }
+        let names = Set(independent.map { $0.0 })
+        let native = try hasNativeDaytimeCheckIns()
+        if native {
+            guard names == ["daytime_checkins"] else { throw ExportReadError.unreadable }
+        } else {
+            guard names.isEmpty || names == Set(tables) else { throw ExportReadError.unreadable }
+        }
+        return tables.filter(names.contains)
+    }
+
+    func readIndependentRecords(table: String) throws -> [StoredExportSourceRecord] {
+        guard let key = StudioIndependentSourceRecord.primaryKeys[table],
+              let required = Self.independentRecordColumns[table] else { throw ExportReadError.unreadable }
+        let columns = try readExportRows("SELECT name, pk FROM pragma_table_info(?1, 'main')", binding: table) { row in
+            guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
+            return (String(cString: name), sqlite3_column_int(row, 1))
+        }
+        guard columns.filter({ $0.1 > 0 }).map({ $0.0 }) == [key],
+              required.isSubset(of: Set(columns.map { $0.0 })) else { throw ExportReadError.unreadable }
+        let rows = try readExportSourceRows(table: table,
+            sql: "SELECT * FROM main.\(table) ORDER BY rowid", sessionDate: nil)
+        for row in rows {
+            guard let id = row.columns[key], id.integer != nil || id.text?.isEmpty == false else {
+                throw ExportReadError.unreadable
+            }
+        }
+        return rows
     }
 
     /// Required non-key columns from the build-108 storage schema. Additional original columns are archived as well.

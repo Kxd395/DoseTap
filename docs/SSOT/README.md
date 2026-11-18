@@ -539,6 +539,27 @@ Quick-log success, list insertion, cooldown and haptics follow a committed SQLit
 
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
+## Manual daytime check-ins (DOSETAP-58)
+
+Tonight and History offer a manual check-in. Each save creates an independent
+observation, even when another check-in exists that day. An explicit 0 is a
+rating. Unsure, skipped and incomplete responses retain no numeric value.
+Current or explicitly remembered occurrences retain their original time and
+timezone. Optional setting, activity and notes are user reported.
+
+History correction appends one immutable revision with a reason. It preserves
+the original occurrence, observation ID, source links, context and prompt
+provenance. A stale correction cannot replace a newer revision. Save success
+follows SQLite commit, and a failed commit retains the exact pending revision
+for retry. Recording and correcting do not create a treatment night or modify
+medication or alarms. Prompt scheduling remains a subsequent integration.
+
+Fresh databases create the compatible check-in collection on the first
+successful save and record its ownership in SQLite. Builds with the complete
+phone diary schema retain all source tables and payloads. Incomplete phone
+schemas remain unreadable for full manual export, and reset still refuses
+collections it does not own.
+
 ## Storage and Persistence Truth
 
 Build 67 (DOSETAP-73) adds reporting-only dose timing review. Zero/reversed
@@ -548,10 +569,10 @@ Eligibility is specific to dose spacing; unrelated sleep summaries remain usable
 Manual Settings exports use archive schema 6 (export 3.1). The Studio ZIP and
 Excel workbook include the original records from the independent daytime,
 prompt, nap, physician-review, work-context and dashboard collections. History
-provides read-only access to those records on this build. Each source row keeps
+provides access to those records, with manual authoring and correction for daytime check-ins. Each source row keeps
 its stored identity, revision and column types outside the nightly date groups.
 A recorded zero, a missing answer and an absent row are distinct. A fresh
-installation without the build-108 tables has an empty collection. A partial
+installation starts with empty diary collections. A partial
 independent schema, an unrecognized user table or an unreadable original must
 stop the full manual export with an error. Full manual
 sharing requires review because these records may contain personal notes.
@@ -559,7 +580,7 @@ sharing requires review because these records may contain personal notes.
 Scheduled ZIPs remain schema 5 and declare their local subset explicitly.
 They omit independent diary records and provider enrichment. Studio and the
 workbook projection accept earlier supported schemas and the schema-6 manual
-archive. Neither an export nor this read-only History route establishes full
+archive. Neither an export nor the History route establishes full
 app restoration or parity with the build-108 authoring and reminder workflows.
 
 Studio export 2.9/schema 4 derives sessions.csv and doseTimingReview from the same
