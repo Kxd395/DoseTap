@@ -6,6 +6,28 @@ import XCTest
 
 @MainActor
 final class Build108UpgradeExportTests: XCTestCase {
+    func testBuild108ReminderLedgerPlansWithoutChangingStoredRows() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try createBuild108Database(at: url.path)
+        let storage = EventStorage(dbPath: url.path)
+        let rows = try storage.exportIndependentSourceRecords(in: "daytime_prompt_state")
+        XCTAssertEqual(rows.count, 1)
+        let payload = try XCTUnwrap(rows.first?.columns["payload"]?.text)
+        var ledger = try DaytimePromptLedger.decodePayload(Data(payload.utf8))
+        XCTAssertTrue(ledger.enabled)
+        XCTAssertNil(ledger.current?.rule)
+        XCTAssertEqual(ledger.current?.hour, 14)
+        XCTAssertEqual(ledger.current?.timeZone, "UTC")
+        XCTAssertTrue(ledger.prompts.isEmpty)
+
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let planned = ledger.prepareHorizon(at: now)
+        XCTAssertEqual(planned.count, 7)
+        XCTAssertEqual(try DaytimePromptLedger.decodePayload(ledger.encodedPayload()), ledger)
+        XCTAssertEqual(try storage.exportIndependentSourceRecords(in: "daytime_prompt_state"), rows)
+    }
+
     func testManualAndScheduledExportsFromBuild108Database() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let manualFolder = root.appendingPathComponent("manual")

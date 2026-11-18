@@ -99,6 +99,7 @@ let package = Package(
                 "DaytimeAuthoringTests.swift",
                 "DaytimePromptAnchorTests.swift",
                 "DaytimePromptHorizonTests.swift",
+                "DaytimePromptTests.swift",
                 "ExcelWorkbookWriterTests.swift",
                 "StudioWorkbookProjectionTests.swift",
                 "StudioWorkbookMedicationTests.swift",
