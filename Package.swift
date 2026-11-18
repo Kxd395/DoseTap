@@ -29,6 +29,8 @@ let package = Package(
                 "DashboardDiaryAnalysis.swift",
                 "DaytimeCheckIn.swift",
                 "DaytimeEventReview.swift",
+                "DaytimePrompt.swift",
+                "DaytimePromptAnchors.swift",
                 "DaytimeSourceLink.swift",
                 "APIErrors.swift",
                 "OfflineQueue.swift",
