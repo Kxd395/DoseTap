@@ -97,6 +97,8 @@ let package = Package(
             path: "Tests/DoseCoreTests",
             sources: [
                 "DaytimeAuthoringTests.swift",
+                "DaytimePromptAnchorTests.swift",
+                "DaytimePromptHorizonTests.swift",
                 "ExcelWorkbookWriterTests.swift",
                 "StudioWorkbookProjectionTests.swift",
                 "StudioWorkbookMedicationTests.swift",
