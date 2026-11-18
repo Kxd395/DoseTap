@@ -5,6 +5,12 @@ import XCTest
 final class DaytimeAuthoringTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_790_000_000)
 
+    func testReminderLedgerDefaultsToOffAndRoundTrips() throws {
+        let ledger = DaytimePromptLedger()
+        XCTAssertFalse(ledger.enabled)
+        XCTAssertEqual(try DaytimePromptLedger.decodePayload(ledger.encodedPayload()), ledger)
+    }
+
     func testZeroAndUnsureRoundTripAsDistinctRevisions() throws {
         let original = try DaytimeCheckIn(assessedAt: now, recordedAt: now,
                                          timeZoneIdentifier: "America/New_York", response: 0)

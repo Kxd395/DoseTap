@@ -29,6 +29,8 @@ let package = Package(
                 "DashboardDiaryAnalysis.swift",
                 "DaytimeCheckIn.swift",
                 "DaytimeEventReview.swift",
+                "DaytimePrompt.swift",
+                "DaytimePromptAnchors.swift",
                 "DaytimeSourceLink.swift",
                 "APIErrors.swift",
                 "OfflineQueue.swift",
@@ -95,6 +97,9 @@ let package = Package(
             path: "Tests/DoseCoreTests",
             sources: [
                 "DaytimeAuthoringTests.swift",
+                "DaytimePromptAnchorTests.swift",
+                "DaytimePromptHorizonTests.swift",
+                "DaytimePromptTests.swift",
                 "ExcelWorkbookWriterTests.swift",
                 "StudioWorkbookProjectionTests.swift",
                 "StudioWorkbookMedicationTests.swift",
