@@ -554,7 +554,9 @@ follows SQLite commit, and a failed commit retains the exact pending revision
 for retry. Recording and correcting do not create a treatment night or modify
 medication or alarms. The reminder planner can read the build-108 ledger and
 keeps observed wake, workday and off-day rules, quiet hours, and prompt outcomes
-distinct. The planner starts disabled. iOS notification delivery and action
+distinct. A clock-time reminder can reuse a prompt only from its current
+schedule. Due prompts from previous schedules remain in history.
+The planner starts disabled. iOS notification delivery and action
 routing require separate integration with the current storage and alarm paths.
 
 Fresh databases create the compatible check-in collection on the first
