@@ -77,6 +77,7 @@
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		1AB721451D7C4D41A86F5A01 /* IndependentDiaryHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */; };
+		0DDCB5F12E644E9EBD074811 /* DaytimeCheckInEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */; };
 		CLUST105 /* DeferredCloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* DeferredCloudKitSyncService.swift */; };
 		CLUST107 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST106 /* DashboardTypes.swift */; };
 		CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST109 /* DashboardAnalyticsRefresh.swift */; };
@@ -104,6 +105,7 @@
 		ESB002 /* EventStorage+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF002 /* EventStorage+Session.swift */; };
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
 		ESB045 /* EventStorage+ExportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF045 /* EventStorage+ExportSources.swift */; };
+		0DDCB5F12E644E9EBD074813 /* EventStorage+DaytimeCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
 		ESB005 /* StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF005 /* StorageModels.swift */; };
 		ESB006 /* EventStorage+Dose.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF006 /* EventStorage+Dose.swift */; };
@@ -294,6 +296,7 @@
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndependentDiaryHistoryView.swift; sourceTree = "<group>"; };
+		B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeCheckInEditor.swift; sourceTree = "<group>"; };
 		CLUST005 /* DeferredCloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredCloudKitSyncService.swift; sourceTree = "<group>"; };
 		CLUST106 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
 		CLUST109 /* DashboardAnalyticsRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsRefresh.swift; sourceTree = "<group>"; };
@@ -321,6 +324,7 @@
 		ESF002 /* EventStorage+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Session.swift"; sourceTree = "<group>"; };
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
 		ESF045 /* EventStorage+ExportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+ExportSources.swift"; sourceTree = "<group>"; };
+		B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeCheckIn.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
 		ESF005 /* StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModels.swift; sourceTree = "<group>"; };
 		ESF006 /* EventStorage+Dose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Dose.swift"; sourceTree = "<group>"; };
@@ -645,6 +649,7 @@
 				DC74F001 /* EventStorage+MedicationCapture.swift */,
 				DC74F002 /* EventStorage+MedicationPresets.swift */,
 				ESF045 /* EventStorage+ExportSources.swift */,
+				B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
 				ESF009 /* StorageRecordModels.swift */,
@@ -729,6 +734,7 @@
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
 				4E03D9DEC5D04B32AACF98BA /* TonightView.swift */,
+				B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */,
 				0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */,
 				B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */,
 				22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */,
@@ -1023,6 +1029,7 @@
 				DC74B001 /* EventStorage+MedicationCapture.swift in Sources */,
 				DC74B002 /* EventStorage+MedicationPresets.swift in Sources */,
 				ESB045 /* EventStorage+ExportSources.swift in Sources */,
+				0DDCB5F12E644E9EBD074813 /* EventStorage+DaytimeCheckIn.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,
 				ESB009 /* StorageRecordModels.swift in Sources */,
@@ -1112,6 +1119,7 @@
 				TLR003 /* TimelineReviewSupport.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 				1AB721451D7C4D41A86F5A01 /* IndependentDiaryHistoryView.swift in Sources */,
+				0DDCB5F12E644E9EBD074811 /* DaytimeCheckInEditor.swift in Sources */,
 				HIS001 /* HistorySelectedDayView.swift in Sources */,
 				HIS002 /* HistorySessionListViews.swift in Sources */,
 			);

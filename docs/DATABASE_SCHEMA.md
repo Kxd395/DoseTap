@@ -167,6 +167,24 @@ Unique constraint: `UNIQUE(source_record_id, checkin_type)`.
 
 DOSETAP-56 adds optional `answers.reviewedSleepWindow` with version, stable session identity, reviewed absolute bounds, entry-zone/offset provenance and review time. Existing JSON revisions retain corrected or removed windows; see the data dictionary. The window does not replace final awakening or certify sleep/source coverage. No columns, tables or schema version change.
 
+### `daytime_checkins` (DOSETAP-58)
+
+The first successful manual save creates this table for a fresh main database
+inside the same transaction as the first revision and the
+`native_daytime_checkins_v1` migration receipt. The phone schema already has
+the table and needs no conversion.
+
+| Column | Meaning |
+| --- | --- |
+| `revision_id` | Text primary key for one immutable revision |
+| `observation_id` | Stable observation UUID shared by original and corrections |
+| `payload` | Validated build-108 JSON, including Unix-second times and original timezone |
+
+An identical revision retry is idempotent. History and manual exports preserve
+prior revisions and their original payloads. Clear All Data includes the
+main-owned table when the receipt and collection layout match. The phone
+schema retains its existing reset protection for unsupported collections.
+
 ## Medication and inventory tables
 
 ### Independent prescription preset ledger (DOSETAP-74)

@@ -2624,6 +2624,62 @@ final class DoseTapUITests: XCTestCase {
 }
 
 final class DoseTapDiaryHistoryUITests: XCTestCase {
+    func testManualDaytimeZeroAndCorrectionSurviveRelaunch() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["--uitesting", "--uitesting-independent-diary", "-setup_completed_v2", "YES",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        app.launchEnvironment["DOSETAP_DIARY_TEST_ID"] = UUID().uuidString
+        app.launchEnvironment["DOSETAP_DIARY_TEST_FIXTURE"] = try fixtureBytes(sql: "PRAGMA user_version = 0")
+        app.launch()
+
+        let entry = app.buttons["tonight-daytime-record"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 15))
+        entry.tap()
+        let zero = app.buttons["daytime-rating-0"]
+        XCTAssertTrue(zero.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["daytime-save"].isEnabled)
+        zero.tap()
+        XCTAssertEqual(app.staticTexts["daytime-rating-summary"].label, "Selected rating: 0/10")
+        app.buttons["daytime-save"].tap()
+
+        func openHistory() {
+            app.buttons["History"].firstMatch.tap()
+            app.buttons["history-diary-records"].tap()
+            app.buttons["diary-collection-daytime_checkins"].tap()
+        }
+
+        func row(_ score: Int) -> XCUIElement {
+            app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sleepiness \(score)/10")).firstMatch
+        }
+
+        openHistory()
+        let original = row(0)
+        XCTAssertTrue(original.waitForExistence(timeout: 8))
+        original.tap()
+        let correction = app.buttons["daytime-correct"]
+        XCTAssertTrue(correction.waitForExistence(timeout: 5))
+        correction.tap()
+        app.buttons["daytime-rating-5"].tap()
+        let reason = app.textFields["daytime-correction-reason"]
+        for _ in 0..<3 where !reason.isHittable { app.swipeUp() }
+        reason.tap()
+        reason.typeText("Synthetic correction")
+        app.buttons["daytime-save"].tap()
+        XCTAssertTrue(row(5).waitForExistence(timeout: 8))
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "DOSETAP_DIARY_TEST_FIXTURE")
+        app.launch()
+        openHistory()
+        XCTAssertTrue(row(5).waitForExistence(timeout: 8))
+        XCTAssertTrue(row(0).exists)
+        row(5).tap()
+        let savedReason = app.descendants(matching: .any)["diary-field-Correction Reason"]
+        XCTAssertTrue(savedReason.waitForExistence(timeout: 5))
+        XCTAssertEqual(savedReason.value as? String, "Synthetic correction")
+    }
+
     func testOriginalDiaryRecordsReopenWithRevisionsAndZero() throws {
         let app = try launchDiaryFixture()
 
@@ -2703,7 +2759,10 @@ final class DoseTapDiaryHistoryUITests: XCTestCase {
 
     private func fixtureBytes() throws -> String {
         let fixture = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Build108SyntheticUpgrade", withExtension: "sql"))
-        let sql = try String(contentsOf: fixture, encoding: .utf8)
+        return try fixtureBytes(sql: String(contentsOf: fixture, encoding: .utf8))
+    }
+
+    private func fixtureBytes(sql: String) throws -> String {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")
         defer { try? FileManager.default.removeItem(at: url) }
         var database: OpaquePointer?

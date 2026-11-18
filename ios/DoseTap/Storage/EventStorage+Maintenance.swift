@@ -92,10 +92,17 @@ extension EventStorage {
                 guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
                 return String(cString: name)
             }
-            guard Set(existing).isSubset(of: Self.nativeStorageTables) else {
+            var ownedTables = Self.resetTables
+            if try hasNativeDaytimeCheckIns() {
+                guard try independentRecordTables() == ["daytime_checkins"] else {
+                    throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
+                }
+                ownedTables.append("daytime_checkins")
+            }
+            guard Set(existing).isSubset(of: Self.nativeStorageTables.union(ownedTables)) else {
                 throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
             }
-            for table in Self.resetTables { try execute("DELETE FROM \(table)", at: .delete) }
+            for table in ownedTables { try execute("DELETE FROM \(table)", at: .delete) }
             try execute("COMMIT", at: .commit)
             storageLog.info("Local clinical database reset committed")
             return true

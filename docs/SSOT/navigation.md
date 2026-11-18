@@ -70,3 +70,9 @@ All, Overview, Trends and Data share the same card implementations and metric de
 Settings → Saved medication presets → Add medication preset or Revise preset.
 Revision history is read-only. Save preset only writes label setup, never a taken
 administration. Existing My Medications picker settings remain a separate route.
+
+## Daytime check-in (DOSETAP-58)
+
+Tonight opens the manual Daytime check-in form directly. History → Diary records
+→ Daytime check-ins also offers entry. Opening the latest revision exposes
+Correct response. Older revisions remain available in the same list.

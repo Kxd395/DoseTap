@@ -37,9 +37,15 @@ private struct DiaryCollectionView: View {
     let collection: DiaryCollection
     @State private var records: [DiaryHistoryRecord]?
     @State private var failed = false
+    @State private var adding = false
 
     var body: some View {
         List {
+            if collection == .checkIns {
+                Button("Record daytime check-in", systemImage: "plus") { adding = true }
+                    .disabled(failed || records == nil)
+                    .accessibilityIdentifier("daytime-add")
+            }
             if failed {
                 Text("These records could not be read.")
                 Button("Try again", action: load)
@@ -65,6 +71,10 @@ private struct DiaryCollectionView: View {
         }
         .navigationTitle(collection.title)
         .task { load() }
+        .sheet(isPresented: $adding, onDismiss: load) { DaytimeCheckInEditor() }
+        .onReceive(SessionRepository.shared.sessionDidChange) { _ in
+            if collection == .checkIns { load() }
+        }
     }
 
     private func load() {
@@ -141,9 +151,21 @@ struct DiaryHistoryRecord: Identifiable {
 
 private struct DiaryRecordDetail: View {
     let record: DiaryHistoryRecord
+    @Environment(\.dismiss) private var dismiss
+    @State private var latest: DaytimeCheckIn?
+    @State private var showingCorrection = false
+    @State private var correctionSaved = false
+    @State private var correctionUnavailable = false
 
     var body: some View {
         List {
+            if latest != nil {
+                Button("Correct response", systemImage: "pencil") { showingCorrection = true }
+                    .accessibilityIdentifier("daytime-correct")
+            }
+            if correctionUnavailable {
+                Text("This revision could not be verified for correction. Its original record is available below.")
+            }
             if let payload = record.payload {
                 Section("Recorded details") { DiaryFields(object: payload, collection: record.collection) }
             } else if record.source.columns["payload"] != nil {
@@ -168,6 +190,23 @@ private struct DiaryRecordDetail: View {
             }
         }
         .navigationTitle(record.title)
+        .task {
+            guard record.collection == .checkIns else { return }
+            do {
+                latest = try SessionRepository.shared.daytimeCheckIns().current.first {
+                    $0.revisionID.uuidString == record.id
+                }
+            } catch {
+                correctionUnavailable = true
+            }
+        }
+        .sheet(isPresented: $showingCorrection, onDismiss: {
+            if correctionSaved { dismiss() }
+        }) {
+            if let latest {
+                DaytimeCheckInEditor(original: latest) { correctionSaved = true }
+            }
+        }
     }
 }
 
