@@ -2419,6 +2419,18 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(unchanged.isHittable)
         XCTAssertTrue(unchanged.isSelected, "Missing Dose 2 must never default to Taken or Skipped")
         captureDashboard("Morning missing Dose 2 stays Leave as-is")
+        app.segmentedControls.buttons["Taken"].firstMatch.tap()
+        let enterEstimate = app.buttons["morning-dose-2-enter-estimate"]
+        for _ in 0..<6 where !enterEstimate.isHittable { app.swipeUp() }
+        XCTAssertTrue(enterEstimate.isHittable)
+        enterEstimate.tap()
+        let confirmEstimate = app.buttons["morning-dose-2-confirm-estimate"]
+        for _ in 0..<6 where !confirmEstimate.isHittable { app.swipeUp() }
+        XCTAssertTrue(confirmEstimate.exists)
+        XCTAssertFalse(confirmEstimate.isEnabled, "A displayed picker value is not a user estimate")
+        let cancelEstimate = app.buttons["Cancel estimate"]
+        for _ in 0..<6 where !cancelEstimate.isHittable { app.swipeUp() }
+        cancelEstimate.tap()
         let complete = app.buttons["Complete Check-In"]
         for _ in 0..<20 where !complete.isHittable { app.swipeUp() }
         XCTAssertTrue(complete.isHittable)
@@ -2426,7 +2438,7 @@ final class DoseTapUITests: XCTestCase {
         complete.tap()
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["morning-check-in-storage-error"].exists)
-        captureDashboard("Morning answers saved without selecting a missing dose")
+        captureDashboard("Morning answers saved with Dose 2 time unresolved")
     }
 
     func testMorningRecordedDoseInWindow() throws { verifyRecordedMorningDose() }

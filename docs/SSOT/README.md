@@ -565,6 +565,19 @@ phone diary schema retain all source tables and payloads. Incomplete phone
 schemas remain unreadable for full manual export, and reset still refuses
 collections it does not own.
 
+## Missing overnight dose timing (DOSETAP-34)
+
+Morning reconciliation requires an explicit approximate occurrence before it
+can backfill a taken dose. Selecting Taken alone leaves it unresolved and still
+allows saving the morning answers. The date picker is a draft until Use this
+estimate is confirmed. Clearing it leaves the dose unrecorded. The committed
+retrospective event distinguishes approximate occurrence from the recording
+time. A Dose 2 estimate outside the window requires a separate accuracy
+confirmation. Changing either estimate clears that confirmation. An existing
+taken or skipped outcome requires explicit History correction.
+A remembered Dose 2 cannot create or infer Dose 1. The morning check-in does
+not schedule medication reminders from an estimate.
+
 ## Storage and Persistence Truth
 
 Build 67 (DOSETAP-73) adds reporting-only dose timing review. Zero/reversed
