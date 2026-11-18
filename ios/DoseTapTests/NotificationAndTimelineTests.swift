@@ -673,15 +673,30 @@ final class AlarmSchedulingTests: XCTestCase {
         XCTAssertNil(storage.loadCurrentSessionState().dose1Time)
     }
 
-    func testCompletedDoseCannotRecoverInterruptedWakeOrReminders() async {
-        let env = makeEnvironment()
-        let repo = SessionRepository(storage: .inMemory(), clock: { env.now }, timeZoneProvider: { env.timeZone })
+    func testCompletedDoseCannotRecoverInterruptedWakeOrReminders() async throws {
+        let settings = UserSettingsManager.shared
+        let previousSchedule = (prep: settings.prepTimeMinutes, wake: settings.wakeTimeMinutes)
+        defer {
+            settings.prepTimeMinutes = previousSchedule.prep
+            settings.wakeTimeMinutes = previousSchedule.wake
+        }
+        settings.prepTimeMinutes = 18 * 60
+        settings.wakeTimeMinutes = 7 * 60
+        // Both doses fall after prep, and the calendar trigger remains in the future on any test day.
+        let calendar = Calendar.current
+        let tonight = try XCTUnwrap(calendar.nextDate(after: Date(), matching: DateComponents(hour: 23, minute: 0, second: 0),
+            matchingPolicy: .nextTime))
+        let env = TestEnvironment(now: tonight, timeZone: calendar.timeZone)
+        let repo = SessionRepository(storage: .inMemory(), notificationScheduler: FakeNotificationScheduler(),
+            clock: { env.now }, timeZoneProvider: { env.timeZone })
         let client = FakeNotificationCenter()
         let alarms = makeService(client: client, environment: env)
         let dose1 = env.now.addingTimeInterval(-165 * 60)
         let choice = #"{"dose2_reminder_enabled":true,"reminder_interval_minutes":195}"#
         XCTAssertTrue(repo.setDose1Time(dose1, metadata: choice, reviewedAlarmChoice: true).isCommitted)
-        _ = await alarms.scheduleDose2Alarm(at: env.now.addingTimeInterval(1800), dose1Time: dose1)
+        guard case .scheduled = await alarms.scheduleDose2Alarm(at: env.now.addingTimeInterval(1800), dose1Time: dose1) else {
+            return XCTFail("Expected a verified pending alarm before completing Dose 2")
+        }
         XCTAssertTrue(repo.setDose2Time(env.now).isCommitted)
         _ = await alarms.reconcileSession(repo, reason: .appActive)
         XCTAssertTrue(client.requestsByIdentifier.isEmpty)
