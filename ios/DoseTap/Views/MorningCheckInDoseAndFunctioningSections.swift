@@ -109,15 +109,18 @@ struct MorningCheckInDoseReconciliationSection: View {
                     if let loggedDose1Time = viewModel.loggedDose1Time {
                         MorningCheckInDoseStatusRow(
                             title: "Dose 1 recorded",
-                            detail: "Taken at \(AppFormatters.shortTime.string(from: loggedDose1Time))."
+                            detail: viewModel.loggedDose1Approximate
+                                ? "Estimated time: \(AppFormatters.shortTime.string(from: loggedDose1Time))."
+                                : "Taken at \(AppFormatters.shortTime.string(from: loggedDose1Time))."
                         )
                     } else {
                         Toggle("I took Dose 1 but missed the tap", isOn: $viewModel.reconcileDose1Taken)
+                            .onChange(of: viewModel.reconcileDose1Taken) { taken in
+                                if !taken { viewModel.reconcileDose1Time = nil }
+                            }
                         if viewModel.reconcileDose1Taken {
-                            DatePicker(
-                                "Approximate Dose 1 time",
-                                selection: $viewModel.reconcileDose1Time,
-                                displayedComponents: [.date, .hourAndMinute]
+                            MorningDoseEstimateField(
+                                dose: 1, estimate: $viewModel.reconcileDose1Time
                             )
                             Stepper(value: $viewModel.reconcileDose1AmountMg, in: 250...20_000, step: 250) {
                                 HStack {
@@ -147,7 +150,9 @@ struct MorningCheckInDoseReconciliationSection: View {
                     if let loggedDose2Time = viewModel.loggedDose2Time {
                         MorningCheckInDoseStatusRow(
                             title: "Dose 2 recorded",
-                            detail: "Taken at \(AppFormatters.shortTime.string(from: loggedDose2Time))."
+                            detail: viewModel.loggedDose2Approximate
+                                ? "Estimated time: \(AppFormatters.shortTime.string(from: loggedDose2Time))."
+                                : "Taken at \(AppFormatters.shortTime.string(from: loggedDose2Time))."
                         )
                         if let interval = viewModel.recordedDoseIntervalText {
                             Text(interval).font(.subheadline)
@@ -164,6 +169,9 @@ struct MorningCheckInDoseReconciliationSection: View {
                             }
                         }
                         .pickerStyle(.segmented)
+                        .onChange(of: viewModel.dose2Reconciliation) { choice in
+                            if choice != .taken { viewModel.reconcileDose2Time = nil }
+                        }
 
                         switch viewModel.dose2Reconciliation {
                         case .leaveAsIs:
@@ -172,11 +180,12 @@ struct MorningCheckInDoseReconciliationSection: View {
                                 detail: "Saving your morning answers will leave the Dose 2 record unchanged. Unrecorded does not mean skipped."
                             )
                         case .taken:
-                            DatePicker(
-                                "Approximate Dose 2 time",
-                                selection: $viewModel.reconcileDose2Time,
-                                displayedComponents: [.date, .hourAndMinute]
+                            MorningDoseEstimateField(
+                                dose: 2, estimate: $viewModel.reconcileDose2Time
                             )
+                            if viewModel.needsOutsideWindowEstimateConfirmation {
+                                MorningOutsideWindowEstimateConfirmation(confirmed: $viewModel.outsideWindowEstimateConfirmed)
+                            }
                             Stepper(value: $viewModel.reconcileDose2AmountMg, in: 250...20_000, step: 250) {
                                 HStack {
                                     Text("Dose 2 amount")
@@ -232,7 +241,7 @@ struct MorningCheckInDoseReconciliationSection: View {
 
                     Text(viewModel.loggedDose1Time != nil && viewModel.loggedDose2Time != nil
                          ? "Use History to edit an existing dose record."
-                         : "Approximate times are fine here. Use this when you forgot to record a dose you took.")
+                         : "If you remember taking a dose, you can confirm an approximate time. Leave the time blank if you are unsure.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

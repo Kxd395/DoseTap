@@ -114,6 +114,8 @@ struct SelectedDayView: View {
             if hasData { NightOutcomeButton(sessionDate: sessionDateString) }
 
             if let dose = doseLog {
+                let estimatedFirst = doseEvents.contains { $0.eventType == "dose1" && $0.hasApproximateOccurrence }
+                let estimatedSecond = doseEvents.contains { $0.eventType == "dose2" && $0.hasApproximateOccurrence }
                 VStack(alignment: .leading, spacing: 8) {
                     Button {
                         editingDose1 = true
@@ -121,7 +123,7 @@ struct SelectedDayView: View {
                         HStack {
                             Image(systemName: "1.circle.fill")
                                 .foregroundColor(.green)
-                            Text("Dose 1")
+                            Text(estimatedFirst ? "Dose 1 (estimated time)" : "Dose 1")
                                 .foregroundColor(.primary)
                             Spacer()
                             Text(dose.dose1Time.formatted(date: .omitted, time: .shortened))
@@ -140,7 +142,7 @@ struct SelectedDayView: View {
                             HStack {
                                 Image(systemName: "2.circle.fill")
                                     .foregroundColor(.green)
-                                Text("Dose 2")
+                                Text(estimatedSecond ? "Dose 2 (estimated time)" : "Dose 2")
                                     .foregroundColor(.primary)
                                 Spacer()
                                 Text(dose2Time.formatted(date: .omitted, time: .shortened))
@@ -156,7 +158,7 @@ struct SelectedDayView: View {
                         HStack {
                             Image(systemName: "timer")
                                 .foregroundColor(.purple)
-                            Text("Interval")
+                            Text(estimatedFirst || estimatedSecond ? "Approximate interval" : "Interval")
                             Spacer()
                             Text(TimeIntervalMath.formatMinutes(interval))
                                 .foregroundColor(.secondary)

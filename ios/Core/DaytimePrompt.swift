@@ -72,7 +72,9 @@ public struct DaytimePromptLedger: Codable, Equatable, Sendable {
         }
         guard enabled, let schedule = current else { return nil }
         if schedule.rule != nil { return prepareHorizon(at: now).first }
-        if let existing = prompts.last(where: { $0.isOutstanding }) { return existing }
+        if let existing = prompts.last(where: { $0.scheduleID == schedule.id && $0.isOutstanding }) {
+            return existing
+        }
         // An explicit skip/suppression never creates another slot on the same civil day.
         let after = max(now, prompts.filter { $0.scheduleID == schedule.id }.map(\.intendedAt).max() ?? now)
         guard let intended = schedule.next(after: after) else { return nil }

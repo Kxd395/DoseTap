@@ -17,6 +17,23 @@ final class DaytimePromptTests: XCTestCase {
         XCTAssertEqual(ledger.schedules.count, 2)
         XCTAssertNotEqual(ledger.prepare(at: now)?.id, first.id)
     }
+    func testChangingClockScheduleAfterDueRetainsHistoryAndPlansNewTime() throws {
+        var ledger = DaytimePromptLedger()
+        try ledger.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now)
+        let oldPrompt = try XCTUnwrap(ledger.prepare(at: now))
+        let changedAt = oldPrompt.intendedAt.addingTimeInterval(30 * 60)
+
+        try ledger.configure(hour: 15, minute: 0, timeZone: "UTC", enabled: true, at: changedAt)
+        ledger = try DaytimePromptLedger.decodePayload(ledger.encodedPayload())
+        let replacement = try XCTUnwrap(ledger.prepare(at: changedAt))
+
+        XCTAssertEqual(replacement.scheduleID, ledger.current?.id)
+        XCTAssertEqual(replacement.intendedAt, oldPrompt.intendedAt.addingTimeInterval(60 * 60))
+        XCTAssertNotEqual(replacement.id, oldPrompt.id)
+        XCTAssertEqual(ledger.prompts.first { $0.id == oldPrompt.id }, oldPrompt)
+        XCTAssertEqual(ledger.prepare(at: changedAt)?.id, replacement.id)
+    }
+
     func testLateResponseRetainsIntendedTimeAndNoInventedDelivery() throws {
         var ledger = DaytimePromptLedger()
         try ledger.configure(hour: 14, minute: 0, timeZone: "UTC", enabled: true, at: now)

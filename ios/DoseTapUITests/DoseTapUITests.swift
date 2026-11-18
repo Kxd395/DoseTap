@@ -2938,18 +2938,43 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(finish.waitForExistence(timeout: 15))
         finish.tap()
         let unchanged = app.segmentedControls.buttons["Leave as-is"].firstMatch
-        for _ in 0..<8 where !unchanged.isHittable { app.swipeUp() }
+        let viewport = app.frame.insetBy(dx: 0, dy: app.frame.height * 0.2)
+        let dragStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.68))
+        let dragEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+        for _ in 0..<14 {
+            if unchanged.isHittable && viewport.contains(unchanged.frame) { break }
+            dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+        }
         XCTAssertTrue(unchanged.isHittable)
+        XCTAssertTrue(viewport.contains(unchanged.frame), "Keep the dose choices clear of the pinned footer")
         XCTAssertTrue(unchanged.isSelected, "Missing Dose 2 must never default to Taken or Skipped")
         captureDashboard("Morning missing Dose 2 stays Leave as-is")
-        let complete = app.buttons["Complete Check-In"]
-        for _ in 0..<20 where !complete.isHittable { app.swipeUp() }
+        let taken = app.segmentedControls.buttons["Taken"].firstMatch
+        taken.tap()
+        XCTAssertTrue(taken.isSelected)
+        let enterEstimate = app.buttons["morning-dose-2-enter-estimate"]
+        for _ in 0..<6 where !enterEstimate.isHittable { app.swipeUp() }
+        XCTAssertTrue(enterEstimate.isHittable)
+        enterEstimate.tap()
+        let confirmEstimate = app.buttons["morning-dose-2-confirm-estimate"]
+        for _ in 0..<6 where !confirmEstimate.isHittable { app.swipeUp() }
+        XCTAssertTrue(confirmEstimate.exists)
+        XCTAssertFalse(confirmEstimate.isEnabled, "A displayed picker value is not a user estimate")
+        let cancelEstimate = app.buttons["Cancel estimate"]
+        for _ in 0..<6 {
+            if cancelEstimate.isHittable && viewport.contains(cancelEstimate.frame) { break }
+            dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
+        }
+        XCTAssertTrue(viewport.contains(cancelEstimate.frame))
+        cancelEstimate.tap()
+        let complete = app.buttons["morning-check-in-submit"]
+        XCTAssertTrue(complete.waitForExistence(timeout: 5))
         XCTAssertTrue(complete.isHittable)
         XCTAssertTrue(complete.isEnabled)
         complete.tap()
         XCTAssertTrue(app.buttons["dose-primary-action"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["morning-check-in-storage-error"].exists)
-        captureDashboard("Morning answers saved without selecting a missing dose")
+        captureDashboard("Morning answers saved with Dose 2 time unresolved")
     }
 
     func testMorningRecordedDoseInWindow() throws { verifyRecordedMorningDose() }
