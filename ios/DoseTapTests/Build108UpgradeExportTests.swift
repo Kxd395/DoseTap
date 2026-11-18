@@ -1,3 +1,4 @@
+import DoseCore
 import Foundation
 import SQLite3
 import XCTest
@@ -43,6 +44,33 @@ final class Build108UpgradeExportTests: XCTestCase {
             attachment.lifetime = .keepAlways
             add(attachment)
         }
+    }
+
+    func testDaytimeCorrectionAppendsOnBuild108AndPreservesOriginalArchiveRows() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try createBuild108Database(at: url.path)
+        let now = Date(timeIntervalSince1970: 1_790_000_100)
+        let originalRows: [StoredExportSourceRecord]
+        let correction: DaytimeCheckIn
+        do {
+            let storage = EventStorage(dbPath: url.path)
+            let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { now })
+            originalRows = try repo.exportIndependentSourceRecords()
+            let ledger = try repo.daytimeCheckIns()
+            let original = try XCTUnwrap(ledger.current.first)
+            XCTAssertEqual(ledger.revisions.first?.response, 0)
+            XCTAssertEqual(original.status, .unsure)
+            correction = try original.corrected(response: 5, status: .answered, reason: "Reviewed", recordedAt: now)
+            try repo.saveDaytimeCheckIn(correction)
+            XCTAssertFalse(try storage.hasNativeDaytimeCheckIns())
+            XCTAssertFalse(storage.clearAllData())
+        }
+        let reopened = EventStorage(dbPath: url.path)
+        XCTAssertEqual(try reopened.daytimeCheckIns().current, [correction])
+        let rows = try reopened.exportIndependentSourceRecords()
+        XCTAssertEqual(rows.count, originalRows.count + 1)
+        XCTAssertEqual(rows.filter { $0.columns["revision_id"]?.text != correction.revisionID.uuidString }, originalRows)
     }
 
     private func createBuild108Database(at path: String) throws {

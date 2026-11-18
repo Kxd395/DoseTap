@@ -189,6 +189,11 @@ The default per-test timeout is 180 seconds, with a 240-second maximum. The mult
 
 `ci-safety-studio.yml` runs the separate `DoseTapUITests` scheme for Dose 1 review without an alarm, Dose 2 cancel/background/explicit save, quick-log availability before each dose, and reset-cleanup warning persistence through setup, background/foreground, and restart, followed by explicit acknowledgment at standard and largest accessibility text sizes. The warning is an app-root panel so reset does not depend on a second modal being presented during confirmation dismissal. `tools/run_ci_iphone_tests.sh` requires each selected test to pass, applies execution timeouts, and retains the result bundle. These simulator checks do not establish signed-device alarm delivery or owner-observed acceptance.
 
+The same iPhone safety job verifies manual daytime authoring against an isolated
+file-backed database. It saves an explicit zero through Tonight, saves a
+correction from History, then relaunches and reopens both revisions. The
+build-108 fixture separately verifies that legacy records can still be opened.
+
 A separate iOS job exercises seven production exporter scenarios with synthetic records. XCTest archive attachments pass through `tools/export_studio_fixtures.py`, which rejects missing/ambiguous archives, unsafe paths, symlinks, duplicate members and oversized expansion. It supports XCTest's generated attachment names and the exporter's single-folder ZIP layout.
 
 `tools/run_ci_studio_tests.sh` requires all seven extracted payloads, builds Studio and runs its full suite. The iOS archive, build-108 upgrade, and raw-only identity round-trip tests must execute and pass; medication, stored-event, WHOOP and Apple Health fixtures also exercise their existing production-archive assertions. The two opt-in native preview tests remain a separate visual review gate.
