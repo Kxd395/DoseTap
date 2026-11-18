@@ -113,10 +113,15 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var loggedDose1Approximate = false
     @Published var loggedDose2Approximate = false
     @Published var reconcileDose1Taken = false
-    @Published var reconcileDose1Time: Date?
+    @Published var reconcileDose1Time: Date? {
+        didSet { if reconcileDose1Time != oldValue { outsideWindowEstimateConfirmed = false } }
+    }
     @Published var reconcileDose1AmountMg: Int = 4500
     @Published var dose2Reconciliation: Dose2ReconciliationChoice = .leaveAsIs
-    @Published var reconcileDose2Time: Date?
+    @Published var reconcileDose2Time: Date? {
+        didSet { if reconcileDose2Time != oldValue { outsideWindowEstimateConfirmed = false } }
+    }
+    @Published var outsideWindowEstimateConfirmed = false
     @Published var reconcileDose2AmountMg: Int = 4500
 
     private static let rememberSettingsKey = "morningCheckIn.rememberSettings"
@@ -260,6 +265,10 @@ class MorningCheckInViewModel: ObservableObject {
 
     var showsDose2TakenReason: Bool {
         dose2Timing == .early || dose2Timing == .late
+    }
+
+    var needsOutsideWindowEstimateConfirmation: Bool {
+        loggedDose2Time == nil && showsDose2TakenReason
     }
 
     var dose2Timing: MedicationTiming? {

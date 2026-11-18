@@ -545,8 +545,10 @@ Morning reconciliation requires an explicit approximate occurrence before it
 can backfill a taken dose. Selecting Taken alone leaves it unresolved and still
 allows saving the morning answers. The date picker is a draft until Use this
 estimate is confirmed. Clearing it leaves the dose unrecorded. The committed
-event distinguishes approximate occurrence from the recording time. An
-existing taken or skipped outcome requires explicit History correction.
+retrospective event distinguishes approximate occurrence from the recording
+time. A Dose 2 estimate outside the window requires a separate accuracy
+confirmation. Changing either estimate clears that confirmation. An existing
+taken or skipped outcome requires explicit History correction.
 A remembered Dose 2 cannot create or infer Dose 1. The morning check-in does
 not schedule medication reminders from an estimate.
 

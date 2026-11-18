@@ -118,6 +118,10 @@ extension MorningCheckInViewModel {
             return .failed(.init(operation: .reconcileDoseState, code: .precondition, stage: .preflight,
                                  detail: "The estimated Dose 1 time must be before the recorded Dose 2 time."))
         }
+        if second != nil, needsOutsideWindowEstimateConfirmation, !outsideWindowEstimateConfirmed {
+            return .failed(.init(operation: .reconcileDoseState, code: .precondition, stage: .preflight,
+                                 detail: "Confirm the estimate outside the Dose 2 window or clear it to save only your morning answers."))
+        }
 
         var lastMutation: MedicationMutationResult?
         if let first {

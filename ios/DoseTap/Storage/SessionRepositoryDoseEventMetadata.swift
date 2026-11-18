@@ -9,7 +9,8 @@ extension SessionRepository {
         source: String?,
         reason: String? = nil,
         reasonNotes: String? = nil,
-        estimatedAt: Date? = nil
+        estimatedAt: Date? = nil,
+        estimatedTiming: MedicationTiming? = nil
     ) -> String? {
         var metadata = jsonDictionary(from: existingMetadata)
         if let source {
@@ -20,9 +21,15 @@ extension SessionRepository {
         }
         if let estimatedAt {
             metadata["time_precision"] = "approximate"
+            metadata["entry_mode"] = "retrospective"
+            metadata["surface"] = "morning_check_in"
             let formatter = ISO8601DateFormatter()
             formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             metadata["recorded_at_utc"] = formatter.string(from: estimatedAt)
+            if let estimatedTiming {
+                metadata["is_early"] = estimatedTiming == .early
+                metadata["is_late"] = estimatedTiming == .late
+            }
         }
         upsertMetadataString(reason, forKey: "reason", in: &metadata)
         upsertMetadataString(reasonNotes, forKey: "reason_notes", in: &metadata)

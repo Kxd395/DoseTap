@@ -1294,7 +1294,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             source: "morning_reconciliation",
             reason: reason,
             reasonNotes: reasonNotes,
-            estimatedAt: estimatedForSessionId == nil ? nil : clock()
+            estimatedAt: estimatedForSessionId == nil ? nil : clock(),
+            estimatedTiming: expectedDose1Time.map { MedicationTiming.classify(dose1: $0, dose2: takenAt) }
         )
         let result = recordMedicationMutation(storage.reconcileDoseEvent(
             eventType: .dose2,

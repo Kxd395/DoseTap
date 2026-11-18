@@ -184,6 +184,13 @@ struct MorningCheckInDoseReconciliationSection: View {
                             MorningDoseEstimateField(
                                 dose: 2, estimate: $viewModel.reconcileDose2Time
                             )
+                            if viewModel.needsOutsideWindowEstimateConfirmation {
+                                Label("This estimate is outside the app’s Dose 2 window. Check that it reflects when you took the dose.",
+                                      systemImage: "exclamationmark.triangle")
+                                    .font(.footnote)
+                                    .foregroundStyle(.orange)
+                                Toggle("Confirm outside-window estimate", isOn: $viewModel.outsideWindowEstimateConfirmed)
+                            }
                             Stepper(value: $viewModel.reconcileDose2AmountMg, in: 250...20_000, step: 250) {
                                 HStack {
                                     Text("Dose 2 amount")

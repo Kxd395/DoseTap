@@ -414,8 +414,39 @@ final class SessionRepositoryTests: XCTestCase {
         let raw = try XCTUnwrap(events.first?.metadata)
         let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
         XCTAssertEqual(metadata["time_precision"] as? String, "approximate")
+        XCTAssertEqual(metadata["entry_mode"] as? String, "retrospective")
+        XCTAssertEqual(metadata["surface"] as? String, "morning_check_in")
         let recordedAt = try XCTUnwrap(metadata["recorded_at_utc"] as? String)
         XCTAssertEqual(AppFormatters.parseISO8601Flexible(recordedAt), fixedNow)
+    }
+
+    func test_morningOutsideWindowEstimateRequiresFreshConfirmation() async throws {
+        XCTAssertTrue(repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600)).isCommitted)
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.loggedDose1Time = repo.dose1Time
+        model.dose2Reconciliation = .taken
+        model.reconcileDose2Time = fixedNow.addingTimeInterval(-3 * 3600)
+        XCTAssertTrue(model.needsOutsideWindowEstimateConfirmation)
+        XCTAssertFalse(model.applyDoseReconciliation(using: repo)?.isCommitted ?? true)
+        XCTAssertNil(repo.dose2Time)
+
+        model.outsideWindowEstimateConfirmed = true
+        let revisedEstimate = fixedNow.addingTimeInterval(-2 * 3600)
+        model.reconcileDose2Time = revisedEstimate
+        XCTAssertFalse(model.outsideWindowEstimateConfirmed)
+        XCTAssertFalse(model.applyDoseReconciliation(using: repo)?.isCommitted ?? true)
+        XCTAssertNil(repo.dose2Time)
+
+        model.outsideWindowEstimateConfirmed = true
+        let saved = await model.submit(using: repo)
+        XCTAssertTrue(saved)
+        XCTAssertEqual(repo.fetchDoseLog(forSession: date)?.dose2Time, revisedEstimate)
+        let raw = try XCTUnwrap(repo.fetchDoseEvents(forSessionDate: date).first { $0.eventType == "dose2" }?.metadata)
+        let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+        XCTAssertEqual(metadata["is_early"] as? Bool, true)
+        XCTAssertEqual(metadata["is_late"] as? Bool, false)
     }
 
     func test_morningEstimatePreservesDose2OutcomeRecordedAfterFormOpened() async throws {
