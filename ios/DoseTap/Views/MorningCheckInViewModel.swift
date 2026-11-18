@@ -110,11 +110,13 @@ class MorningCheckInViewModel: ObservableObject {
     @Published var loggedDose1Time: Date?
     @Published var loggedDose2Time: Date?
     @Published var loggedDose2Skipped = false
+    @Published var loggedDose1Approximate = false
+    @Published var loggedDose2Approximate = false
     @Published var reconcileDose1Taken = false
-    @Published var reconcileDose1Time: Date = Date()
+    @Published var reconcileDose1Time: Date?
     @Published var reconcileDose1AmountMg: Int = 4500
     @Published var dose2Reconciliation: Dose2ReconciliationChoice = .leaveAsIs
-    @Published var reconcileDose2Time: Date = Date()
+    @Published var reconcileDose2Time: Date?
     @Published var reconcileDose2AmountMg: Int = 4500
 
     private static let rememberSettingsKey = "morningCheckIn.rememberSettings"
@@ -252,6 +254,7 @@ class MorningCheckInViewModel: ObservableObject {
         if loggedDose2Skipped {
             return .skipped
         }
+        if dose2Reconciliation == .taken && reconcileDose2Time == nil { return nil }
         return dose2Reconciliation == .leaveAsIs ? nil : dose2Reconciliation
     }
 
@@ -261,14 +264,16 @@ class MorningCheckInViewModel: ObservableObject {
 
     var dose2Timing: MedicationTiming? {
         guard effectiveDose2Status == .taken,
-              let first = loggedDose1Time ?? (reconcileDose1Taken ? reconcileDose1Time : nil) else { return nil }
-        return MedicationTiming.classify(dose1: first, dose2: loggedDose2Time ?? reconcileDose2Time)
+              let first = loggedDose1Time ?? (reconcileDose1Taken ? reconcileDose1Time : nil),
+              let second = loggedDose2Time ?? reconcileDose2Time else { return nil }
+        return MedicationTiming.classify(dose1: first, dose2: second)
     }
 
     var recordedDoseIntervalText: String? {
         guard let first = loggedDose1Time, let second = loggedDose2Time, dose2Timing == .inWindow else { return nil }
         let minutes = Int(second.timeIntervalSince(first) / 60)
-        return "Interval: \(minutes / 60)h \(minutes % 60)m · Within the app's dosing window"
+        let label = loggedDose1Approximate || loggedDose2Approximate ? "Approximate interval" : "Interval"
+        return "\(label): \(minutes / 60)h \(minutes % 60)m · Within the app's dosing window"
     }
 
     var showsDose2SkippedReason: Bool {

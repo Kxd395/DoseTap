@@ -86,12 +86,14 @@ extension MorningCheckInViewModel {
 
         loggedDose1Time = doseLog?.dose1Time
         loggedDose2Time = doseLog?.dose2Time
+        loggedDose1Approximate = doseEvents.contains { $0.eventType == "dose1" && $0.hasApproximateOccurrence }
+        loggedDose2Approximate = doseEvents.contains { $0.eventType == "dose2" && $0.hasApproximateOccurrence }
         loggedDose2Skipped = doseLog?.dose2Skipped ?? doseEvents.contains(where: { $0.eventType == "dose2_skipped" })
 
         // Missing evidence is not consent to create an administration.
         reconcileDose1Taken = false
-        reconcileDose1Time = doseLog?.dose1Time ?? Self.defaultDose1Time(for: sessionDate)
-        reconcileDose2Time = doseLog?.dose2Time ?? Self.defaultDose2Time(for: sessionDate, dose1Time: reconcileDose1Time)
+        reconcileDose1Time = nil
+        reconcileDose2Time = nil
         reconcileDose1AmountMg = plannedDose1
         reconcileDose2AmountMg = plannedDose2
         dose2Reconciliation = .leaveAsIs
@@ -100,41 +102,58 @@ extension MorningCheckInViewModel {
     /// Nil means no medication action was selected, not a fabricated commit receipt.
     func applyDoseReconciliation(using sessionRepo: SessionRepository? = nil) -> MedicationMutationResult? {
         let sessionRepo = sessionRepo ?? .shared
+        let first = loggedDose1Time == nil && reconcileDose1Taken ? reconcileDose1Time : nil
+        let second = loggedDose2Time == nil && !loggedDose2Skipped && dose2Reconciliation == .taken ? reconcileDose2Time : nil
+        let now = sessionRepo.clock()
+        let availableFirst = loggedDose1Time ?? first
+        if [first, second].compactMap({ $0 }).contains(where: { !$0.timeIntervalSince1970.isFinite || $0 > now }) {
+            return .failed(.init(operation: .reconcileDoseState, code: .precondition, stage: .preflight,
+                                 detail: "Choose an estimated time that has already passed."))
+        }
+        if let second, availableFirst.map({ $0 < second }) != true {
+            return .failed(.init(operation: .reconcileDoseState, code: .precondition, stage: .preflight,
+                                 detail: "Dose 2 needs a recorded or estimated Dose 1 time before it. You can clear the estimate to save only your morning answers."))
+        }
+        if let first, let loggedDose2Time, first >= loggedDose2Time {
+            return .failed(.init(operation: .reconcileDoseState, code: .precondition, stage: .preflight,
+                                 detail: "The estimated Dose 1 time must be before the recorded Dose 2 time."))
+        }
+
         var lastMutation: MedicationMutationResult?
-        if loggedDose1Time == nil, reconcileDose1Taken {
+        if let first {
             let result = sessionRepo.reconcileDose1(
                 sessionDate: sessionDate,
-                takenAt: reconcileDose1Time,
-                amountMg: Self.normalizedDoseAmount(reconcileDose1AmountMg)
+                takenAt: first,
+                amountMg: Self.normalizedDoseAmount(reconcileDose1AmountMg),
+                estimatedForSessionId: sessionId
             )
             guard result.isCommitted else { return result }
+            loggedDose1Time = first
+            loggedDose1Approximate = true
             lastMutation = result
         }
 
-        if loggedDose2Time == nil {
-            switch dose2Reconciliation {
-            case .leaveAsIs:
-                break
-            case .taken:
-                let result = sessionRepo.reconcileDose2(
-                    sessionDate: sessionDate,
-                    takenAt: reconcileDose2Time,
-                    amountMg: Self.normalizedDoseAmount(reconcileDose2AmountMg),
-                    reason: selectedDose2TakenReasonRawValue,
-                    reasonNotes: selectedDose2ReasonNotes
-                )
-                guard result.isCommitted else { return result }
-                lastMutation = result
-            case .skipped:
-                let result = sessionRepo.reconcileDose2Skipped(
-                    sessionDate: sessionDate,
-                    timestamp: reconcileDose2Time,
-                    reason: selectedDose2SkippedReasonRawValue,
-                    reasonNotes: selectedDose2ReasonNotes
-                )
-                guard result.isCommitted else { return result }
-                lastMutation = result
-            }
+        if let second {
+            let result = sessionRepo.reconcileDose2(
+                sessionDate: sessionDate,
+                takenAt: second,
+                amountMg: Self.normalizedDoseAmount(reconcileDose2AmountMg),
+                reason: selectedDose2TakenReasonRawValue,
+                reasonNotes: selectedDose2ReasonNotes,
+                estimatedForSessionId: sessionId,
+                expectedDose1Time: availableFirst
+            )
+            guard result.isCommitted else { return result }
+            lastMutation = result
+        } else if loggedDose2Time == nil, !loggedDose2Skipped, dose2Reconciliation == .skipped {
+            let result = sessionRepo.reconcileDose2Skipped(
+                sessionDate: sessionDate,
+                reason: selectedDose2SkippedReasonRawValue,
+                reasonNotes: selectedDose2ReasonNotes,
+                missingForSessionId: sessionId
+            )
+            guard result.isCommitted else { return result }
+            lastMutation = result
         }
 
         // Morning reasons are questionnaire answers. Existing ledger annotations
@@ -174,22 +193,6 @@ extension MorningCheckInViewModel {
 
     static func normalizedDoseAmount(_ value: Int) -> Int {
         max(250, min(maxDoseAmountMg, value))
-    }
-
-    static func defaultDose1Time(for sessionDate: String) -> Date {
-        guard let night = AppFormatters.sessionDate.date(from: sessionDate) else {
-            return Date()
-        }
-        return Calendar.current.date(bySettingHour: 22, minute: 0, second: 0, of: night) ?? night
-    }
-
-    static func defaultDose2Time(for sessionDate: String, dose1Time: Date) -> Date {
-        if let parsedNight = AppFormatters.sessionDate.date(from: sessionDate),
-           let nextMorning = Calendar.current.date(byAdding: .day, value: 1, to: parsedNight),
-           let morningDefault = Calendar.current.date(bySettingHour: 1, minute: 0, second: 0, of: nextMorning) {
-            return morningDefault
-        }
-        return dose1Time.addingTimeInterval(3 * 60 * 60)
     }
 
     var normalizedDose2ReasonNotes: String? {

@@ -539,6 +539,17 @@ Quick-log success, list insertion, cooldown and haptics follow a committed SQLit
 
 General medication entries report storage failure separately from duplicate review. The picker retains unsaved entries and explicit duplicate consent, removes only committed entries from a partially saved batch, and dismisses only when every entry commits. Retrying a failed batch must not replay its saved prefix. These entries do not change Dose 1/2 state or alarms. Deletion/edit failure handling, export preservation and staging sync acceptance remain separate work.
 
+### Missing overnight dose timing (DOSETAP-34)
+
+Morning reconciliation requires an explicit approximate occurrence before it
+can backfill a taken dose. Selecting Taken alone leaves it unresolved and still
+allows saving the morning answers. The date picker is a draft until Use this
+estimate is confirmed. Clearing it leaves the dose unrecorded. The committed
+event distinguishes approximate occurrence from the recording time. An
+existing taken or skipped outcome requires explicit History correction.
+A remembered Dose 2 cannot create or infer Dose 1. The morning check-in does
+not schedule medication reminders from an estimate.
+
 ## Storage and Persistence Truth
 
 Build 67 (DOSETAP-73) adds reporting-only dose timing review. Zero/reversed

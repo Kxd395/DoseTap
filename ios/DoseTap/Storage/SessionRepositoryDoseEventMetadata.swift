@@ -1,3 +1,4 @@
+import DoseCore
 import Foundation
 
 @MainActor
@@ -7,7 +8,8 @@ extension SessionRepository {
         amountMg: Int?,
         source: String?,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        estimatedAt: Date? = nil
     ) -> String? {
         var metadata = jsonDictionary(from: existingMetadata)
         if let source {
@@ -15,6 +17,12 @@ extension SessionRepository {
         }
         if let amountMg {
             metadata["amount_mg"] = amountMg
+        }
+        if let estimatedAt {
+            metadata["time_precision"] = "approximate"
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            metadata["recorded_at_utc"] = formatter.string(from: estimatedAt)
         }
         upsertMetadataString(reason, forKey: "reason", in: &metadata)
         upsertMetadataString(reasonNotes, forKey: "reason_notes", in: &metadata)
@@ -49,5 +57,13 @@ extension SessionRepository {
         } else {
             metadata[key] = trimmed
         }
+    }
+}
+
+extension StoredDoseEvent {
+    var hasApproximateOccurrence: Bool {
+        guard let metadata,
+              let value = (try? JSONSerialization.jsonObject(with: Data(metadata.utf8))) as? [String: Any] else { return false }
+        return value["time_precision"] as? String == "approximate"
     }
 }

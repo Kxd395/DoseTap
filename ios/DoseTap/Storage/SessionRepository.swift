@@ -1234,24 +1234,30 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
     public func reconcileDose1(
         sessionDate: String,
         takenAt: Date,
-        amountMg: Int?
+        amountMg: Int?,
+        estimatedForSessionId: String? = nil
     ) -> MedicationMutationResult {
         guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
             return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before reconciliation.", sessionId: nil)
+        }
+        guard estimatedForSessionId == nil || estimatedForSessionId == identity else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "The treatment night changed. Reload before reviewing.", sessionId: identity)
         }
         let existing = fetchDoseEvents(forSessionDate: sessionDate)
             .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose1 }
         let metadata = doseEventMetadata(
             existingMetadata: existing?.metadata,
             amountMg: amountMg,
-            source: "morning_reconciliation"
+            source: "morning_reconciliation",
+            estimatedAt: estimatedForSessionId == nil ? nil : clock()
         )
         let result = recordMedicationMutation(storage.reconcileDoseEvent(
             eventType: .dose1,
             timestamp: takenAt,
             sessionDate: sessionDate,
             sessionId: identity,
-            metadata: metadata
+            metadata: metadata,
+            onlyIfMorningOutcomeMissing: estimatedForSessionId != nil
         ))
         guard result.isCommitted else { return result }
 
@@ -1270,10 +1276,15 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         takenAt: Date,
         amountMg: Int?,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        estimatedForSessionId: String? = nil,
+        expectedDose1Time: Date? = nil
     ) -> MedicationMutationResult {
         guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
             return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before reconciliation.", sessionId: nil)
+        }
+        guard estimatedForSessionId == nil || estimatedForSessionId == identity else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "The treatment night changed. Reload before reviewing.", sessionId: identity)
         }
         let existing = fetchDoseEvents(forSessionDate: sessionDate)
             .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2 }
@@ -1282,14 +1293,17 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             amountMg: amountMg,
             source: "morning_reconciliation",
             reason: reason,
-            reasonNotes: reasonNotes
+            reasonNotes: reasonNotes,
+            estimatedAt: estimatedForSessionId == nil ? nil : clock()
         )
         let result = recordMedicationMutation(storage.reconcileDoseEvent(
             eventType: .dose2,
             timestamp: takenAt,
             sessionDate: sessionDate,
             sessionId: identity,
-            metadata: metadata
+            metadata: metadata,
+            expectedDose1Time: expectedDose1Time,
+            onlyIfMorningOutcomeMissing: estimatedForSessionId != nil
         ))
         guard result.isCommitted else { return result }
 
@@ -1308,10 +1322,14 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
         sessionDate: String,
         timestamp: Date? = nil,
         reason: String? = nil,
-        reasonNotes: String? = nil
+        reasonNotes: String? = nil,
+        missingForSessionId: String? = nil
     ) -> MedicationMutationResult {
         guard let identity = storage.medicationSessionIdentity(nil, sessionDate: sessionDate) else {
             return failedMedicationMutation(operation: .reconcileDoseState, detail: "Select a specific medication session before reconciliation.", sessionId: nil)
+        }
+        guard missingForSessionId == nil || missingForSessionId == identity else {
+            return failedMedicationMutation(operation: .reconcileDoseState, detail: "The treatment night changed. Reload before reviewing.", sessionId: identity)
         }
         let existingSkip = fetchDoseEvents(forSessionDate: sessionDate)
             .first { CanonicalDoseEventType(canonicalizing: $0.eventType) == .dose2Skipped }
@@ -1327,7 +1345,8 @@ public final class SessionRepository: ObservableObject, @preconcurrency DoseTapS
             timestamp: timestamp ?? clock(),
             sessionDate: sessionDate,
             sessionId: identity,
-            metadata: metadata
+            metadata: metadata,
+            onlyIfMorningOutcomeMissing: missingForSessionId != nil
         ))
         guard result.isCommitted else { return result }
 

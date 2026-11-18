@@ -379,11 +379,29 @@ final class SessionRepositoryTests: XCTestCase {
         }
     }
 
+    func test_morningTakenWithoutEstimatedTimeSavesAnswersWithoutDose() async throws {
+        XCTAssertTrue(repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600)).isCommitted)
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let before = repo.fetchDoseEvents(forSessionDate: date)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.dose2Reconciliation = .taken
+
+        XCTAssertNil(model.dose2Timing)
+        let saved = await model.submit(using: repo)
+        XCTAssertTrue(saved)
+        XCTAssertNotNil(repo.fetchMorningCheckIn(for: date))
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), before)
+        XCTAssertNil(repo.fetchDoseLog(forSession: date)?.dose2Time)
+    }
+
     func test_morningExplicitDoseSelectionStillRecordsActualOccurrence() async throws {
         repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600))
         let identity = try XCTUnwrap(repo.activeSessionId)
         let date = try XCTUnwrap(repo.activeSessionDate)
         let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.loggedDose1Time = repo.dose1Time
+        model.loggedDose2Time = nil
         model.dose2Reconciliation = .taken
         model.reconcileDose2Time = fixedNow.addingTimeInterval(-3600)
         model.reconcileDose2AmountMg = 4250
@@ -393,6 +411,35 @@ final class SessionRepositoryTests: XCTestCase {
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(repo.fetchDoseLog(forSession: date)?.dose2Time, model.reconcileDose2Time)
         XCTAssertEqual(MorningCheckInViewModel.parseDoseAmount(from: events, eventType: "dose2"), 4250)
+        let raw = try XCTUnwrap(events.first?.metadata)
+        let metadata = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any])
+        XCTAssertEqual(metadata["time_precision"] as? String, "approximate")
+        let recordedAt = try XCTUnwrap(metadata["recorded_at_utc"] as? String)
+        XCTAssertEqual(AppFormatters.parseISO8601Flexible(recordedAt), fixedNow)
+    }
+
+    func test_morningEstimatePreservesDose2OutcomeRecordedAfterFormOpened() async throws {
+        XCTAssertTrue(repo.setDose1Time(fixedNow.addingTimeInterval(-4 * 3600)).isCommitted)
+        let identity = try XCTUnwrap(repo.activeSessionId)
+        let date = try XCTUnwrap(repo.activeSessionDate)
+        let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
+        model.loggedDose1Time = repo.dose1Time
+        model.dose2Reconciliation = .taken
+        model.reconcileDose2Time = fixedNow.addingTimeInterval(-3600)
+
+        XCTAssertTrue(repo.reconcileDose2Skipped(sessionDate: date).isCommitted)
+        let recorded = repo.fetchDoseEvents(forSessionDate: date)
+        let staleSubmission = await model.submit(using: repo)
+        XCTAssertFalse(staleSubmission)
+        XCTAssertNotNil(model.submissionErrorMessage)
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), recorded)
+        XCTAssertNil(repo.fetchMorningCheckIn(for: date))
+
+        model.dose2Reconciliation = .leaveAsIs
+        let answersOnly = await model.submit(using: repo)
+        XCTAssertTrue(answersOnly)
+        XCTAssertNotNil(repo.fetchMorningCheckIn(for: date))
+        XCTAssertEqual(repo.fetchDoseEvents(forSessionDate: date), recorded)
     }
 
     func test_questionnaireRetryDoesNotRepeatCommittedMedicationCorrections() async throws {
@@ -400,10 +447,8 @@ final class SessionRepositoryTests: XCTestCase {
         let identity = try XCTUnwrap(repo.activeSessionId)
         let date = try XCTUnwrap(repo.activeSessionDate)
         let model = MorningCheckInViewModel(sessionId: identity, sessionDate: date, loadRememberedSettings: false)
-        model.loggedDose1Time = nil
+        model.loggedDose1Time = repo.dose1Time
         model.loggedDose2Time = nil
-        model.reconcileDose1Taken = true
-        model.reconcileDose1Time = fixedNow.addingTimeInterval(-4 * 3600)
         model.dose2Reconciliation = .taken
         model.reconcileDose2Time = fixedNow.addingTimeInterval(-3600)
         XCTAssertEqual(sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_morning BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END", nil, nil, nil), SQLITE_OK)

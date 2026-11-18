@@ -109,15 +109,18 @@ struct MorningCheckInDoseReconciliationSection: View {
                     if let loggedDose1Time = viewModel.loggedDose1Time {
                         MorningCheckInDoseStatusRow(
                             title: "Dose 1 recorded",
-                            detail: "Taken at \(AppFormatters.shortTime.string(from: loggedDose1Time))."
+                            detail: viewModel.loggedDose1Approximate
+                                ? "Estimated time: \(AppFormatters.shortTime.string(from: loggedDose1Time))."
+                                : "Taken at \(AppFormatters.shortTime.string(from: loggedDose1Time))."
                         )
                     } else {
                         Toggle("I took Dose 1 but missed the tap", isOn: $viewModel.reconcileDose1Taken)
+                            .onChange(of: viewModel.reconcileDose1Taken) { taken in
+                                if !taken { viewModel.reconcileDose1Time = nil }
+                            }
                         if viewModel.reconcileDose1Taken {
-                            DatePicker(
-                                "Approximate Dose 1 time",
-                                selection: $viewModel.reconcileDose1Time,
-                                displayedComponents: [.date, .hourAndMinute]
+                            MorningDoseEstimateField(
+                                dose: 1, estimate: $viewModel.reconcileDose1Time
                             )
                             Stepper(value: $viewModel.reconcileDose1AmountMg, in: 250...20_000, step: 250) {
                                 HStack {
@@ -147,12 +150,19 @@ struct MorningCheckInDoseReconciliationSection: View {
                     if let loggedDose2Time = viewModel.loggedDose2Time {
                         MorningCheckInDoseStatusRow(
                             title: "Dose 2 recorded",
-                            detail: "Taken at \(AppFormatters.shortTime.string(from: loggedDose2Time))."
+                            detail: viewModel.loggedDose2Approximate
+                                ? "Estimated time: \(AppFormatters.shortTime.string(from: loggedDose2Time))."
+                                : "Taken at \(AppFormatters.shortTime.string(from: loggedDose2Time))."
                         )
                         if let interval = viewModel.recordedDoseIntervalText {
                             Text(interval).font(.subheadline)
                                 .accessibilityIdentifier("morning-dose2-in-window")
                         }
+                    } else if viewModel.loggedDose2Skipped {
+                        MorningCheckInDoseStatusRow(
+                            title: "Dose 2 recorded as skipped",
+                            detail: "Use History to correct this outcome."
+                        )
                     } else {
                         Picker("Dose 2 status", selection: $viewModel.dose2Reconciliation) {
                             ForEach(Dose2ReconciliationChoice.allCases) { choice in
@@ -160,6 +170,9 @@ struct MorningCheckInDoseReconciliationSection: View {
                             }
                         }
                         .pickerStyle(.segmented)
+                        .onChange(of: viewModel.dose2Reconciliation) { choice in
+                            if choice != .taken { viewModel.reconcileDose2Time = nil }
+                        }
 
                         switch viewModel.dose2Reconciliation {
                         case .leaveAsIs:
@@ -168,10 +181,8 @@ struct MorningCheckInDoseReconciliationSection: View {
                                 detail: "Saving your morning answers will leave the Dose 2 record unchanged. Unrecorded does not mean skipped."
                             )
                         case .taken:
-                            DatePicker(
-                                "Approximate Dose 2 time",
-                                selection: $viewModel.reconcileDose2Time,
-                                displayedComponents: [.date, .hourAndMinute]
+                            MorningDoseEstimateField(
+                                dose: 2, estimate: $viewModel.reconcileDose2Time
                             )
                             Stepper(value: $viewModel.reconcileDose2AmountMg, in: 250...20_000, step: 250) {
                                 HStack {
@@ -228,10 +239,53 @@ struct MorningCheckInDoseReconciliationSection: View {
 
                     Text(viewModel.loggedDose1Time != nil && viewModel.loggedDose2Time != nil
                          ? "Use History to edit an existing dose record."
-                         : "Approximate times are fine here. Use this when you forgot to record a dose you took.")
+                         : "If you remember taking a dose, you can confirm an approximate time. Leave the time blank if you are unsure.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+            }
+        }
+    }
+}
+
+private struct MorningDoseEstimateField: View {
+    let dose: Int
+    @Binding var estimate: Date?
+    @State private var draft: Date?
+    @State private var isEditing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if isEditing {
+                DatePicker("Approximate Dose \(dose) time", selection: Binding(
+                    get: { draft ?? Date() },
+                    set: { draft = $0 }
+                ), in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                    .accessibilityIdentifier("morning-dose-\(dose)-estimate-picker")
+                Button("Use this estimate") {
+                    guard let draft else { return }
+                    estimate = Calendar.current.dateInterval(of: .minute, for: draft)?.start ?? draft
+                    isEditing = false
+                }
+                .disabled(draft == nil)
+                .accessibilityIdentifier("morning-dose-\(dose)-confirm-estimate")
+                Button("Cancel estimate") { isEditing = false }
+            } else if let estimate {
+                Text("Estimated time: \(estimate.formatted(date: .abbreviated, time: .shortened))")
+                Button("Change estimate") {
+                    draft = estimate
+                    isEditing = true
+                }
+                Button("Clear estimated time") { self.estimate = nil }
+            } else {
+                Button("Enter approximate time") {
+                    draft = nil
+                    isEditing = true
+                }
+                .accessibilityIdentifier("morning-dose-\(dose)-enter-estimate")
+                Text("Without an estimate, this dose stays unrecorded. You can still save your morning answers.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
