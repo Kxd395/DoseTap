@@ -475,7 +475,8 @@ extension EventStorage {
             detail: "This date does not identify one medication session. Select a specific session and retry."))
     }
 
-    private func correctionMetadata(_ metadata: String?, sessionId: String, sessionDate: String, eventTypes: String, eventID: String? = nil) throws -> String {
+    private func correctionMetadata(_ metadata: String?, sessionId: String, sessionDate: String, eventTypes: String, eventID: String? = nil,
+                                    requireMissing: Bool = false) throws -> String {
         let sql = "SELECT id, event_type, timestamp, session_date, session_id, metadata, created_at FROM dose_events WHERE (session_id = ?1 OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?2)) AND event_type IN (\(eventTypes)) AND (?3 IS NULL OR id = ?3) ORDER BY timestamp, id"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
@@ -489,6 +490,9 @@ extension EventStorage {
         var previous: [[String: Any]] = []
         var step = sqlite3_step(statement)
         while step == SQLITE_ROW {
+            guard !requireMissing else {
+                throw MedicationStorageInjectedFailure(code: .precondition, detail: "This dose outcome is already recorded. Review it in History.")
+            }
             var row: [String: Any] = [:]
             for (index, key) in keys.enumerated() {
                 row[key] = sqlite3_column_text(statement, Int32(index)).map { String(cString: $0) } as Any? ?? NSNull()
@@ -1172,6 +1176,7 @@ extension EventStorage {
         metadata: String?,
         expectedDose1Time: Date? = nil,
         onlyIfDose2Missing: Bool = false,
+        onlyIfMorningOutcomeMissing: Bool = false,
         workWarning: WorkWakeWarning? = nil,
         wakeMethod: Dose2WakeKind? = nil,
         recordedAt: Date? = nil
@@ -1233,7 +1238,8 @@ extension EventStorage {
             case .extraDose, .snooze, .historyCorrection:
                 eventTypesToReplace = "''"
             }
-            let preservedMetadata = try correctionMetadata(metadata, sessionId: resolvedSessionId, sessionDate: sessionDate, eventTypes: eventTypesToReplace)
+            let preservedMetadata = try correctionMetadata(metadata, sessionId: resolvedSessionId, sessionDate: sessionDate, eventTypes: eventTypesToReplace,
+                requireMissing: onlyIfMorningOutcomeMissing)
             try executeMedicationStatement(
                 "DELETE FROM dose_events WHERE (session_id = ? OR ((session_id IS NULL OR session_id = session_date) AND session_date = ?)) AND event_type IN (\(eventTypesToReplace))",
                 at: .delete

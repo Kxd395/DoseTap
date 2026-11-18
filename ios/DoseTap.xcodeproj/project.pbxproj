@@ -133,6 +133,7 @@
 		MCI004 /* MorningCheckInWakeSurvey.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI104 /* MorningCheckInWakeSurvey.swift */; };
 		MCI005 /* MorningCheckInSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI105 /* MorningCheckInSections.swift */; };
 		MCI006 /* MorningCheckInDoseAndFunctioningSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI106 /* MorningCheckInDoseAndFunctioningSections.swift */; };
+		MCI008 /* MorningDoseEstimateField.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI108 /* MorningDoseEstimateField.swift */; };
 		MCI007 /* MorningCheckInClinicalSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = MCI107 /* MorningCheckInClinicalSections.swift */; };
 		NRV002 /* NightReviewHealthData.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV001 /* NightReviewHealthData.swift */; };
 		NRV004 /* NightReviewExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = NRV003 /* NightReviewExport.swift */; };
@@ -351,6 +352,7 @@
 		MCI104 /* MorningCheckInWakeSurvey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInWakeSurvey.swift; sourceTree = "<group>"; };
 		MCI105 /* MorningCheckInSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInSections.swift; sourceTree = "<group>"; };
 		MCI106 /* MorningCheckInDoseAndFunctioningSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInDoseAndFunctioningSections.swift; sourceTree = "<group>"; };
+		MCI108 /* MorningDoseEstimateField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseEstimateField.swift; sourceTree = "<group>"; };
 		MCI107 /* MorningCheckInClinicalSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckInClinicalSections.swift; sourceTree = "<group>"; };
 		NRV001 /* NightReviewHealthData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewHealthData.swift; sourceTree = "<group>"; };
 		NRV003 /* NightReviewExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightReviewExport.swift; sourceTree = "<group>"; };
@@ -700,6 +702,7 @@
 				MCI104 /* MorningCheckInWakeSurvey.swift */,
 				MCI105 /* MorningCheckInSections.swift */,
 				MCI106 /* MorningCheckInDoseAndFunctioningSections.swift */,
+				MCI108 /* MorningDoseEstimateField.swift */,
 				MCI107 /* MorningCheckInClinicalSections.swift */,
 				B3941DD4936B4FD0BD5A8837 /* MorningCheckInView.swift */,
 				BE3796A887B24D9FBBD40758 /* PreSleepLogView.swift */,
@@ -1060,6 +1063,7 @@
 				MCI004 /* MorningCheckInWakeSurvey.swift in Sources */,
 				MCI005 /* MorningCheckInSections.swift in Sources */,
 				MCI006 /* MorningCheckInDoseAndFunctioningSections.swift in Sources */,
+				MCI008 /* MorningDoseEstimateField.swift in Sources */,
 				MCI007 /* MorningCheckInClinicalSections.swift in Sources */,
 				F94248D37BBE47A5A2E90C9B /* PreSleepLogView.swift in Sources */,
 				PSL001 /* PreSleepLogComponents.swift in Sources */,
