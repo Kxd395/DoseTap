@@ -10,6 +10,20 @@
   "description": "Checked contract snapshot for constants that are manually mirrored in code. This file is not a runtime generator.",
   "version": "1.0.0",
   "lastUpdated": "2026-09-25",
+  "daytimePrompts": {
+    "horizonDays": 7,
+    "nonresponseAfterHours": 24,
+    "maximumWakeOffsetMinutes": 1440,
+    "defaultQuietStartMinute": 1320,
+    "defaultQuietEndMinute": 420,
+    "randomizedWake": {
+      "workWindowMinutes": [[120, 240], [360, 540], [660, 780]],
+      "offWindowMinutes": [[180, 300], [480, 600]],
+      "minimumSpacingMinutes": 120,
+      "bedtimeBufferMinutes": 120,
+      "defaultBedtimeMinute": 1320
+    }
+  },
   "medicationPresetContract": {
     "schemaVersion": 1,
     "maximumAbsoluteUTCOffsetSeconds": 64800,
