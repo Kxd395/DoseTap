@@ -93,11 +93,12 @@ extension EventStorage {
                 return String(cString: name)
             }
             var ownedTables = Self.resetTables
-            if try hasNativeDaytimeCheckIns() {
-                guard try independentRecordTables() == ["daytime_checkins"] else {
+            let daytimeTables = try nativeDaytimeTables()
+            if !daytimeTables.isEmpty {
+                guard try Set(independentRecordTables()) == daytimeTables else {
                     throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
                 }
-                ownedTables.append("daytime_checkins")
+                ownedTables.append(contentsOf: daytimeTables.sorted())
             }
             guard Set(existing).isSubset(of: Self.nativeStorageTables.union(ownedTables)) else {
                 throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)

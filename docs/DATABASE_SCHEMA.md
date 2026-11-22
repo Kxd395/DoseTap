@@ -185,6 +185,16 @@ prior revisions and their original payloads. Clear All Data includes the
 main-owned table when the receipt and collection layout match. The phone
 schema retains its existing reset protection for unsupported collections.
 
+### `daytime_prompt_state` (DOSETAP-58)
+
+The singleton uses integer primary key `id = 1` and a text `payload` in the
+build-108 reminder ledger format. On a fresh database, the first changed save
+creates the table and records `native_daytime_prompts_v1` in that transaction.
+The check-in and reminder tables can be created in either order. Full manual
+export includes both when present. Reset checks the ownership receipts before
+clearing native tables. Complete legacy phone databases keep their existing
+reset protection.
+
 ## Medication and inventory tables
 
 ### Independent prescription preset ledger (DOSETAP-74)

@@ -4,13 +4,6 @@ import SQLite3
 
 @MainActor
 extension EventStorage {
-    private static let daytimeOwnershipReceipt = "native_daytime_checkins_v1"
-
-    func hasNativeDaytimeCheckIns() throws -> Bool {
-        try !readExportRows("SELECT 1 FROM schema_migrations WHERE id = ?1",
-                           binding: Self.daytimeOwnershipReceipt) { _ in true }.isEmpty
-    }
-
     func daytimeCheckIns() throws -> DaytimeCheckInLedger {
         try decodeDaytimeCheckIns(exportIndependentSourceRecords(in: "daytime_checkins"))
     }
@@ -34,13 +27,13 @@ extension EventStorage {
               injectedMedicationFailure(at: .begin) == nil else { throw DaytimeDiaryError.notCommitted }
         return try withSQLiteTransaction {
             let tables = try independentRecordTables(checkUnknownTables: true)
-            if tables.isEmpty {
+            if !tables.contains("daytime_checkins") {
                 // Create the owned table and its receipt in the same transaction as the first observation.
                 let sql = """
                 CREATE TABLE daytime_checkins (
                     revision_id TEXT PRIMARY KEY, observation_id TEXT NOT NULL, payload TEXT NOT NULL
                 );
-                INSERT INTO schema_migrations (id) VALUES ('\(Self.daytimeOwnershipReceipt)');
+                INSERT INTO schema_migrations (id) VALUES ('native_daytime_checkins_v1');
                 """
                 guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw DaytimeDiaryError.notCommitted }
             }
