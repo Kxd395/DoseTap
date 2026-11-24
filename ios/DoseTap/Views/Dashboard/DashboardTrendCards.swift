@@ -37,8 +37,10 @@ struct DashboardTrendChartsCard: View {
     private var trendColorLegend: String {
         switch trendMode {
         case .intervalVsSleep:
-            return (model.replayPresentation.timingContextBasis == .reported ? "Morning report: square work; circle off; triangle into block; inverted triangle out; hexagon recovery; diamond unsure/unknown. " : "Reviewed shifts: square work; circle off; diamond unknown. ") + " Single dose: 1 at zero. Blue: within reference; purple: below; orange: above; teal: single dose (warm colors in Night Mode). "
-                + "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription."
+            return (palette.isNight ? "Bright: within 150–240 min. Dim: outside. " : "Blue: within 150–240 min. Orange: outside. ")
+                + "Single-dose nights have their own column. Dashed line: your current target setting. "
+                + "150–240 min is a built-in reference, not a historical prescription. "
+                + (model.replayPresentation.timingContextBasis == .reported ? "Shapes: square work, circle off, triangle into or out of a work block, hexagon recovery, diamond unsure." : "Shapes: square work, circle off, diamond unknown.")
         case .recoveryTrend:
             return palette.isNight ? "WHOOP recovery ranges use labeled symbols: 67–100, 34–66, below 34."
                 : "WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34. Symbols also identify ranges."

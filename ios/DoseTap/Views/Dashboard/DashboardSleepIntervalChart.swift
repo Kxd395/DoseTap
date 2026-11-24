@@ -31,6 +31,42 @@ enum SleepIntervalChartScale {
         let first = ceil(range.lowerBound / stride) * stride
         return (0...120).map { first + Double($0) * stride }.filter { range.contains($0) }
     }
+    /// Full chart ranges fitted to the recorded values. The spacing axis always
+    /// shows the 150–240 minute reference; single-dose nights get their own
+    /// column left of the spacing axis instead of sitting at a fake 0 minutes.
+    struct Fitted: Equatable {
+        let x: ClosedRange<Double>
+        let y: ClosedRange<Double>
+        let singleColumnX: Double?
+        let spacingStart: Double
+        var dividerX: Double? { singleColumnX.map { ($0 + spacingStart) / 2 } }
+    }
+    static func fitted(intervals: [Double], sleeps: [Double], hasSingle: Bool) -> Fitted {
+        let intervals = intervals.filter { $0.isFinite && $0 >= 0 && $0 < 1e6 }
+        let sleeps = sleeps.filter { $0.isFinite && $0 >= 0 && $0 < 1e6 }
+        let spacingStart = floor(min(intervals.min() ?? 150, 150) / 30) * 30
+        let spacingEnd = ceil(max(intervals.max() ?? 240, 240) / 30) * 30
+        let singleX: Double? = hasSingle ? spacingStart - 40 : nil
+        let xLower = (singleX.map { $0 - 20 }) ?? spacingStart - 10
+        var sleepLow = floor((sleeps.min() ?? 360) / 60) * 60
+        var sleepHigh = ceil((sleeps.max() ?? 480) / 60) * 60
+        if sleepHigh - sleepLow < 120 { sleepLow = max(0, sleepLow - 60); sleepHigh = sleepLow + max(120, sleepHigh - sleepLow) }
+        return Fitted(x: xLower...(spacingEnd + 10), y: (sleepLow - 15)...(sleepHigh + 15),
+                      singleColumnX: singleX, spacingStart: spacingStart)
+    }
+    static func hourLabel(_ minutes: Double) -> String {
+        let hours = minutes / 60
+        return hours == hours.rounded() ? "\(Int(hours)) h" : String(format: "%.1f h", hours)
+    }
+    static func plotX(_ point: SleepIntervalChartPoint, fitted: Fitted) -> Double {
+        point.single ? fitted.singleColumnX ?? 0 : point.x
+    }
+    /// Plain duration for readouts: "2 h 46 m", "45 m".
+    static func duration(_ minutes: Double) -> String {
+        guard minutes.isFinite else { return "—" }
+        let total = Int(minutes.rounded())
+        return total >= 60 ? "\(total / 60) h \(String(format: "%02d", total % 60)) m" : "\(total) m"
+    }
     static func panCenter(range: ClosedRange<Double>, bounds: ClosedRange<Double>, translation: Double,
                           length: Double, inverted: Bool = false) -> Double {
         let center = (range.lowerBound + range.upperBound) / 2
@@ -39,10 +75,18 @@ enum SleepIntervalChartScale {
         let shifted = center + (inverted ? 1 : -1) * translation / length * half * 2
         return min(bounds.upperBound - half, max(bounds.lowerBound + half, shifted))
     }
-    static func domain(maximum: Double, focus: Double?, zoom: Double, minimumSpan: Double) -> ClosedRange<Double> {
+    /// With `minimum`, the full view runs from `minimum` to `maximum` exactly
+    /// (see `fitted`); without it, the legacy zero-anchored view is used.
+    static func domain(maximum: Double, focus: Double?, zoom: Double, minimumSpan: Double,
+                       minimum: Double? = nil) -> ClosedRange<Double> {
         let maximum = maximum.isFinite ? min(1e9, max(0, maximum)) : 0
-        let upper = max(minimumSpan, ceil(maximum / 25) * 25 + 25)
-        let lower = -12.5, fullSpan = upper - lower
+        let lower: Double, upper: Double
+        if let minimum, minimum.isFinite, minimum < maximum {
+            lower = minimum; upper = max(maximum, minimum + minimumSpan)
+        } else {
+            upper = max(minimumSpan, ceil(maximum / 25) * 25 + 25); lower = -12.5
+        }
+        let fullSpan = upper - lower
         let factor = zoom.isFinite ? min(8, max(1, zoom)) : 1
         let span = min(fullSpan, max(minimumSpan, fullSpan / factor))
         let center = focus.flatMap { $0.isFinite ? $0 : nil } ?? (upper + lower) / 2
@@ -68,11 +112,20 @@ struct DashboardSleepIntervalChart: View {
                                single: $0.isConfirmedSingle, work: $0.workBeforeSleep, source: $0.source, reported: model.replayPresentation.timingContextBasis == .reported ? $0.reportedNight : nil, usesReported: model.replayPresentation.timingContextBasis == .reported) }
     }
     private var selected: SleepIntervalChartPoint? { points.first { $0.id == model.inspection.selectedObservationID } }
-    private var xDomain: ClosedRange<Double> {
-        SleepIntervalChartScale.domain(maximum: points.map(\.x).max() ?? 0, focus: focus.map { Double($0.x) }, zoom: zoom, minimumSpan: 50)
+    private var fitted: SleepIntervalChartScale.Fitted {
+        SleepIntervalChartScale.fitted(intervals: points.compactMap(\.interval), sleeps: points.map(\.sleep),
+                                       hasSingle: points.contains(where: \.single))
     }
-    private var yDomain: ClosedRange<Double> {
-        SleepIntervalChartScale.domain(maximum: points.map(\.sleep).max() ?? 0, focus: focus.map { Double($0.y) }, zoom: zoom, minimumSpan: 100)
+    private func plotX(_ point: SleepIntervalChartPoint) -> Double { SleepIntervalChartScale.plotX(point, fitted: fitted) }
+    private func fullDomain(_ range: ClosedRange<Double>, focus: Double?, minimumSpan: Double) -> ClosedRange<Double> {
+        SleepIntervalChartScale.domain(maximum: range.upperBound, focus: focus, zoom: zoom, minimumSpan: minimumSpan, minimum: range.lowerBound)
+    }
+    private var xDomain: ClosedRange<Double> { fullDomain(fitted.x, focus: focus.map { Double($0.x) }, minimumSpan: 50) }
+    private var yDomain: ClosedRange<Double> { fullDomain(fitted.y, focus: focus.map { Double($0.y) }, minimumSpan: 100) }
+    /// Current setting, shown as a reference line; not a historical prescription.
+    private var targetMinutes: Double? {
+        let value = Double(UserSettingsManager.shared.targetIntervalMinutes)
+        return (150...240).contains(value) ? value : nil
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -95,23 +148,14 @@ struct DashboardSleepIntervalChart: View {
                         .font(.caption).accessibilityIdentifier("dashboard-sleep-viewport")
                     Text("Drag inside the chart to move the zoomed view.").font(.caption)
                 }
-                Text("Tap a point for minutes; nearby nights open a dated record list. Select a night before Zoom in to focus it. Pinch to zoom; drag to move when zoomed.")
+                Text("Tap a point to see that night. Pinch or use Zoom to look closer.")
                     .font(.caption).foregroundStyle(.secondary)
                 if candidates.count > 1 {
                     Button("Nearby nights: \(candidates.count) · choose a record") { showCandidates = true }
                         .accessibilityIdentifier("dashboard-sleep-overlap-open")
                 }
                 if showDetails, let selected {
-                    Text(selected.label).font(.callout).accessibilityIdentifier("dashboard-sleep-point-details")
-                    DisclosureGroup("Exact recorded values") {
-                        Text("Spacing: " + (selected.interval.map(String.init(describing:)) ?? "Single dose; no interval")
-                             + " · Sleep minutes: " + String(selected.sleep))
-                        Text("Observation: " + selected.id)
-                        if let report = selected.reported {
-                            Text("Morning check-in " + report.recordID + " · reported " + ISO8601DateFormatter().string(from: report.reportedAt))
-                        }
-                        Text("Reviewed work before sleep: " + selected.work.rawValue)
-                    }.font(.caption)
+                    SleepIntervalReadout(point: selected)
                 }
             }
         }.onChange(of: points) { _ in resetView() }
@@ -145,7 +189,7 @@ struct DashboardSleepIntervalChart: View {
     }
     private func changeZoom(_ value: Double) {
         if zoom == 1 {
-            focus = selected.map { CGPoint(x: $0.x, y: $0.sleep) }
+            focus = selected.map { CGPoint(x: plotX($0), y: $0.sleep) }
                 ?? CGPoint(x: (xDomain.lowerBound + xDomain.upperBound) / 2, y: (yDomain.lowerBound + yDomain.upperBound) / 2)
         }
         zoom = value
@@ -157,43 +201,67 @@ struct DashboardSleepIntervalChart: View {
         }.accessibilityLabel(label).accessibilityIdentifier("dashboard-sleep-" + label.lowercased().replacingOccurrences(of: " ", with: "-"))
     }
     private func pan(x: ClosedRange<Double>, y: ClosedRange<Double>, translation: CGSize, size: CGSize) {
-        let fullX = SleepIntervalChartScale.domain(maximum: points.map(\.x).max() ?? 0, focus: nil, zoom: 1, minimumSpan: 50)
-        let fullY = SleepIntervalChartScale.domain(maximum: points.map(\.sleep).max() ?? 0, focus: nil, zoom: 1, minimumSpan: 100)
+        let fullX = fitted.x, fullY = fitted.y
         focus = CGPoint(x: SleepIntervalChartScale.panCenter(range: x, bounds: fullX, translation: translation.width, length: size.width),
                         y: SleepIntervalChartScale.panCenter(range: y, bounds: fullY, translation: translation.height, length: size.height, inverted: true))
     }
     private var plot: some View {
-        Chart(points) { point in
-            PointMark(x: .value("Spacing", point.x), y: .value("Sleep", point.sleep))
+        Chart {
+            RectangleMark(xStart: .value("Reference start", 150), xEnd: .value("Reference end", 240))
+                .foregroundStyle(palette.timing.opacity(palette.isNight ? 0.16 : 0.09))
+                .annotation(position: .overlay, alignment: .top, spacing: 4) {
+                    Text("150–240").font(.caption2).foregroundStyle(.secondary).padding(.top, 4)
+                }
+                .accessibilityHidden(true)
+            if let target = targetMinutes {
+                RuleMark(x: .value("Your target", target))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .foregroundStyle(Color.secondary.opacity(0.7))
+                    .accessibilityHidden(true)
+            }
+            if let divider = fitted.dividerX {
+                RuleMark(x: .value("Single-dose column", divider))
+                    .lineStyle(StrokeStyle(lineWidth: 0.8))
+                    .foregroundStyle(Color.secondary.opacity(0.45))
+                    .accessibilityHidden(true)
+            }
+            ForEach(points) { point in
+            PointMark(x: .value("Spacing", plotX(point)), y: .value("Sleep", point.sleep))
                 .symbol { SleepIntervalChartMarker(work: point.work, color: color(point), reported: point.reported, usesReported: model.replayPresentation.timingContextBasis == .reported, selected: point.id == selected?.id) }
                 .foregroundStyle(color(point))
                 .accessibilityHidden(true)
+            }
         }.chartXScale(domain: xDomain).chartYScale(domain: yDomain)
             .chartPlotStyle { $0.clipped() }
-            .chartXAxisLabel("Spacing (min) · 0 = Single dose")
-            .chartYAxisLabel("Recorded sleep (min)")
+            .chartXAxisLabel("Dose 1 → Dose 2 spacing (min)")
+            .chartYAxisLabel("Sleep (h)")
             .chartXAxis {
-                AxisMarks(values: SleepIntervalChartScale.ticks(in: xDomain, step: 12.5)) { value in
+                AxisMarks(values: xTicks) { value in
                     if let minute = value.as(Double.self) {
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: minute.truncatingRemainder(dividingBy: 25) == 0 ? 0.7 : 0.35))
-                            .foregroundStyle(Color.secondary.opacity(0.25))
-                        if minute >= 0 && minute.truncatingRemainder(dividingBy: zoom > 1 ? 25 : 50) == 0 {
-                            AxisValueLabel { Text(minute == 0 ? "Single\ndose" : SleepIntervalChartPoint.number(minute)) }
+                        if minute == fitted.singleColumnX {
+                            AxisValueLabel { Text("Single") }
+                        } else {
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.secondary.opacity(0.22))
+                            // No label at the right edge, where it would be cut to "…".
+                            if minute.truncatingRemainder(dividingBy: xLabelStep) == 0, minute <= xDomain.upperBound - 15 {
+                                AxisValueLabel { Text(SleepIntervalChartPoint.number(minute)) }
+                            }
                         }
                     }
                 }
             }.chartYAxis {
-                AxisMarks(values: SleepIntervalChartScale.ticks(in: yDomain, step: 25)) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.secondary.opacity(0.25))
-                    if let minute = value.as(Double.self), minute >= 0,
-                       minute.truncatingRemainder(dividingBy: zoom > 1 ? 25 : 100) == 0 { AxisValueLabel() }
+                AxisMarks(values: SleepIntervalChartScale.ticks(in: yDomain, step: zoom > 1 ? 30 : 60)) { value in
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.secondary.opacity(0.22))
+                    if let minute = value.as(Double.self), minute >= 0 {
+                        AxisValueLabel { Text(SleepIntervalChartScale.hourLabel(minute)) }
+                    }
                 }
             }.accessibilityIdentifier("dashboard-interval-points")
             .chartOverlay { proxy in GeometryReader { geometry in
                 let frame = geometry[proxy.plotAreaFrame]
                 let targets: [DosePatternPresentation.PlotPoint] = points.compactMap { point in
-                    guard xDomain.contains(point.x), yDomain.contains(point.sleep),
-                          let x = proxy.position(forX: point.x), let y = proxy.position(forY: point.sleep) else { return nil }
+                    guard xDomain.contains(plotX(point)), yDomain.contains(point.sleep),
+                          let x = proxy.position(forX: plotX(point)), let y = proxy.position(forY: point.sleep) else { return nil }
                     return .init(id: point.id, point: CGPoint(x: x, y: y))
                 }
                 ZStack(alignment: .topLeading) {
@@ -206,16 +274,6 @@ struct DashboardSleepIntervalChart: View {
                                 .accessibilityValue(point.id == selected?.id ? "Selected" : "Not selected")
                                 .accessibilityAction { select(point.id) }
                                 .position(x: frame.minX + target.point.x, y: frame.minY + target.point.y)
-                        }
-                    }
-                    ForEach(points.filter(\.single)) { point in
-                        if let target = targets.first(where: { $0.id == point.id }) {
-                            Text("1 · " + SleepIntervalChartPoint.number(point.sleep) + " min")
-                                .font(.caption2.bold()).foregroundStyle(color(point))
-                                .frame(width: min(110, frame.width), alignment: .leading)
-                                .position(x: min(frame.maxX - min(110, frame.width) / 2, frame.minX + target.point.x + 12 + min(110, frame.width) / 2),
-                                          y: max(frame.minY + 8, frame.minY + target.point.y - 12))
-                                .allowsHitTesting(false).accessibilityHidden(true)
                         }
                     }
                 }.frame(width: geometry.size.width, height: geometry.size.height)
@@ -247,6 +305,13 @@ struct DashboardSleepIntervalChart: View {
         if let row = rows.first(where: { $0.id == id }) { model.selectReplayID(row.replayID) }
         if clearCandidates { candidates = [] }
     }
+    /// Spacing gridlines every 30 minutes from the start of the spacing axis,
+    /// plus the single-dose column position.
+    private var xTicks: [Double] {
+        let spacing = SleepIntervalChartScale.ticks(in: max(fitted.spacingStart, xDomain.lowerBound)...max(fitted.spacingStart, xDomain.upperBound), step: 30)
+        return (fitted.singleColumnX.map { xDomain.contains($0) ? [$0] : [] } ?? []) + spacing
+    }
+    private var xLabelStep: Double { (xDomain.upperBound - xDomain.lowerBound) > 240 ? 60 : 30 }
     private func color(_ point: SleepIntervalChartPoint) -> Color {
         SleepIntervalChartMarker.spacingColor(interval: point.x, single: point.single, palette: palette)
     }
@@ -276,19 +341,58 @@ struct SleepIntervalChartMarker: View {
         }
         switch work { case .work: return "square"; case .off: return "circle"; case .unknown: return "diamond" }
     }
+    /// Two spacing states plus a neutral single-dose color. Position already
+    /// says whether a night is below or above the reference, so color only
+    /// separates "inside 150–240" from "outside". In Night Mode the states
+    /// differ in brightness, which survives the red filter.
     static func spacingColor(interval: Double, single: Bool = false, palette: DashboardPalette) -> Color {
-        if single { return palette.chart(Color(red: 0.15, green: 0.82, blue: 0.73), warmth: 0.4) }
-        if interval < 150 { return palette.chart(Color(red: 0.73, green: 0.47, blue: 1), warmth: 0.8) }
-        if interval > 240 { return palette.chart(Color(red: 1, green: 0.68, blue: 0.25), warmth: 0.6) }
-        return palette.chart(Color(red: 0.18, green: 0.62, blue: 1))
+        if single { return palette.chart(DashboardPalette.neutralSeries, warmth: 0.55) }
+        if interval < 150 || interval > 240 { return palette.chart(DashboardPalette.secondarySeries, warmth: 0.3) }
+        return palette.chart(DashboardPalette.primarySeries)
     }
     var body: some View {
         ZStack {
             Image(systemName: symbol + ".fill").foregroundStyle(color)
-            Image(systemName: symbol).foregroundStyle(Color.primary.opacity(0.85))
+            Image(systemName: symbol).foregroundStyle(Color.primary.opacity(selected ? 0.95 : 0.55))
         }.rotationEffect(.degrees(usesReported && reported?.type == .transitionOutOfWorkBlock ? 180 : 0))
-            .font(.system(size: selected ? 19 : 14, weight: .medium))
-            .frame(width: selected ? 20 : 16, height: selected ? 20 : 16)
+            .font(.system(size: selected ? 16 : 11, weight: selected ? .bold : .regular))
+            .frame(width: selected ? 18 : 13, height: selected ? 18 : 13)
             .accessibilityHidden(true)
+    }
+}
+
+/// Short readout for the tapped night: values people read, not record IDs.
+struct SleepIntervalReadout: View {
+    let point: SleepIntervalChartPoint
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(point.date).font(.subheadline.weight(.semibold))
+            HStack(alignment: .firstTextBaseline, spacing: 16) {
+                value(point.single ? "Dose 2" : "Spacing",
+                      point.interval.map { SleepIntervalChartScale.duration($0) } ?? "Single dose")
+                value("Sleep", SleepIntervalChartScale.duration(point.sleep))
+            }
+            Text(Self.context(point) + " · " + point.source)
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("dashboard-sleep-point-details")
+    }
+    private func value(_ title: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(text).font(.title3.weight(.semibold)).monospacedDigit()
+        }
+    }
+    static func context(_ point: SleepIntervalChartPoint) -> String {
+        if point.usesReported { return "Morning report: " + (point.reported?.label ?? "no usable check-in") }
+        switch point.work {
+        case .work: return "Work before sleep"
+        case .off: return "Off day"
+        case .unknown: return "Work not reviewed"
+        }
     }
 }

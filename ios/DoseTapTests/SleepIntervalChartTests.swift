@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import DoseTap
 
 final class SleepIntervalChartTests: XCTestCase {
@@ -60,6 +61,51 @@ final class SleepIntervalChartTests: XCTestCase {
                        DosePatternPresentation.PlotPoint(id: "night-b", point: .init(x: 100, y: 100)),
                        DosePatternPresentation.PlotPoint(id: "night-c", point: .init(x: 180, y: 100))]
         XCTAssertEqual(DosePatternPresentation.candidates(at: .init(x: 100, y: 100), points: records), ["night-a", "night-b"])
+    }
+    func testFittedRangesStartNearDataAndKeepReference() {
+        let f = SleepIntervalChartScale.fitted(intervals: [172, 195, 260], sleeps: [372, 455, 512], hasSingle: false)
+        XCTAssertTrue(f.x.contains(150) && f.x.contains(240) && f.x.contains(260))
+        XCTAssertGreaterThan(f.x.lowerBound, 100, "No empty run from zero to the first night")
+        XCTAssertNil(f.singleColumnX); XCTAssertNil(f.dividerX)
+        XCTAssertTrue(f.y.contains(372) && f.y.contains(512))
+        XCTAssertGreaterThan(f.y.lowerBound, 300, "Sleep axis no longer starts at zero")
+    }
+    func testSingleDoseGetsSeparateColumnLeftOfSpacing() throws {
+        let f = SleepIntervalChartScale.fitted(intervals: [180], sleeps: [420, 526], hasSingle: true)
+        let column = try XCTUnwrap(f.singleColumnX), divider = try XCTUnwrap(f.dividerX)
+        XCTAssertLessThan(column, divider); XCTAssertLessThan(divider, f.spacingStart)
+        XCTAssertTrue(f.x.contains(column))
+        let single = try XCTUnwrap(point(interval: nil, sleep: 526, single: true))
+        XCTAssertEqual(SleepIntervalChartScale.plotX(single, fitted: f), column)
+        XCTAssertEqual(single.x, 0, "Point model keeps no invented interval")
+    }
+    func testFittedRangesIgnoreInvalidValuesAndStayFinite() {
+        let f = SleepIntervalChartScale.fitted(intervals: [.nan, .infinity, -4], sleeps: [], hasSingle: false)
+        XCTAssertTrue(f.x.lowerBound.isFinite && f.x.upperBound.isFinite && f.y.lowerBound.isFinite)
+        XCTAssertTrue(f.x.contains(150) && f.x.contains(240))
+    }
+    func testFittedZoomStaysInsideFittedRange() {
+        let f = SleepIntervalChartScale.fitted(intervals: [160, 230], sleeps: [400, 470], hasSingle: true)
+        let full = SleepIntervalChartScale.domain(maximum: f.x.upperBound, focus: nil, zoom: 1, minimumSpan: 50, minimum: f.x.lowerBound)
+        XCTAssertEqual(full, f.x)
+        let zoomed = SleepIntervalChartScale.domain(maximum: f.x.upperBound, focus: f.singleColumnX, zoom: 4, minimumSpan: 50, minimum: f.x.lowerBound)
+        XCTAssertGreaterThanOrEqual(zoomed.lowerBound, f.x.lowerBound); XCTAssertTrue(zoomed.contains(f.singleColumnX!))
+    }
+    func testReadoutUsesDurationsNotRecordIDs() throws {
+        XCTAssertEqual(SleepIntervalChartScale.duration(166.4), "2 h 46 m")
+        XCTAssertEqual(SleepIntervalChartScale.duration(45), "45 m")
+        XCTAssertEqual(SleepIntervalChartScale.hourLabel(420), "7 h")
+        let p = try XCTUnwrap(point(interval: 180, sleep: 420))
+        XCTAssertFalse(SleepIntervalReadout.context(p).contains(p.id))
+        XCTAssertEqual(SleepIntervalReadout.context(p), "Work not reviewed")
+    }
+    func testNightPaletteKeepsSeriesDistinctByBrightness() {
+        let night = DashboardPalette(isNight: true)
+        func red(_ c: Color) -> CGFloat { var r: CGFloat = 0; UIColor(c).getRed(&r, green: nil, blue: nil, alpha: nil); return r }
+        let inside = red(SleepIntervalChartMarker.spacingColor(interval: 180, palette: night))
+        let outside = red(SleepIntervalChartMarker.spacingColor(interval: 100, palette: night))
+        XCTAssertGreaterThan(inside - outside, 0.3, "Night Mode keeps mainly the red channel, so series must differ in brightness")
+        XCTAssertNotEqual(night.chart(.blue), night.chart(.blue, warmth: 0.3))
     }
 
 }

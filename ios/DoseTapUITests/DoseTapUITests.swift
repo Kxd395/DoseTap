@@ -1547,10 +1547,10 @@ final class DoseTapUITests: XCTestCase {
         selectDashboardMeasure("Recorded trends")
         revealDashboardText("Interactive Trends")
         let spacingLegend = app.staticTexts.matching(NSPredicate(format:
-            "label CONTAINS %@ AND label CONTAINS %@", "Single dose: 1 at zero.",
-            "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription.")).firstMatch
+            "label CONTAINS %@ AND label CONTAINS %@", "Single-dose nights have their own column.",
+            "150–240 min is a built-in reference, not a historical prescription.")).firstMatch
         revealDashboardElement(spacingLegend, title: "Current spacing and night-context legend")
-        XCTAssertTrue(spacingLegend.label.contains("warm colors in Night Mode"))
+        XCTAssertTrue(spacingLegend.label.contains("Bright: within 150–240 min. Dim: outside."))
         captureDashboard("Night Mode spacing symbols and legend")
         let chartPicker = app.buttons["dashboard-trend-picker"]
         for _ in 0..<5 where chartPicker.frame.minY < app.navigationBars["Dashboard"].frame.maxY + 12 {

@@ -201,7 +201,7 @@ struct DashboardIntervalExplorer: View {
     }
     private var legends: some View {
         VStack(alignment: .leading, spacing: 6) {
-            (Text("● Within 150–240 min  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 180, palette: palette)) + Text("● Below  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 100, palette: palette)) + Text("● Above").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 280, palette: palette)))
+            (Text("● Within 150–240 min  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 180, palette: palette)) + Text("● Outside  ").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 100, palette: palette)) + Text("● Single dose").foregroundColor(SleepIntervalChartMarker.spacingColor(interval: 0, single: true, palette: palette)))
             Text(model.replayPresentation.timingContextBasis == .reported ? "Morning report: ■ Work  ● Off  ▲ Into block  ▼ Out of block  ⬡ Recovery  ◆ Unsure/unknown" : "Reviewed work before sleep: ■ Work   ● Off   ◆ Unknown").foregroundStyle(.secondary)
             if paired { Text("1 · Single dose · no spacing interval").foregroundStyle(palette.coverage) }
         }.font(.caption).fixedSize(horizontal: false, vertical: true)

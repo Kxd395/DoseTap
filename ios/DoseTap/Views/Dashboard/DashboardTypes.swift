@@ -174,14 +174,29 @@ struct DashboardPalette {
     var coverage: Color { chart(.teal) }
     var review: Color { chart(.orange, warmth: 0.6) }
 
-    /// Input to the existing global filter, not an additional night filter.
+    /// Input to the existing global red filter, not an additional night filter.
+    /// The filter keeps mostly the red channel, so hues collapse to one color;
+    /// `warmth` (0–1) therefore sets brightness. 1 is a bright warm white,
+    /// 0.3 is a clearly dimmer red, so two series stay distinguishable.
     func chart(_ normal: Color, warmth: Double = 1) -> Color {
-        isNight ? Color(red: 1, green: warmth, blue: warmth * 0.8) : normal
+        guard isNight else { return normal }
+        let w = min(1, max(0, warmth))
+        return Color(red: 0.42 + 0.58 * w, green: 0.18 + 0.82 * w, blue: 0.12 + 0.68 * w)
     }
+
+    /// Validated chart series colors (light / dark). Use at most these three in
+    /// one chart and pair each with a label or symbol.
+    static let primarySeries = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x39/255, green: 0x87/255, blue: 0xe5/255, alpha: 1)
+        : UIColor(red: 0x2a/255, green: 0x78/255, blue: 0xd6/255, alpha: 1) })
+    static let secondarySeries = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xd9/255, green: 0x59/255, blue: 0x26/255, alpha: 1)
+        : UIColor(red: 0xeb/255, green: 0x68/255, blue: 0x34/255, alpha: 1) })
+    static let neutralSeries = Color(UIColor.systemGray)
 
     var legend: String {
         isNight
-            ? "Night Mode uses bright warm values. Category labels, chart symbols and series names identify the data. Review flags need a record check; missing data stays labeled. Color alone is not a health rating."
+            ? "Night Mode shows series as bright or dim warm values. Category labels, chart symbols and series names identify the data. Review flags need a record check; missing data stays labeled. Color alone is not a health rating."
             : "Blue values: dose timing. Purple: sleep and check-ins. Teal: record coverage. Gray: context or no data. Orange review flags need a record check. Chart legends identify their series; WHOOP recovery uses its labeled ranges. Color alone is not a health rating."
     }
 
