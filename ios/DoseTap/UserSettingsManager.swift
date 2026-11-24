@@ -191,6 +191,9 @@ class UserSettingsManager: ObservableObject {
     @AppStorage("diagnostic_tier3_enabled") var diagnosticTier3Enabled: Bool = false
     
     // MARK: - QuickLog Panel Customization
+    /// One limit shared by Settings and the Tonight grid.
+    static let maxQuickLogButtons = 16
+
     // Stores the list of event types to show in the QuickLog grid (up to 16)
     @AppStorage("quicklog_buttons_json") private var quickLogButtonsJSON: String = ""
     
@@ -303,7 +306,7 @@ class UserSettingsManager: ObservableObject {
     }
     
     func addQuickLogButton(_ button: QuickLogButtonConfig) {
-        guard quickLogButtons.count < 16 else { return }
+        guard quickLogButtons.count < Self.maxQuickLogButtons else { return }
         guard !quickLogButtons.contains(where: { $0.id == button.id }) else { return }
         var buttons = quickLogButtons
         buttons.append(button)

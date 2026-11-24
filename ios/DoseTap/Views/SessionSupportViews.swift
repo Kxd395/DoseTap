@@ -842,7 +842,7 @@ struct DoseButtonsSection: View {
             }
 
             HStack(spacing: 12) {
-                Button("Snooze +10m") {
+                Button(DoseControlCopy.snoozeLabel(minutes: coordinator.alarmService.snoozeDurationMinutes)) {
                     Task {
                         handleActionResult(await coordinator.snooze())
                     }

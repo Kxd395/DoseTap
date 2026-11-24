@@ -60,73 +60,95 @@ struct CompactDoseButton: View {
             }
 
             Button(action: handlePrimaryButtonTap) {
-                Text(primaryButtonText)
-                    .font(.headline)
-                    .foregroundColor(primaryButtonTextColor)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)  // Minimum 44pt tap target per Apple HIG
-                    .background(primaryButtonColor)
-                    .cornerRadius(12)
+                VStack(spacing: 2) {
+                    Text(copy.title)
+                        .font(.headline)
+                    if let subtitle = copy.subtitle {
+                        Text(subtitle)
+                            .font(.caption.weight(.medium))
+                    }
+                }
+                .foregroundColor(primaryButtonTextColor)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                // Grows with Dynamic Type; never shorter than the 44pt HIG minimum.
+                .frame(minHeight: 50)
+                .padding(.vertical, 6)
+                .background(primaryButtonColor)
+                .cornerRadius(12)
             }
-            // Accessibility
+            // Accessibility: the spoken label always contains the visible text
+            // so Voice Control commands such as "Tap Record Dose 2" work.
             .accessibilityIdentifier("dose-primary-action")
-            .accessibilityLabel(primaryButtonAccessibilityLabel)
-            .accessibilityHint(primaryButtonAccessibilityHint)
+            .accessibilityLabel(copy.accessibilityLabel)
+            .accessibilityValue(copy.accessibilityValue)
+            .accessibilityHint(copy.accessibilityHint)
             // Closed timing phases remain actionable so the record can be resolved.
             .padding(.horizontal)
             .sheet(item: $dose1Review) { review in
                 Dose1ReviewSheet(review: review, coordinator: coordinator, onCommitted: handleActionResult)
+                    .nightModePresentation()
             }
             .sheet(item: $dose2Confirmation) { confirmation in
                 Dose2RecordConfirmationSheet(confirmation: confirmation, coordinator: coordinator, onCommitted: handleActionResult)
+                    .nightModePresentation()
             }
             .sheet(item: $workWakeWarning) { warning in
-                if let repository = coordinator.sessionRepo {
-                    WorkWakeWarningSheet(warning: warning, repository: repository, coordinator: coordinator, onResult: handleActionResult)
+                Group {
+                    if let repository = coordinator.sessionRepo {
+                        WorkWakeWarningSheet(warning: warning, repository: repository, coordinator: coordinator, onResult: handleActionResult)
+                    }
                 }
+                .nightModePresentation()
             }
             .sheet(isPresented: $showExpiredDose2Resolution) {
-                if let repository = coordinator.sessionRepo, let dose1Time = core.dose1Time {
-                    ExpiredDose2ResolutionSheet(
-                        dose1Time: dose1Time,
-                        referenceTime: expiredResolutionReferenceTime,
-                        isAlreadyMarkedMissed: core.isSkipped,
-                        repository: repository,
-                        recordOccurrence: { occurrenceTime, reason, notes, workWarning, wakeMethod in
-                            await coordinator.recordDose2Occurrence(
-                                at: occurrenceTime,
-                                warningConfirmed: true,
-                                acknowledgedWorkWarning: workWarning,
-                                reason: reason,
-                                reasonNotes: notes,
-                                surface: .tonightButton, wakeMethod: wakeMethod
-                            )
-                        },
-                        markMissed: { reason, notes in
-                            await coordinator.skipDose(
-                                reason: reason,
-                                reasonNotes: notes,
-                                surface: .tonightButton
-                            )
-                        },
-                        onCommitted: handleActionResult
-                    )
+                Group {
+                    if let repository = coordinator.sessionRepo, let dose1Time = core.dose1Time {
+                        ExpiredDose2ResolutionSheet(
+                            dose1Time: dose1Time,
+                            referenceTime: expiredResolutionReferenceTime,
+                            isAlreadyMarkedMissed: core.isSkipped,
+                            repository: repository,
+                            recordOccurrence: { occurrenceTime, reason, notes, workWarning, wakeMethod in
+                                await coordinator.recordDose2Occurrence(
+                                    at: occurrenceTime,
+                                    warningConfirmed: true,
+                                    acknowledgedWorkWarning: workWarning,
+                                    reason: reason,
+                                    reasonNotes: notes,
+                                    surface: .tonightButton, wakeMethod: wakeMethod
+                                )
+                            },
+                            markMissed: { reason, notes in
+                                await coordinator.skipDose(
+                                    reason: reason,
+                                    reasonNotes: notes,
+                                    surface: .tonightButton
+                                )
+                            },
+                            onCommitted: handleActionResult
+                        )
+                    }
                 }
+                .nightModePresentation()
             }
             .sheet(item: $reasonCaptureMode) { mode in
-                Dose2OutcomeReasonSheet(
-                    mode: mode,
-                    onConfirm: { reason, notes in
-                        switch mode {
-                        case .skipDose:
-                            completeSkip(reason: reason, notes: notes)
-                        case .earlyDose:
-                            break
-                        }
-                        reasonCaptureMode = nil
-                    },
-                    onCancel: { reasonCaptureMode = nil }
-                )
+                Group {
+                    Dose2OutcomeReasonSheet(
+                        mode: mode,
+                        onConfirm: { reason, notes in
+                            switch mode {
+                            case .skipDose:
+                                completeSkip(reason: reason, notes: notes)
+                            case .earlyDose:
+                                break
+                            }
+                            reasonCaptureMode = nil
+                        },
+                        onCancel: { reasonCaptureMode = nil }
+                    )
+                }
+                .nightModePresentation()
             }
 
             if let actionFeedback {
@@ -142,7 +164,7 @@ struct CompactDoseButton: View {
                             handleActionResult(await coordinator.snooze())
                         }
                     } label: {
-                        Label("Snooze +10m", systemImage: "bell.badge")
+                        Label(DoseControlCopy.snoozeLabel(minutes: coordinator.alarmService.snoozeDurationMinutes), systemImage: "bell.badge")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
@@ -161,6 +183,21 @@ struct CompactDoseButton: View {
         }
         .onDisappear {
             clearFeedbackTask?.cancel()
+        }
+        .onReceive(URLRouter.shared.$dose2ReviewRequest.compactMap { $0 }) { _ in
+            // The alarm screen asked for the normal Dose 2 review. Only phases
+            // where Tonight's own button reviews Dose 2 respond (DOSETAP-90).
+            // Take the request first so a redraw cannot replay it.
+            guard URLRouter.shared.takeDose2ReviewRequest(),
+                  Self.respondsToDose2ReviewRequest(core.currentStatus) else { return }
+            handlePrimaryButtonTap()
+        }
+    }
+
+    static func respondsToDose2ReviewRequest(_ status: DoseStatus) -> Bool {
+        switch status {
+        case .beforeWindow, .active, .nearClose, .closed: return true
+        case .noDose1, .completed, .finalizing: return false
         }
     }
     
@@ -242,49 +279,21 @@ struct CompactDoseButton: View {
         }
     }
 
-    private var primaryButtonText: String {
-        switch core.currentStatus {
-        case .noDose1: return "Take Dose 1"
-        case .beforeWindow: return "Waiting..."
-        case .active, .nearClose: return "Record Dose 2"
-        case .closed: return "Resolve Dose 2"
-        case .completed:
-            return core.isSkipped && core.dose2Time == nil ? "Correct Dose 2 Record" : "Complete ✓"
-        case .finalizing: return "Check-In"
-        }
+    private var copy: DoseControlCopy.Primary {
+        DoseControlCopy.primary(
+            status: core.currentStatus,
+            isSkipped: core.isSkipped,
+            hasDose2: core.dose2Time != nil
+        )
     }
-    
-    private var primaryButtonAccessibilityLabel: String {
-        switch core.currentStatus {
-        case .noDose1: return "Take Dose 1 button"
-        case .beforeWindow: return "Waiting for dose window to open"
-        case .active: return "Take Dose 2 button. Window is open."
-        case .nearClose: return "Take Dose 2 button. Warning: window closing soon!"
-        case .closed: return "Complete unresolved Dose 2 record. The planned window has ended."
-        case .completed:
-            return core.isSkipped && core.dose2Time == nil
-                ? "Correct the Dose 2 record currently marked missed"
-                : "Session complete"
-        case .finalizing: return "Complete morning check-in button"
-        }
-    }
-    
-    private var primaryButtonAccessibilityHint: String {
-        switch core.currentStatus {
-        case .noDose1: return "Double tap to take Dose 1"
-        case .beforeWindow: return "Wait for the countdown to finish"
-        case .active: return "Double tap to take Dose 2"
-        case .nearClose: return "Double tap now to take your second dose before the window closes"
-        case .closed: return "Double tap to record an occurrence that already happened, or mark Dose 2 missed"
-        case .completed: return ""
-        case .finalizing: return "Double tap to complete your session"
-        }
-    }
-    
+
     private var primaryButtonTextColor: Color {
         switch core.currentStatus {
         case .active, .nearClose, .finalizing:
             return .black
+        case .beforeWindow:
+            // White on system gray is below 3:1; use the primary label color.
+            return .primary
         default:
             return .white
         }
@@ -294,7 +303,7 @@ struct CompactDoseButton: View {
         let theme = themeManager.currentTheme
         switch core.currentStatus {
         case .noDose1: return theme == .night ? theme.buttonBackground : .blue
-        case .beforeWindow: return .gray
+        case .beforeWindow: return Color(.systemGray4)
         case .active: return theme == .night ? theme.successColor : .green
         case .nearClose: return theme == .night ? theme.warningColor : .orange
         case .closed: return theme == .night ? theme.errorColor : .red
@@ -322,5 +331,63 @@ struct CompactDoseButton: View {
     private var skipEnabled: Bool {
         if case .skipEnabled = core.windowContext.skip { return true }
         return false
+    }
+}
+
+// MARK: - Dose Control Copy
+
+/// Visible text and spoken text for dose controls. Kept as pure values so the
+/// label rules can be unit tested without rendering a view.
+enum DoseControlCopy {
+    struct Primary: Equatable {
+        let title: String
+        let subtitle: String?
+        let accessibilityLabel: String
+        let accessibilityValue: String
+        let accessibilityHint: String
+    }
+
+    /// The snooze button names the configured duration (1–30 minutes).
+    static func snoozeLabel(minutes: Int) -> String {
+        "Snooze +\(max(1, min(30, minutes)))m"
+    }
+
+    static func primary(status: DoseStatus, isSkipped: Bool, hasDose2: Bool) -> Primary {
+        switch status {
+        case .noDose1:
+            return Primary(title: "Take Dose 1", subtitle: nil,
+                           accessibilityLabel: "Take Dose 1", accessibilityValue: "",
+                           accessibilityHint: "Opens the Dose 1 review before anything is recorded")
+        case .beforeWindow:
+            return Primary(title: "Waiting for Dose 2 window", subtitle: "Tap to review an early Dose 2",
+                           accessibilityLabel: "Waiting for Dose 2 window. Tap to review an early Dose 2",
+                           accessibilityValue: "Window not open",
+                           accessibilityHint: "Opens an early-dose warning. Nothing is recorded unless you confirm")
+        case .active:
+            return Primary(title: "Record Dose 2", subtitle: nil,
+                           accessibilityLabel: "Record Dose 2", accessibilityValue: "Window is open",
+                           accessibilityHint: "Opens the Dose 2 confirmation")
+        case .nearClose:
+            return Primary(title: "Record Dose 2", subtitle: nil,
+                           accessibilityLabel: "Record Dose 2", accessibilityValue: "Window closing soon",
+                           accessibilityHint: "Opens the Dose 2 confirmation before the window closes")
+        case .closed:
+            return Primary(title: "Resolve Dose 2", subtitle: nil,
+                           accessibilityLabel: "Resolve Dose 2", accessibilityValue: "The planned window has ended",
+                           accessibilityHint: "Record a Dose 2 that already happened, or mark Dose 2 missed")
+        case .completed:
+            if isSkipped && !hasDose2 {
+                return Primary(title: "Correct Dose 2 Record", subtitle: nil,
+                               accessibilityLabel: "Correct Dose 2 Record", accessibilityValue: "Dose 2 is marked missed",
+                               accessibilityHint: "Opens the Dose 2 correction")
+            }
+            return Primary(title: "Complete ✓", subtitle: nil,
+                           accessibilityLabel: "Complete", accessibilityValue: "Dose 2 outcome recorded",
+                           accessibilityHint: "")
+        case .finalizing:
+            return Primary(title: "Check-In", subtitle: nil,
+                           accessibilityLabel: "Check-In", accessibilityValue: "Morning check-in needed",
+                           accessibilityHint: "Opens the morning check-in")
+        }
     }
 }
