@@ -167,7 +167,7 @@ struct MedicationPickerView: View {
             
             ForEach(pendingEntries) { entry in
                 PendingEntryRow(entry: entry) {
-                    withAnimation {
+                    withAccessibleAnimation {
                         pendingEntries.removeAll { $0.id == entry.id }
                     }
                 }
@@ -261,7 +261,7 @@ struct MedicationPickerView: View {
     private func medicationCategorySection(category: MedicationCategory, medications: [MedicationType]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation {
+                withAccessibleAnimation {
                     if expandedCategory == category {
                         expandedCategory = nil
                     } else {
@@ -292,7 +292,7 @@ struct MedicationPickerView: View {
                             medication: med,
                             isSelected: selectedMedication?.id == med.id,
                             onSelect: {
-                                withAnimation {
+                                withAccessibleAnimation {
                                     selectedMedication = med
                                     selectedDose = nil
                                     timeMode = nil
@@ -388,7 +388,7 @@ struct MedicationPickerView: View {
             pendingEntryToConfirm = entry
             showDuplicateAlert = true
         } else {
-            withAnimation {
+            withAccessibleAnimation {
                 pendingEntries.append(entry)
                 resetCurrentEntry()
             }
@@ -435,7 +435,7 @@ struct MedicationPickerView: View {
 
         isLogging = false
         // Keep a receipt visible until the user finishes.
-        withAnimation {
+        withAccessibleAnimation {
             showSuccessToast = true
         }
         
