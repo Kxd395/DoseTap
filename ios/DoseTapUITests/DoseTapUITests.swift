@@ -314,19 +314,20 @@ final class DoseTapUITests: XCTestCase {
         launchApp()
         let start = Date()
         app.buttons["Dashboard"].tap()
-        let heading = app.staticTexts["Dose timing"]
+        // Overview opens on the Summary (DOSETAP-101); its tiles carry the first values.
+        let heading = app.descendants(matching: .any).matching(identifier: "dashboard-summary-spacing-value").firstMatch
         let visible = heading.waitForExistence(timeout: 5) && heading.isHittable
         captureDashboard("Recovery landing " + size)
         let timing = XCTAttachment(string: "Dashboard tap to summary probe: \(Date().timeIntervalSince(start)) seconds; visible=\(visible)")
         timing.name = "Recovery landing timing"; timing.lifetime = .keepAlways; add(timing)
         XCTAssertTrue(visible, "The initial dashboard must show recorded-night information without menu navigation or scrolling")
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-timing-count").firstMatch.isHittable,
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-summary-spacing-value").firstMatch.isHittable,
             "A summary value, not just a heading, must fit on the initial screen")
         let controls = app.buttons["dashboard-view-picker"]
         XCTAssertTrue(controls.isHittable)
         XCTAssertLessThan(controls.frame.height, app.frame.height * 0.18, "Navigation must leave room for data at large text sizes")
         if size == "UICTContentSizeCategoryL" {
-            XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "dashboard-interval-points").firstMatch.isHittable,
+            XCTAssertTrue(app.staticTexts["Dose spacing over time"].isHittable,
                 "The default text layout must show the trend without scrolling")
         }
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -335,7 +336,7 @@ final class DoseTapUITests: XCTestCase {
         wait(for: [rotated], timeout: 10)
         XCTAssertTrue(controls.isHittable)
         XCTAssertLessThan(controls.frame.height, app.frame.height * 0.30)
-        let metric = app.descendants(matching: .any).matching(identifier: "dashboard-timing-count").firstMatch
+        let metric = app.descendants(matching: .any).matching(identifier: "dashboard-summary-spacing-value").firstMatch
         let fits = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             let viewport = self.app.scrollViews["dashboard-overview"].frame.intersection(self.app.frame)
             return metric.exists && metric.frame.minY >= viewport.minY && metric.frame.maxY <= viewport.maxY
@@ -1783,7 +1784,10 @@ final class DoseTapUITests: XCTestCase {
         let actualStart = app.switches["work-shift-actual-start-known"]
         for _ in 0..<8 where !actualStart.isHittable { app.swipeUp() }
         XCTAssertEqual(actualStart.value as? String, "0")
-        XCTAssertEqual(app.switches["work-shift-actual-end-known"].value as? String, "0")
+        // Form rows load as they scroll into view; reach the end toggle before reading it.
+        let actualEnd = app.switches["work-shift-actual-end-known"]
+        for _ in 0..<8 where !actualEnd.exists || !actualEnd.isHittable { app.swipeUp() }
+        XCTAssertEqual(actualEnd.value as? String, "0")
         captureDashboard("Confirmed attendance preserves unknown actual shift times")
     }
 

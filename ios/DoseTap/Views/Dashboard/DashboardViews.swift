@@ -227,6 +227,7 @@ struct DashboardTabView: View {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .font(.callout).foregroundStyle(.orange)
                 }
+                DashboardSummaryCard(model: model)
                 DashboardIntervalExplorer(model: model, snapshots: model.replayDisplaySnapshots, focusedTiming: true)
                 homeLink("Review records", detail: "Nights, sources and saved entries", icon: "list.bullet.rectangle", page: .data)
                 homeLink("Explore patterns", detail: "Sleep, timing and detailed comparisons", icon: "chart.xyaxis.line", page: .explore)

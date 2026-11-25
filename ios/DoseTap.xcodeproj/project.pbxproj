@@ -25,6 +25,7 @@
 		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
 		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
 		SINT001B /* DashboardSleepIntervalChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = SINT001F; };
+		SUMM001B /* DashboardSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = SUMM001F; };
 		RNCT001B /* DashboardReportedNightContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = RNCT001F; };
 		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
 		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
@@ -299,6 +300,7 @@
 		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
 		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
 		SINT001F /* DashboardSleepIntervalChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSleepIntervalChart.swift; sourceTree = "<group>"; };
+		SUMM001F /* DashboardSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSummaryCard.swift; sourceTree = "<group>"; };
 		RNCT001F /* DashboardReportedNightContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReportedNightContext.swift; sourceTree = "<group>"; };
 		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
 		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
@@ -761,6 +763,7 @@
 				DPUI001F /* DosePatternDashboardView.swift */,
 				DPUI003F /* DosePatternPresentation.swift */,
 				SINT001F /* DashboardSleepIntervalChart.swift */,
+				SUMM001F /* DashboardSummaryCard.swift */,
 				RNCT001F /* DashboardReportedNightContext.swift */,
 				CTX001F /* ContextMorningProjection.swift */,
 				CTX002F /* ContextMorningOutcomesView.swift */,
@@ -1398,6 +1401,7 @@
 				DPUI002B /* DosePatternDetailSheet.swift in Sources */,
 				DPUI003B /* DosePatternPresentation.swift in Sources */,
 				SINT001B /* DashboardSleepIntervalChart.swift in Sources */,
+				SUMM001B /* DashboardSummaryCard.swift in Sources */,
 				RNCT001B /* DashboardReportedNightContext.swift in Sources */,
 				CTX001B /* ContextMorningProjection.swift in Sources */,
 				CTX002B /* ContextMorningOutcomesView.swift in Sources */,
