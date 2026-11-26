@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-10-10
-SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (108)
+Last verified: 2026-11-25
+SSOT revision: 0.4.21
+App version defined in this revision's Xcode project: 0.4.21 (111)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -33,7 +33,8 @@ and explicit History confirmation; closing alone still does not save a draft.
 
 ## Daytime check-in access (DOSETAP-58)
 
-Tonight provides a Daytime check-in card before the nightly workflow, including
+Tonight provides a Daytime check-in card under Other records, after the nightly
+actions and quick log (DOSETAP-90). It is available
 when a previous night needs review or morning closeout is complete. Record now
 opens the existing unanswered custom diary directly. A successful durable save
 returns to Tonight with its recording timestamp; cancellation shows no success.

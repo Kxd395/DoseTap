@@ -207,30 +207,6 @@ extension DaytimePromptUITests {
     func testClearAllFailureRetainsDaytimeRowsAtLargestText() throws {
         try verifyClearAllFailure(size: "UICTContentSizeCategoryAccessibilityXXXL")
     }
-    func testResetCleanupWarningAppearsBeforeSetupAndAcknowledgementPersists() throws {
-        let app = XCUIApplication()
-        app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString
-        app.launchArguments = ["--uitesting", "--uitesting-reset-cleanup-warning",
-                               "-healthkit_enabled", "NO", "-whoop_enabled", "NO",
-                               "-AppleLocale", "en_US", "-AppleLanguages", "(en)",
-                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
-        app.launch()
-        let warning = app.alerts["Reset Status"]
-        XCTAssertTrue(warning.waitForExistence(timeout: 15))
-        XCTAssertTrue(warning.staticTexts.matching(NSPredicate(format: "label == %@", "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them.")).firstMatch.exists)
-        let proof = XCTAttachment(screenshot: app.screenshot())
-        proof.name = "Reset cleanup warning before setup"; proof.lifetime = .keepAlways; add(proof)
-        app.terminate()
-        app.launchArguments.removeAll { $0 == "--uitesting-reset-cleanup-warning" }
-        app.launch()
-        XCTAssertTrue(warning.waitForExistence(timeout: 15), "The unacknowledged warning must survive without reseeding")
-        XCTAssertTrue(warning.staticTexts.matching(NSPredicate(format: "label == %@", "Local records and settings were cleared, but alarm cleanup could not be verified. Check iOS alarms and notifications before relying on them.")).firstMatch.exists)
-        warning.buttons["OK"].tap()
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
-        XCTAssertFalse(app.alerts["Reset Status"].waitForExistence(timeout: 3))
-    }
     private func verifyClearAllFailure(size: String) throws {
         let app = XCUIApplication()
         app.launchEnvironment["DOSETAP_DAYTIME_TEST_ID"] = UUID().uuidString

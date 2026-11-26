@@ -105,8 +105,8 @@ struct DaytimeCheckInView: View {
                     .disabled(ledger == nil).accessibilityLabel("Record daytime check-in").accessibilityIdentifier("daytime-add-top")
             }
         }
-        .sheet(isPresented: $adding, onDismiss: reload) { DaytimeCheckInEditor(original: nil) }
-        .sheet(item: $editing, onDismiss: reload) { DaytimeCheckInEditor(original: $0) }
+        .sheet(isPresented: $adding, onDismiss: reload) { DaytimeCheckInEditor(original: nil).nightModePresentation() }
+        .sheet(item: $editing, onDismiss: reload) { DaytimeCheckInEditor(original: $0).nightModePresentation() }
         .onAppear(perform: reload)
     }
     private func reload() {

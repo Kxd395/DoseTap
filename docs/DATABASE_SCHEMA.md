@@ -169,10 +169,10 @@ DOSETAP-56 adds optional `answers.reviewedSleepWindow` with version, stable sess
 
 ### `daytime_checkins` (DOSETAP-58)
 
-The first successful manual save creates this table for a fresh main database
-inside the same transaction as the first revision and the
-`native_daytime_checkins_v1` migration receipt. The phone schema already has
-the table and needs no conversion.
+Schema initialization creates this table with the other diary collections.
+Earlier main-branch builds created it lazily and wrote a
+`native_daytime_checkins_v1` migration receipt; that receipt is retained
+metadata and no longer changes behavior.
 
 | Column | Meaning |
 | --- | --- |
@@ -180,10 +180,11 @@ the table and needs no conversion.
 | `observation_id` | Stable observation UUID shared by original and corrections |
 | `payload` | Validated build-108 JSON, including Unix-second times and original timezone |
 
-An identical revision retry is idempotent. History and manual exports preserve
-prior revisions and their original payloads. Clear All Data includes the
-main-owned table when the receipt and collection layout match. The phone
-schema retains its existing reset protection for unsupported collections.
+An identical revision retry is idempotent. A correction must keep the
+current revision's occurrence, context, note, event review, prompt and source
+links. History and manual exports preserve prior revisions and their original
+payloads. Clear All Data includes this table with every other diary
+collection and still refuses a database that contains an unknown table.
 
 ## Medication and inventory tables
 

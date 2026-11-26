@@ -71,7 +71,7 @@ private struct DiaryCollectionView: View {
         }
         .navigationTitle(collection.title)
         .task { load() }
-        .sheet(isPresented: $adding, onDismiss: load) { DaytimeCheckInEditor() }
+        .sheet(isPresented: $adding, onDismiss: load) { DaytimeCheckInEditor().nightModePresentation() }
         .onReceive(SessionRepository.shared.sessionDidChange) { _ in
             if collection == .checkIns { load() }
         }
@@ -205,6 +205,7 @@ private struct DiaryRecordDetail: View {
         }) {
             if let latest {
                 DaytimeCheckInEditor(original: latest) { _ in correctionSaved = true }
+                    .nightModePresentation()
             }
         }
     }

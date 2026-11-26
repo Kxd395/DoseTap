@@ -39,6 +39,15 @@ extension EventStorage {
         if let existing {
             guard existing == value else { throw DaytimeDiaryError.conflict }
         } else {
+            if let predecessor = value.predecessorID {
+                // A correction changes only the response and reason. Context, timing and links stay with the observation.
+                guard let current = ledger.current.first(where: { $0.id == value.id }), current.revisionID == predecessor,
+                      current.assessedAt == value.assessedAt, current.timeZoneIdentifier == value.timeZoneIdentifier,
+                      current.activity == value.activity, current.setting == value.setting, current.coping == value.coping,
+                      Set(current.copingActions) == Set(value.copingActions), current.note == value.note,
+                      current.eventReview == value.eventReview, current.promptID == value.promptID,
+                      current.sourceLinks == value.sourceLinks else { throw DaytimeDiaryError.conflict }
+            }
             _ = try DaytimeCheckInLedger(revisions: ledger.revisions + [value])
             if value.predecessorID == nil, let links = value.sourceLinks, !links.isEmpty { try validateNewLinks(links) }
             guard injectedMedicationFailure(at: .insert) == nil else { throw DaytimeDiaryError.notCommitted }

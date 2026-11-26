@@ -32,6 +32,24 @@ final class DaytimeAuthoringStorageTests: XCTestCase {
         XCTAssertTrue(try repository.daytimeCheckIns().revisions.isEmpty)
     }
 
+    func testCorrectionThatChangesContextIsRejected() throws {
+        let storage = EventStorage.inMemory()
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { self.now })
+        let original = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 3)
+        try repo.saveDaytimeCheckIn(original)
+        let altered = try DaytimeCheckIn(id: original.id, predecessorID: original.revisionID, createdAt: original.createdAt,
+            assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 4, status: .answered,
+            origin: original.origin, activity: original.activity, setting: original.setting, coping: original.coping,
+            copingActions: Set(original.copingActions), note: "Changed note", correctionReason: "Reviewed",
+            promptID: original.promptID, eventReview: original.eventReview, samplingProtocolID: original.samplingProtocolID,
+            samplingProtocolLabel: original.samplingProtocolLabel, sourceLinks: original.sourceLinks)
+        XCTAssertThrowsError(try repo.saveDaytimeCheckIn(altered))
+        XCTAssertEqual(try repo.daytimeCheckIns().current, [original])
+        let correction = try original.corrected(response: 4, status: .answered, reason: "Reviewed", recordedAt: now)
+        try repo.saveDaytimeCheckIn(correction)
+        XCTAssertEqual(try repo.daytimeCheckIns().current, [correction])
+    }
+
     func testMissingDiaryCollectionBlocksFullExportAndResetWithoutLosingRecords() throws {
         let storage = EventStorage.inMemory()
         let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { self.now })

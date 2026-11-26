@@ -240,6 +240,7 @@ struct DaytimePromptPresentation: ViewModifier {
                                 samplingProtocolLabel: service.protocolLabel(for: prompt)) { assessment in
                 Task { await service.markResponded(assessment) }
             }
+            .nightModePresentation()
         }
     }
 }
