@@ -122,6 +122,39 @@ public class URLRouter: ObservableObject {
     @Published var selectedTab: AppTab = .tonight
     @Published var showingSupplyReminder = false
     @Published var dose1Review: DoseActionCoordinator.Dose1Review?
+    /// Changes when another surface (the alarm screen) asks Tonight to start the
+    /// same Record Dose 2 review that a tap on the Tonight button starts. It never
+    /// records a dose by itself (DOSETAP-90).
+    @Published private(set) var dose2ReviewRequest: UUID?
+
+    private var dose2ReviewRequestedAt: Date?
+
+    func requestDose2Review(now: Date = Date()) {
+        selectedTab = .tonight
+        dose2ReviewRequestedAt = now
+        dose2ReviewRequest = UUID()
+    }
+
+    /// Returns true once per request. `@Published` replays its current value to
+    /// every new subscriber, so the request is cleared as soon as it is taken.
+    /// A request older than 10 seconds is dropped, so a Dose 2 review never
+    /// opens long after the alarm screen was closed.
+    func takeDose2ReviewRequest(now: Date = Date()) -> Bool {
+        guard dose2ReviewRequest != nil, let requestedAt = dose2ReviewRequestedAt else { return false }
+        dose2ReviewRequest = nil
+        dose2ReviewRequestedAt = nil
+        return now.timeIntervalSince(requestedAt) <= 10
+    }
+
+    /// Set by the alarm screen; consumed when that full-screen cover has finished
+    /// dismissing, because a sheet presented during the dismissal is dropped by iOS.
+    var dose2ReviewPendingAfterAlarm = false
+
+    func consumeAlarmDose2ReviewRequest() {
+        guard dose2ReviewPendingAfterAlarm else { return }
+        dose2ReviewPendingAfterAlarm = false
+        requestDose2Review()
+    }
     @Published var lastAction: URLAction?
     @Published var showActionFeedback: Bool = false
     @Published var feedbackMessage: String = ""

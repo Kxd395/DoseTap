@@ -221,7 +221,7 @@ extension SettingsView {
                     HStack {
                         Label("QuickLog Buttons", systemImage: "square.grid.2x2")
                         Spacer()
-                        Text("\(settings.quickLogButtons.count)/16")
+                        Text("\(settings.quickLogButtons.count)/\(UserSettingsManager.maxQuickLogButtons)")
                             .foregroundColor(.secondary)
                     }
                 }

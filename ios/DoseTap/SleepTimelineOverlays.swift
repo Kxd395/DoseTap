@@ -308,7 +308,7 @@ struct BiometricToggle: View {
     
     var body: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAccessibleAnimation(.easeInOut(duration: 0.2)) {
                 isOn.toggle()
             }
         } label: {

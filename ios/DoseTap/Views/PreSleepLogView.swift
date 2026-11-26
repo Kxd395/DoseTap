@@ -25,6 +25,12 @@ struct PreSleepLogView: View {
     @State private var saveErrorMessage = ""
     @State private var overrideEnabled = false
     @State private var overrideWake = Date()
+    /// Answers as the sheet opened. Cancel, Skip and swipe-down ask before
+    /// discarding anything the user changed (DOSETAP-92).
+    @State private var initialAnswersSnapshot: Data?
+    @State private var showDiscardConfirmation = false
+    @State private var pendingDiscardIsSkip = false
+    @State private var didCaptureOpeningAnswers = false
     @ObservedObject private var sessionRepo = SessionRepository.shared
     @ObservedObject private var sleepPlanStore = SleepPlanStore.shared
     
@@ -54,10 +60,31 @@ struct PreSleepLogView: View {
         let initialAnswers = UsualSleepingSetupStore.preparing(existingLog?.answers ?? PreSleepLogAnswers(),
             isNew: existingLog == nil && historyNight == nil)
         _answers = State(initialValue: initialAnswers)
+        _initialAnswersSnapshot = State(initialValue: Self.snapshot(of: initialAnswers))
         _showMoreDetails = State(initialValue: Self.shouldExpandOptionalDetails(for: initialAnswers))
         _rememberLastSettings = State(initialValue: Self.rememberLastSettingsDefault())
     }
     
+    private var hasUnsavedChanges: Bool {
+        Self.snapshot(of: answers) != initialAnswersSnapshot
+    }
+
+    private static func snapshot(of answers: PreSleepLogAnswers) -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try? encoder.encode(answers)
+    }
+
+    private func skipForTonight() {
+        do {
+            try onSkip()
+            dismiss()
+        } catch {
+            saveErrorMessage = error.localizedDescription
+            showSaveError = true
+        }
+    }
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -157,7 +184,8 @@ struct PreSleepLogView: View {
                                 Text(historyNight != nil ? "Review" : (existingLog == nil ? "Done" : "Save"))
                             }
                             .font(.headline)
-                            .foregroundColor(.white)
+                            // White on system green is about 2.2:1; black passes contrast.
+                            .foregroundColor(.black)
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
                             .background(Color.green)
@@ -168,25 +196,38 @@ struct PreSleepLogView: View {
                 .padding()
                 .background(Color(.systemBackground))
             }
+            .confirmationDialog(pendingDiscardIsSkip ? "Skip and discard your answers?" : "Discard your changes?",
+                                isPresented: $showDiscardConfirmation, titleVisibility: .visible) {
+                Button(pendingDiscardIsSkip ? "Skip and Discard" : "Discard Changes", role: .destructive) {
+                    if pendingDiscardIsSkip { skipForTonight() } else { dismiss() }
+                }
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("Answers are saved only when you tap \(existingLog == nil ? "Done" : "Save").")
+            }
             .navigationTitle(existingLog == nil ? "Pre-Sleep Check" : "Edit Pre-Sleep")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if existingLog == nil && historyNight == nil {
                         Button("Skip for tonight") {
-                            do {
-                                try onSkip()
-                                dismiss()
-                            } catch {
-                                saveErrorMessage = error.localizedDescription
-                                showSaveError = true
+                            if hasUnsavedChanges {
+                                pendingDiscardIsSkip = true
+                                showDiscardConfirmation = true
+                            } else {
+                                skipForTonight()
                             }
                         }
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     } else {
                         Button("Cancel") {
-                            dismiss()
+                            if hasUnsavedChanges {
+                                pendingDiscardIsSkip = false
+                                showDiscardConfirmation = true
+                            } else {
+                                dismiss()
+                            }
                         }
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -208,13 +249,23 @@ struct PreSleepLogView: View {
                 }
             }
         }
+        // Applied to the outer navigation container so the sheet honors it.
+        .interactiveDismissDisabled(hasUnsavedChanges)
         .alert("Pre-Sleep Save Failed", isPresented: $showSaveError) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(saveErrorMessage)
         }
         .onAppear {
-            if historyNight == nil { applyRememberedSettingsIfNeeded(); syncWakeOverride() }
+            if historyNight == nil {
+                applyRememberedSettingsIfNeeded()
+                syncWakeOverride()
+                // Remembered settings filled on open are the starting point, not user edits.
+                if !didCaptureOpeningAnswers {
+                    didCaptureOpeningAnswers = true
+                    initialAnswersSnapshot = Self.snapshot(of: answers)
+                }
+            }
         }
         .onChange(of: planSessionKey) { _ in if historyNight == nil { syncWakeOverride() } }
     }

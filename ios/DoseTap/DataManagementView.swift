@@ -77,7 +77,7 @@ struct DataManagementView: View {
                     Spacer()
                     if !sessions.isEmpty {
                         Button(isSelecting ? "Done" : "Select") {
-                            withAnimation {
+                            withAccessibleAnimation {
                                 isSelecting.toggle()
                                 if !isSelecting {
                                     selectedSessions.removeAll()
