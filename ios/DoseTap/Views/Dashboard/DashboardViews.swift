@@ -40,6 +40,14 @@ struct DashboardTabView: View {
         }.environment(\.dashboardPalette, palette)
     }
 
+    /// A user who never connected WHOOP is told so directly instead of being asked
+    /// to widen a date range that cannot contain WHOOP data (DOSETAP-91).
+    static func whoopUnavailableDetail(isConnected: Bool) -> String {
+        isConnected
+            ? "No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range."
+            : "WHOOP is not connected. WHOOP recovery data appears here only after you connect WHOOP in Settings."
+    }
+
     private var rangePicker: some View {
         Picker("Range", selection: $model.selectedRange) {
             ForEach(DashboardDateRange.allCases) { range in
@@ -107,7 +115,7 @@ struct DashboardTabView: View {
                             if !model.whoopNights.isEmpty {
                                 DashboardWHOOPCard(model: model)
                             } else {
-                                unavailableCard("WHOOP Recovery & Biometrics", detail: "No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
+                                unavailableCard("WHOOP Recovery & Biometrics", detail: Self.whoopUnavailableDetail(isConnected: WHOOPService.shared.isConnected))
                             }
                         }
                         if section == "All" || section == "Trends" {

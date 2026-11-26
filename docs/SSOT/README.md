@@ -77,7 +77,7 @@ Notes:
 - Cancellation success requires system-alarm absence and pending/delivered notification readback. An unverified cancellation preserves the medication record and gives separate alarm-status guidance. Alarm open/stop never records a dose. Verification is local API evidence, not signed-phone acceptance.
 - The morning exception question is shown only for early/late actual dose intervals, using shared unrounded timing classification; an alarm target is not a dosing-window boundary. In-window records show their interval without reconfirmation. Unanswered taken-reason values remain absent; explicitly selected Unsure remains an answer. Existing records are not rewritten.
 - New live submissions omit timing reasons and notes that became inapplicable after a time/status correction; History edits preserve existing annotations. Cancellation warnings name the committed outcome: an explicit skip says skipped (not taken), never implying administration.
-- Closing the morning form does not save a partial questionnaire. The control says Close check-in; a durable partial-draft/skip workflow remains separate work. General legacy context defaults, unknown-time dose outcomes, per-session window snapshots and dashboard/schedule cleanup remain open.
+- Closing the morning form does not save a partial questionnaire. The control says Cancel (DOSETAP-92). After the first change, Cancel asks before discarding answers and swipe-down cannot close the form; an unchanged form closes directly. Pre-Sleep Check applies the same rule to Cancel, Skip for tonight and swipe-down; remembered settings filled on open are the starting point, not changes. A durable partial-draft/skip workflow remains separate work. General legacy context defaults, unknown-time dose outcomes, per-session window snapshots and dashboard/schedule cleanup remain open.
 
 ### Planned and actual sleeping setup (DOSETAP-70)
 
@@ -475,6 +475,7 @@ changing appearance must not transfer a navigation item between tab controllers.
 - The saved manual appearance is preserved during automation and restored at wake-up. Selecting a theme manually overrides automation for that session, including across app restart; the next session can automate again. Turning automation off restores the saved appearance; turning it back on explicitly resumes eligibility.
 - Launch, foreground, committed session changes, and the visible clock reconcile appearance from current session state. Historical-only records and failed/unconfirmed medication actions cannot start it. While visible, the wake boundary is checked once per second; after suspension it is checked on foreground, without requiring background execution.
 - Quick Log events and all dosing confirmation/hold behavior remain unchanged.
+- Night Mode also applies to Tonight's presented sheets (Pre-Sleep Check, morning check-in, medication and daytime entry, dose review and resolution sheets) and the in-app alarm screen. These are separate presentations that do not inherit the root filter (DOSETAP-93). System confirmation dialogs keep system styling.
 
 ## Time Boundary Model
 

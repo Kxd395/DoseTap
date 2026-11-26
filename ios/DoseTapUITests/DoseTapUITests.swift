@@ -80,6 +80,7 @@ final class DoseTapUITests: XCTestCase {
         if name.contains("testWorkWarningTargetSelector") { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"] }
         if name.contains("testWorkWarning") { app.launchArguments.append("--uitesting-work-warning") }
         if name.contains("testDose2Confirmation") || name.contains("testReviewedNightWindow") { app.launchArguments.append("--uitesting-dose2-confirmation") }
+        if name.contains("FromAlarmScreen") { app.launchArguments.append("--uitesting-alarm-ringing") }
         if name.contains("testReviewedNightWindow") { app.launchArguments += ["-healthkit_enabled", "NO"] }
         if name.contains("testReviewedDoseSleepMetrics") { app.launchArguments += ["--uitesting-dose-sleep", "-setup_completed_v2", "YES"] }
         if name.contains("testReviewedDoseSleepMetricsSubsecond") { app.launchArguments.append("--uitesting-dose-sleep-subsecond") }
@@ -1029,6 +1030,23 @@ final class DoseTapUITests: XCTestCase {
         }
     }
 
+    /// DOSETAP-90: the alarm screen offers Record Dose 2 and Snooze. Record opens the
+    /// same review as the Tonight button; cancelling it records nothing.
+    func testDose2ConfirmationFromAlarmScreen() throws {
+        let record = app.buttons["alarm-record-dose2"]
+        XCTAssertTrue(record.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["alarm-snooze"].exists)
+        XCTAssertTrue(app.buttons["Stop Alarm"].exists)
+        captureDashboard("Alarm screen offers record and snooze")
+        record.tap()
+        XCTAssertTrue(app.buttons["dose2-confirm-record"].waitForExistence(timeout: 10),
+                      "Record Dose 2 on the alarm screen must open the normal confirmation")
+        app.buttons["dose2-cancel-record"].tap()
+        let dose = app.buttons["dose-primary-action"]
+        XCTAssertTrue(dose.waitForExistence(timeout: 5))
+        XCTAssertTrue(dose.label.contains("Record Dose 2"), "Cancelling the review must leave Dose 2 unrecorded")
+    }
+
     func testReviewedNightWindow() throws {
         app.launchArguments.removeAll { $0 == "--uitesting-dose2-confirmation" }
         func reveal(_ element: XCUIElement) {
@@ -1505,7 +1523,8 @@ final class DoseTapUITests: XCTestCase {
         app.buttons["Dashboard"].tap()
         XCTAssertTrue(app.staticTexts["Recorded Nights"].waitForExistence(timeout: 10))
         revealDashboardText("WHOOP Recovery & Biometrics")
-        revealDashboardText("No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range.")
+        // UI-test launches have no WHOOP connection, so the card names that prerequisite.
+        revealDashboardText("WHOOP is not connected. WHOOP recovery data appears here only after you connect WHOOP in Settings.")
         revealDashboardText("Natural waking vs. alarm waking")
         revealDashboardText("Each n counts nights with that measurement, not all recorded pairs. Missing data is not zero.")
         revealDashboardText("Timing & status · full date range")
@@ -2452,7 +2471,7 @@ final class DoseTapUITests: XCTestCase {
         XCTAssertTrue(interval.isHittable)
         XCTAssertTrue(interval.label.contains("2h 50m"))
         XCTAssertFalse(app.staticTexts["What affected Dose 2 timing? (optional)"].exists)
-        XCTAssertTrue(app.buttons["Close check-in"].exists)
+        XCTAssertTrue(app.buttons["morning-check-in-cancel"].exists)
         for _ in 0..<4 where interval.frame.maxY > app.frame.maxY - 50 {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
                 .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))

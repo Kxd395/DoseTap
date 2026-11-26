@@ -4,31 +4,41 @@ import SwiftUI
 struct QuickEventPanel: View {
     @ObservedObject var eventLogger: EventLogger
     @ObservedObject var settings = UserSettingsManager.shared
-    
-    // Get quick events (max 15)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    // Show every button Settings allows; the two limits must not drift apart.
     private var quickEvents: [(name: String, icon: String, color: Color)] {
         let all = settings.quickLogButtons.map { ($0.name, $0.icon, $0.color) }
-        return Array(all.prefix(15))
+        return Array(all.prefix(UserSettingsManager.maxQuickLogButtons))
     }
-    
+
+    private var columnsForCount: Int {
+        Self.columns(forCount: quickEvents.count, isAccessibilitySize: dynamicTypeSize.isAccessibilitySize)
+    }
+
     /// Dynamic grid layout based on icon count:
     /// - 9 icons = 3x3
     /// - 10 icons = 5x2
     /// - 12 icons = 4x3
-    /// - 11-15 icons = 5x3
-    private var columnsForCount: Int {
-        let count = quickEvents.count
+    /// - 13-15 icons = 5x3
+    /// - 16 icons = 4x4
+    /// Accessibility text sizes use at most 3 columns so labels stay readable.
+    static func columns(forCount count: Int, isAccessibilitySize: Bool) -> Int {
+        let standard: Int
         switch count {
-        case 0...3: return count  // Single row
-        case 4: return 4          // 4x1
-        case 5: return 5          // 5x1
-        case 6: return 3          // 3x2
-        case 7...8: return 4      // 4x2
-        case 9: return 3          // 3x3
-        case 10: return 5         // 5x2
-        case 11...12: return 4    // 4x3
-        default: return 5         // 5x3 for 13-15
+        case ...0: standard = 1
+        case 1...3: standard = count  // Single row
+        case 4: standard = 4          // 4x1
+        case 5: standard = 5          // 5x1
+        case 6: standard = 3          // 3x2
+        case 7...8: standard = 4      // 4x2
+        case 9: standard = 3          // 3x3
+        case 10: standard = 5         // 5x2
+        case 11...12: standard = 4    // 4x3
+        case 13...15: standard = 5    // 5x3
+        default: standard = 4         // 4x4 for 16
         }
+        return isAccessibilitySize ? min(3, standard) : standard
     }
     
     // Split into rows based on dynamic column count
@@ -168,8 +178,9 @@ struct CompactQuickButton: View {
                         .foregroundColor(isOnCooldown ? color.opacity(0.4) : color)
                 }
                 
+                // Text styles scale with Dynamic Type; fixed 8-9pt text did not.
                 Text(name)
-                    .font(.system(size: 9))
+                    .font(.caption2)
                     .foregroundColor(isOnCooldown ? .secondary : .primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -177,13 +188,13 @@ struct CompactQuickButton: View {
                 // P3-4: "time since" badge
                 if let badge = waitLabel ?? EventLogger.relativeBadge(since: lastLogTime) {
                     Text(badge)
-                        .font(.system(size: 8, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundColor(waitLabel == nil ? color.opacity(0.7) : .primary)
                         .lineLimit(1)
                 } else {
                     // Invisible spacer to maintain consistent layout
                     Text(" ")
-                        .font(.system(size: 8))
+                        .font(.caption2)
                 }
             }
         }

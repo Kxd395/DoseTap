@@ -16,6 +16,11 @@ public struct MorningCheckInView: View {
     @State private var showPainEntryEditor = false
     @State private var usingSavedPainPattern = false
     @State private var editingPainEntry: PreSleepLogAnswers.PainEntry?
+    /// Set after the first change the user makes, so Cancel and swipe-down
+    /// cannot silently discard answers (DOSETAP-92).
+    @State private var hasUnsavedEdits = false
+    @State private var editTrackingArmed = false
+    @State private var showDiscardConfirmation = false
 
     private enum SectionLink: String, CaseIterable {
         case sleep = "Sleep quality"
@@ -68,13 +73,37 @@ public struct MorningCheckInView: View {
                         .accessibilityIdentifier("morning-section-menu")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button(viewModel.isHistory ? "Cancel" : "Close check-in") {
-                            dismiss()
-                            onComplete()
+                        // "Cancel", not "Close check-in": closing never completes
+                        // the check-in or the night, and the old name read as if it did.
+                        Button("Cancel") {
+                            if hasUnsavedEdits {
+                                showDiscardConfirmation = true
+                            } else {
+                                dismiss()
+                                onComplete()
+                            }
                         }
                         .foregroundColor(.secondary)
+                        .accessibilityIdentifier("morning-check-in-cancel")
                     }
                 }
+            }
+            .confirmationDialog("Discard your check-in answers?", isPresented: $showDiscardConfirmation, titleVisibility: .visible) {
+                Button("Discard Answers", role: .destructive) {
+                    dismiss()
+                    onComplete()
+                }
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("Your answers are not saved until you tap Complete Check-In.")
+            }
+            .onReceive(viewModel.objectWillChange) { _ in
+                if editTrackingArmed && !viewModel.isSubmitting { hasUnsavedEdits = true }
+            }
+            .task {
+                // Initial loading publishes changes too; only later changes are edits.
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                editTrackingArmed = true
             }
             .sheet(isPresented: $showPainEntryEditor) {
                 GranularPainEntryEditorView(initialEntry: editingPainEntry,
@@ -88,6 +117,8 @@ public struct MorningCheckInView: View {
                 .id("\(editingPainEntry?.entryKey ?? "new")-\(usingSavedPainPattern)")
             }
         }
+        // Applied to the outer navigation container so the sheet honors it.
+        .interactiveDismissDisabled(hasUnsavedEdits)
     }
 
     private var questionnaire: some View {
