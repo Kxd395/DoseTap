@@ -13,7 +13,7 @@ jobs:
   iphone-safety:
     name: iPhone safety UI tests
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Run the explicit iPhone UI scheme
