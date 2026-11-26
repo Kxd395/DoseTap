@@ -3432,6 +3432,8 @@ final class DoseTapDiaryHistoryUITests: XCTestCase {
         original.tap()
         XCTAssertTrue(app.navigationBars["Sleepiness 0/10"].waitForExistence(timeout: 5))
         app.navigationBars.buttons.firstMatch.tap()
+        // Wait for the back navigation to finish; a slow runner can still show the detail.
+        XCTAssertTrue(corrected.waitForExistence(timeout: 10))
         corrected.tap()
         let reason = app.descendants(matching: .any)["diary-field-Correction Reason"]
         XCTAssertTrue(reason.waitForExistence(timeout: 5))
