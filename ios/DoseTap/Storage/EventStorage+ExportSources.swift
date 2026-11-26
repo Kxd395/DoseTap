@@ -72,6 +72,20 @@ extension EventStorage {
         }
     }
 
+    func nativeDaytimeTables() throws -> Set<String> {
+        let receipts = try readExportRows("""
+            SELECT id FROM schema_migrations
+            WHERE id IN ('native_daytime_checkins_v1', 'native_daytime_prompts_v1')
+            """) { row in
+            guard let receipt = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
+            return String(cString: receipt)
+        }
+        var owned = Set<String>()
+        if receipts.contains("native_daytime_checkins_v1") { owned.insert("daytime_checkins") }
+        if receipts.contains("native_daytime_prompts_v1") { owned.insert("daytime_prompt_state") }
+        return owned
+    }
+
     /// Must run inside the caller's SQLite transaction.
     func independentRecordTables(checkUnknownTables: Bool = false) throws -> [String] {
         let tables = StudioIndependentSourceRecord.sourceTables
@@ -92,9 +106,9 @@ extension EventStorage {
         let independent = objects.filter { tables.contains($0.0.lowercased()) }
         guard independent.allSatisfy({ $0.1 == "table" }) else { throw ExportReadError.unreadable }
         let names = Set(independent.map { $0.0 })
-        let native = try hasNativeDaytimeCheckIns()
-        if native {
-            guard names == ["daytime_checkins"] else { throw ExportReadError.unreadable }
+        let native = try nativeDaytimeTables()
+        if !native.isEmpty {
+            guard names == native else { throw ExportReadError.unreadable }
         } else {
             guard names.isEmpty || names == Set(tables) else { throw ExportReadError.unreadable }
         }

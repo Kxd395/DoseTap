@@ -2750,6 +2750,31 @@ final class DoseTapDiaryHistoryUITests: XCTestCase {
         XCTAssertEqual(duration.value as? String, "20")
     }
 
+    func testDaytimeReminderHistoryShowsRecordedOutcomeAndOriginalPayload() throws {
+        let app = try launchDiaryFixture(extraSQL: """
+            UPDATE daytime_prompt_state SET payload = json_insert(payload, '$.prompts[#]', json_object(
+                'id', '8E7D18E0-BE23-4623-AF67-A1007BA67E29',
+                'scheduleID', 'E932413E-375A-4B14-8716-8530CAA2F2EE',
+                'intendedAt', '2026-09-22T14:00:00.000Z',
+                'nextAttemptAt', '2026-09-22T14:00:00.000Z', 'status', 'skipped'));
+            """)
+        app.buttons["History"].firstMatch.tap()
+        app.buttons["history-diary-records"].tap()
+        app.buttons["diary-collection-daytime_prompt_state"].tap()
+        app.buttons["diary-record-1"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["saved-reminder-preference"].waitForExistence(timeout: 5))
+        app.buttons["saved-reminder-activity"].tap()
+        let row = app.descendants(matching: .any)["saved-reminder-8E7D18E0-BE23-4623-AF67-A1007BA67E29"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("Skipped"), row.label)
+        XCTAssertTrue(row.label.contains("2026"), row.label)
+        app.navigationBars.buttons.firstMatch.tap()
+        let original = app.buttons["Original payload"]
+        for _ in 0..<4 where !original.isHittable { app.swipeUp() }
+        original.tap()
+        XCTAssertTrue(app.navigationBars["Original payload"].waitForExistence(timeout: 5))
+    }
+
     func testAllOriginalDiaryCollectionsOpen() throws {
         let app = try launchDiaryFixture()
         let collections = [
@@ -2778,19 +2803,19 @@ final class DoseTapDiaryHistoryUITests: XCTestCase {
         }
     }
 
-    private func launchDiaryFixture() throws -> XCUIApplication {
+    private func launchDiaryFixture(extraSQL: String = "") throws -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting", "--uitesting-independent-diary", "-setup_completed_v2", "YES"]
         app.launchEnvironment["DOSETAP_DIARY_TEST_ID"] = UUID().uuidString
-        app.launchEnvironment["DOSETAP_DIARY_TEST_FIXTURE"] = try fixtureBytes()
+        app.launchEnvironment["DOSETAP_DIARY_TEST_FIXTURE"] = try fixtureBytes(extraSQL: extraSQL)
         app.launch()
         return app
     }
 
-    private func fixtureBytes() throws -> String {
+    private func fixtureBytes(extraSQL: String = "") throws -> String {
         let fixture = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "Build108SyntheticUpgrade", withExtension: "sql"))
-        return try fixtureBytes(sql: String(contentsOf: fixture, encoding: .utf8))
+        return try fixtureBytes(sql: String(contentsOf: fixture, encoding: .utf8) + "\n" + extraSQL)
     }
 
     private func fixtureBytes(sql: String) throws -> String {

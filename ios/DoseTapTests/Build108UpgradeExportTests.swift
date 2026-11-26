@@ -28,6 +28,36 @@ final class Build108UpgradeExportTests: XCTestCase {
         XCTAssertEqual(try storage.exportIndependentSourceRecords(in: "daytime_prompt_state"), rows)
     }
 
+    func testBuild108ReminderChangePreservesOtherCollectionsAndUnknownFields() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try createBuild108Database(at: url.path)
+        let storage = EventStorage(dbPath: url.path)
+        let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler())
+        let table = "daytime_prompt_state"
+        let others = try storage.exportIndependentSourceRecords().filter { $0.sourceTable != table }
+        let original = try repo.daytimePrompts()
+        var planned = original
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        XCTAssertEqual(planned.prepareHorizon(at: now).count, 7)
+        try repo.saveDaytimePrompts(planned, replacing: original)
+        let reopened = EventStorage(dbPath: url.path)
+        XCTAssertEqual(try reopened.daytimePrompts(), planned)
+        XCTAssertEqual(try reopened.exportIndependentSourceRecords().filter { $0.sourceTable != table }, others)
+        XCTAssertTrue(try reopened.nativeDaytimeTables().isEmpty)
+        XCTAssertFalse(reopened.clearAllData())
+
+        XCTAssertEqual(sqlite3_exec(storage.db, """
+            UPDATE daytime_prompt_state SET payload = json_set(payload, '$.schedules[0].futureOption', 42)
+            """, nil, nil, nil), SQLITE_OK)
+        let futureRows = try storage.exportIndependentSourceRecords(in: table)
+        XCTAssertEqual(try repo.daytimePrompts(), planned)
+        var paused = planned
+        paused.enabled = false
+        XCTAssertThrowsError(try repo.saveDaytimePrompts(paused, replacing: planned))
+        XCTAssertEqual(try storage.exportIndependentSourceRecords(in: table), futureRows)
+    }
+
     func testManualAndScheduledExportsFromBuild108Database() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let manualFolder = root.appendingPathComponent("manual")
@@ -85,7 +115,7 @@ final class Build108UpgradeExportTests: XCTestCase {
             XCTAssertEqual(original.status, .unsure)
             correction = try original.corrected(response: 5, status: .answered, reason: "Reviewed", recordedAt: now)
             try repo.saveDaytimeCheckIn(correction)
-            XCTAssertFalse(try storage.hasNativeDaytimeCheckIns())
+            XCTAssertTrue(try storage.nativeDaytimeTables().isEmpty)
             XCTAssertFalse(storage.clearAllData())
         }
         let reopened = EventStorage(dbPath: url.path)

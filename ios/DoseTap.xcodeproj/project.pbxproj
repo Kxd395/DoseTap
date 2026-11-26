@@ -77,6 +77,7 @@
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		1AB721451D7C4D41A86F5A01 /* IndependentDiaryHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */; };
+		9645678D19EA41DDB8FE805D /* SavedDaytimeReminderSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BED03EA43944F69F7F00D8 /* SavedDaytimeReminderSection.swift */; };
 		0DDCB5F12E644E9EBD074811 /* DaytimeCheckInEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */; };
 		CLUST105 /* DeferredCloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* DeferredCloudKitSyncService.swift */; };
 		CLUST107 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST106 /* DashboardTypes.swift */; };
@@ -106,6 +107,7 @@
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
 		ESB045 /* EventStorage+ExportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF045 /* EventStorage+ExportSources.swift */; };
 		0DDCB5F12E644E9EBD074813 /* EventStorage+DaytimeCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */; };
+		FE8D8CC7C12943EF8ACA1670 /* EventStorage+DaytimePrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E879D831E9624894A02EEE7A /* EventStorage+DaytimePrompts.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
 		ESB005 /* StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF005 /* StorageModels.swift */; };
 		ESB006 /* EventStorage+Dose.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF006 /* EventStorage+Dose.swift */; };
@@ -297,6 +299,7 @@
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndependentDiaryHistoryView.swift; sourceTree = "<group>"; };
+		26BED03EA43944F69F7F00D8 /* SavedDaytimeReminderSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedDaytimeReminderSection.swift; sourceTree = "<group>"; };
 		B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeCheckInEditor.swift; sourceTree = "<group>"; };
 		CLUST005 /* DeferredCloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredCloudKitSyncService.swift; sourceTree = "<group>"; };
 		CLUST106 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
@@ -326,6 +329,7 @@
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
 		ESF045 /* EventStorage+ExportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+ExportSources.swift"; sourceTree = "<group>"; };
 		B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeCheckIn.swift"; sourceTree = "<group>"; };
+		E879D831E9624894A02EEE7A /* EventStorage+DaytimePrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimePrompts.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
 		ESF005 /* StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModels.swift; sourceTree = "<group>"; };
 		ESF006 /* EventStorage+Dose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Dose.swift"; sourceTree = "<group>"; };
@@ -613,6 +617,7 @@
 				B909173F1168B426E065A13A /* NightComparisonView.swift */,
 				CLUST004 /* HistoryViews.swift */,
 				8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */,
+				26BED03EA43944F69F7F00D8 /* SavedDaytimeReminderSection.swift */,
 				HIS101 /* HistorySelectedDayView.swift */,
 				HIS102 /* HistorySessionListViews.swift */,
 			);
@@ -652,6 +657,7 @@
 				DC74F002 /* EventStorage+MedicationPresets.swift */,
 				ESF045 /* EventStorage+ExportSources.swift */,
 				B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */,
+				E879D831E9624894A02EEE7A /* EventStorage+DaytimePrompts.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
 				ESF009 /* StorageRecordModels.swift */,
@@ -1033,6 +1039,7 @@
 				DC74B002 /* EventStorage+MedicationPresets.swift in Sources */,
 				ESB045 /* EventStorage+ExportSources.swift in Sources */,
 				0DDCB5F12E644E9EBD074813 /* EventStorage+DaytimeCheckIn.swift in Sources */,
+				FE8D8CC7C12943EF8ACA1670 /* EventStorage+DaytimePrompts.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,
 				ESB009 /* StorageRecordModels.swift in Sources */,
@@ -1123,6 +1130,7 @@
 				TLR003 /* TimelineReviewSupport.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 				1AB721451D7C4D41A86F5A01 /* IndependentDiaryHistoryView.swift in Sources */,
+				9645678D19EA41DDB8FE805D /* SavedDaytimeReminderSection.swift in Sources */,
 				0DDCB5F12E644E9EBD074811 /* DaytimeCheckInEditor.swift in Sources */,
 				HIS001 /* HistorySelectedDayView.swift in Sources */,
 				HIS002 /* HistorySessionListViews.swift in Sources */,

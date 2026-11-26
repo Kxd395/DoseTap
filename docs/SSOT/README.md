@@ -557,8 +557,14 @@ medication or alarms. The reminder planner can read the build-108 ledger and
 keeps observed wake, workday and off-day rules, quiet hours, and prompt outcomes
 distinct. A clock-time reminder can reuse a prompt only from its current
 schedule. Due prompts from previous schedules remain in history.
-The planner starts disabled. iOS notification delivery and action
-routing require separate integration with the current storage and alarm paths.
+The planner starts disabled. Reading an empty ledger creates no records. A
+schedule or response update compares the durable ledger with the version the
+caller read. The ledger, any new table, and its ownership receipt commit
+together. A repeated save of the same value succeeds without rewriting it.
+Unreadable or unsupported saved data prevents replacement. iOS delivery and
+action routing require separate integration. History shows the saved reminder
+preference and each prompt’s planned time and recorded status. Planned times
+alone do not establish notification delivery.
 
 Fresh databases create the compatible check-in collection on the first
 successful save and record its ownership in SQLite. Builds with the complete

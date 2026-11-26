@@ -166,6 +166,9 @@ private struct DiaryRecordDetail: View {
             if correctionUnavailable {
                 Text("This revision could not be verified for correction. Its original record is available below.")
             }
+            if record.collection == .prompts {
+                SavedDaytimeReminderSection(record: record.source)
+            }
             if let payload = record.payload {
                 Section("Recorded details") { DiaryFields(object: payload, collection: record.collection) }
             } else if record.source.columns["payload"] != nil {
