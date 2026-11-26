@@ -2636,6 +2636,14 @@ final class DoseTapUITests: XCTestCase {
 }
 
 final class DoseTapDiaryHistoryUITests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        // These journeys relaunch the app and the first one opens the keyboard. On a
+        // freshly booted hosted simulator they completed at 188-200 seconds; allow the
+        // configured 240-second maximum instead of the 180-second default.
+        executionTimeAllowance = 240
+    }
+
     func testManualDaytimeZeroAndCorrectionSurviveRelaunch() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
