@@ -194,6 +194,28 @@ final class ThemeManager: ObservableObject {
     }
 }
 
+// MARK: - Night Mode for presented content
+
+/// Sheets and full-screen covers are separate presentations, so the Night Mode
+/// filter on the root view does not reach them. Apply this to the root of each
+/// presented view so night use is not interrupted by a full-brightness sheet
+/// (DOSETAP-93).
+struct NightModePresentation: ViewModifier {
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    func body(content: Content) -> some View {
+        content
+            .environmentObject(themeManager)
+            .applyNightModeFilter(themeManager.currentTheme)
+    }
+}
+
+extension View {
+    func nightModePresentation() -> some View {
+        modifier(NightModePresentation())
+    }
+}
+
 // MARK: - View Extension for Theme Application
 extension View {
     func themedBackground(_ theme: AppTheme) -> some View {

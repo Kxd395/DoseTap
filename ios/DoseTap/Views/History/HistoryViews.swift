@@ -171,7 +171,7 @@ struct HistoryView: View {
             HStack(spacing: 8) {
                 ForEach(HistoryFilter.allCases) { filter in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAccessibleAnimation(.easeInOut(duration: 0.2)) {
                             if activeFilter == filter {
                                 activeFilter = .all
                             } else {

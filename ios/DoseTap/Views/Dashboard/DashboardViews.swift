@@ -31,6 +31,14 @@ struct DashboardTabView: View {
         }.environment(\.dashboardPalette, palette)
     }
 
+    /// A user who never connected WHOOP is told so directly instead of being asked
+    /// to widen a date range that cannot contain WHOOP data (DOSETAP-91).
+    static func whoopUnavailableDetail(isConnected: Bool) -> String {
+        isConnected
+            ? "No WHOOP nights in this range. Check the WHOOP connection in Settings, then refresh or choose a wider range."
+            : "WHOOP is not connected. WHOOP recovery data appears here only after you connect WHOOP in Settings."
+    }
+
     private var selectedPage: Binding<DashboardPage> {
         Binding(get: { page }, set: { newPage in
             if let mode = newPage.replayMode { model.replayPresentation.mode = mode }

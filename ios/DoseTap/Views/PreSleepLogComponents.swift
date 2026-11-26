@@ -32,7 +32,7 @@ struct OptionGrid<T: RawRepresentable & CaseIterable & Hashable>: View where T.R
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(options, id: \.self) { option in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAccessibleAnimation(.easeInOut(duration: 0.15)) {
                         selection = option
                     }
                 } label: {
@@ -73,7 +73,7 @@ struct MultiSelectGrid<T: RawRepresentable & CaseIterable & Hashable>: View wher
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(options, id: \.self) { option in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAccessibleAnimation(.easeInOut(duration: 0.15)) {
                         if selections.contains(option) {
                             selections.removeAll { $0 == option }
                         } else {
@@ -132,7 +132,7 @@ struct StressSlider: View {
                                      count: dynamicTypeSize.isAccessibilitySize ? 1 : 5), spacing: 8) {
                 ForEach(1...5, id: \.self) { level in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAccessibleAnimation(.easeInOut(duration: 0.15)) {
                             value = level
                         }
                     } label: {

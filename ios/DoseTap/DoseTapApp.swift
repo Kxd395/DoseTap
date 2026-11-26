@@ -112,6 +112,12 @@ struct DoseTapApp: App {
                 working: !ProcessInfo.processInfo.arguments.contains("--uitesting-dose2-confirmation")
             )
         }
+        if ProcessInfo.processInfo.arguments.contains("--uitesting-alarm-ringing") {
+            // Simulator UI fixture: show the in-app alarm screen without waiting
+            // for a scheduled notification (DOSETAP-90).
+            // ContentView starts ringing once its full-screen cover can present.
+            UserSettingsManager.shared.soundEnabled = false
+        }
         if ProcessInfo.processInfo.arguments.contains("--uitesting-durable-log") {
             SessionRepository.shared.prepareDurableLogUITest(medication: ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))
         }

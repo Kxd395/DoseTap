@@ -45,11 +45,11 @@ extension View {
     
     /// Applies withAnimation only when reduced motion is disabled
     /// Use: `withAccessibleAnimation { /* state change */ }`
-    func withAccessibleAnimation(_ body: () -> Void) {
+    func withAccessibleAnimation(_ animation: Animation = .default, _ body: () -> Void) {
         if UserSettingsManager.shared.shouldReduceMotion {
             body()
         } else {
-            withAnimation { body() }
+            withAnimation(animation) { body() }
         }
     }
 }

@@ -218,18 +218,6 @@ struct LegacyTonightView: View {
                     .padding(.horizontal)
                 }
 
-            TonightDaytimeCheckInCard()
-                .padding(.horizontal)
-                .padding(.bottom, 12)
-
-            Button { showMedications = true } label: {
-                Label("Log Medication", systemImage: "pills.fill")
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-            .padding(.horizontal)
-            .accessibilityIdentifier("tonight-log-medication")
-
             if let priorReview = homeState.priorSessionReview {
                 IncompleteSessionBanner(
                     sessionDate: priorReview.sessionDate,
@@ -419,6 +407,12 @@ struct LegacyTonightView: View {
                 }
             } // end compact layout
 
+            // General records are not nightly dose actions. They follow the
+            // nightly actions and quick log so the dose action stays near the
+            // top of the screen (DOSETAP-90).
+            Spacer().frame(height: 12)
+            otherRecordButtons
+
             // ContentView already reserves the tab bar's safe-area space.
             // Keep a small content inset, not a second tab-bar-sized spacer.
             Spacer().frame(height: 12)
@@ -431,6 +425,7 @@ struct LegacyTonightView: View {
         .toolbar { PageToolbar { EmptyView() } }
         .modifier(TonightContentBounce())
         .sheet(isPresented: $showMorningCheckIn) {
+            Group {
             if let existing = morningCheckIn {
                 // Edit existing check-in
                 MorningCheckInView(
@@ -453,8 +448,10 @@ struct LegacyTonightView: View {
                     }
                 )
             }
+            }
+            .nightModePresentation()
         }
-        .sheet(isPresented: $showMedications) { MedicationPickerView() }
+        .sheet(isPresented: $showMedications) { MedicationPickerView().nightModePresentation() }
         .sheet(isPresented: $showPreSleepLog) {
                 PreSleepLogView(
                     existingLog: preSleepEditingLog,
@@ -495,6 +492,7 @@ struct LegacyTonightView: View {
                         preSleepEditingLog = log
                     }
                 )
+                .nightModePresentation()
             }
         // Early dose alerts
         .alert("⚠️ Early Dose Warning", isPresented: $showEarlyDoseAlert) {
@@ -523,6 +521,7 @@ struct LegacyTonightView: View {
                 },
                 onCancel: { showOverrideConfirmation = false }
             )
+            .nightModePresentation()
         }
         // Extra dose warning (attempting second dose 2)
         .alert("⚠️ STOP - Dose 2 Already Taken", isPresented: $showExtraDoseWarning) {
@@ -540,6 +539,7 @@ struct LegacyTonightView: View {
         }
         // Incomplete session check-in sheet
         .sheet(isPresented: $showIncompleteCheckIn) {
+            Group {
             if let sessionDate = incompleteSessionDate {
                 let sessionId = sessionRepo.fetchSessionId(forSessionDate: sessionDate) ?? sessionDate
                 MorningCheckInView(
@@ -551,6 +551,8 @@ struct LegacyTonightView: View {
                     }
                 )
             }
+            }
+            .nightModePresentation()
         }
         .onAppear {
             // Check for incomplete sessions on view appear (skip permanently dismissed ones)
@@ -587,6 +589,25 @@ struct LegacyTonightView: View {
                 reloadPreSleepLog()
             }
         }
+    }
+
+    private var otherRecordButtons: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Other records")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
+                .accessibilityAddTraits(.isHeader)
+
+            Button { showMedications = true } label: {
+                Label("Log Medication", systemImage: "pills.fill")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("tonight-log-medication")
+
+            TonightDaytimeCheckInCard()
+        }
+        .padding(.horizontal)
     }
 
     private var resolvedHomeState: HomePresentationState {

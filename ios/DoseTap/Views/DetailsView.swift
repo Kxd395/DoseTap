@@ -28,6 +28,9 @@ func defaultTimelineMode(
 // MARK: - Alarm Ringing View
 struct AlarmRingingView: View {
     @ObservedObject private var alarmService = AlarmService.shared
+    let coordinator: DoseActionCoordinator
+    @State private var isSnoozing = false
+    @State private var snoozeMessage: String?
 
     var body: some View {
         ZStack {
@@ -49,18 +52,86 @@ struct AlarmRingingView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white.opacity(0.95))
                     .padding(.horizontal, 24)
+                // Record Dose 2 opens the same review as the Tonight button.
+                // Nothing is recorded until the user confirms there.
+                Button {
+                    // ContentView starts the review after this cover finishes dismissing.
+                    URLRouter.shared.dose2ReviewPendingAfterAlarm = true
+                    alarmService.stopRinging(acknowledge: true)
+                } label: {
+                    Label("Record Dose 2…", systemImage: "pills.fill")
+                        .font(.headline)
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .padding(.vertical, 8)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 24)
+                .accessibilityIdentifier("alarm-record-dose2")
+                .accessibilityHint("Stops the alarm and opens the Dose 2 review. Nothing is recorded until you confirm.")
+
+                Button {
+                    snooze()
+                } label: {
+                    Group {
+                        if isSnoozing {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text(DoseControlCopy.snoozeLabel(minutes: alarmService.snoozeDurationMinutes))
+                        }
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .padding(.vertical, 8)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white, lineWidth: 2))
+                }
+                .disabled(isSnoozing)
+                .padding(.horizontal, 24)
+                .accessibilityIdentifier("alarm-snooze")
+
+                if let snoozeMessage {
+                    Text(snoozeMessage)
+                        .font(.callout.weight(.semibold))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .accessibilityIdentifier("alarm-snooze-message")
+                }
+
                 Button {
                     alarmService.stopRinging(acknowledge: true)
                 } label: {
                     Text("Stop Alarm")
                         .font(.headline)
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.white)
-                        .cornerRadius(12)
+                        .foregroundColor(.white)
+                        .underline()
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .padding(.horizontal, 24)
+                .accessibilityHint("Stops the sound. Dose 2 stays unrecorded.")
+            }
+        }
+    }
+}
+
+extension AlarmRingingView {
+    /// Uses the same coordinator path as the notification Snooze action, so the
+    /// snooze policy (count limit, near-close block) applies unchanged.
+    private func snooze() {
+        isSnoozing = true
+        snoozeMessage = nil
+        Task {
+            let result = await coordinator.snooze(surface: .notificationAction)
+            isSnoozing = false
+            switch result {
+            case .success:
+                alarmService.stopRinging(acknowledge: false)
+            case .blocked(let reason), .retryRequired(let reason), .attentionRequired(let reason):
+                snoozeMessage = "Snooze unavailable: \(reason)"
+            case .needsConfirm:
+                snoozeMessage = "Snooze needs review. Open Tonight to continue."
             }
         }
     }

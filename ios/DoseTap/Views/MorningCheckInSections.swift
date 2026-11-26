@@ -25,7 +25,7 @@ struct MorningCheckInRememberSettingsSection: View {
     @ObservedObject var viewModel: MorningCheckInViewModel
 
     var body: some View {
-        Button { withAnimation { viewModel.setRememberSettingsEnabled(!viewModel.rememberSettings) } } label: {
+        Button { withAccessibleAnimation { viewModel.setRememberSettingsEnabled(!viewModel.rememberSettings) } } label: {
             HStack {
                 Image(systemName: viewModel.rememberSettings ? "checkmark.square.fill" : "square")
                     .foregroundColor(viewModel.rememberSettings ? .green : .secondary)
@@ -81,14 +81,15 @@ struct MorningCheckInSubmitSection: View {
             } label: {
                 HStack {
                     if viewModel.isSubmitting {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(.black)
                     } else {
                         Image(systemName: "checkmark.circle.fill")
                         Text(viewModel.isHistory ? "Review History Answers" : "Complete Check-In")
                     }
                 }
                 .font(.headline)
-                .foregroundColor(.white)
+                // White on system green is about 2.2:1; black passes contrast (DOSETAP-93).
+                .foregroundColor(.black)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.green.gradient)

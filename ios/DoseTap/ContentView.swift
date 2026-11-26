@@ -43,7 +43,14 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.currentTheme == .night ? .dark : (themeManager.currentTheme.colorScheme ?? settings.colorScheme))
         .accentColor(themeManager.currentTheme.accentColor)
         .applyNightModeFilter(themeManager.currentTheme)
-        .onAppear { refreshNightAppearance() }
+        .onAppear {
+            refreshNightAppearance()
+            #if DEBUG && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.arguments.contains("--uitesting-alarm-ringing") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { alarmService.startRinging() }
+            }
+            #endif
+        }
         .onReceive(sessionRepo.sessionDidChange) { _ in refreshNightAppearance() }
         .onReceive(appearanceClock) { _ in
             if scenePhase == .active { refreshNightAppearance() }
@@ -51,12 +58,14 @@ struct ContentView: View {
         .onChange(of: scenePhase) { phase in
             if phase == .active { refreshNightAppearance() }
         }
-        .fullScreenCover(isPresented: Binding(
-            get: { alarmService.isAlarmRinging },
-            set: { alarmService.isAlarmRinging = $0 }
-        )) {
-            AlarmRingingView()
-        }
+        // Observed in its own modifier: reading alarmService through the container
+        // did not redraw ContentView when ringing started, so the alarm screen
+        // could fail to appear (DOSETAP-90).
+        .modifier(AlarmRingingPresenter(
+            alarmService: alarmService,
+            coordinator: doseCoordinator,
+            onDismiss: { urlRouter.consumeAlarmDose2ReviewRequest() }
+        ))
         .sheet(isPresented: $showPageShareSheet) {
             if let sharedPageImage {
                 CapturePreviewSheet(
@@ -77,9 +86,11 @@ struct ContentView: View {
                         }
                     }
             }
+            .nightModePresentation()
         }
         .sheet(item: $urlRouter.dose1Review) { review in
             Dose1ReviewSheet(review: review, coordinator: doseCoordinator) { _ in refreshNightAppearance() }
+                .nightModePresentation()
         }
         .alert("Unable to Share Screen", isPresented: Binding(
             get: { pageShareErrorMessage != nil },
@@ -231,6 +242,23 @@ struct ContentView: View {
                 pageShareErrorMessage = "Could not capture the current app screen."
             }
             isPreparingPageShare = false
+        }
+    }
+}
+
+/// Presents the in-app alarm screen whenever AlarmService starts ringing.
+private struct AlarmRingingPresenter: ViewModifier {
+    @ObservedObject var alarmService: AlarmService
+    let coordinator: DoseActionCoordinator
+    let onDismiss: () -> Void
+
+    func body(content: Content) -> some View {
+        content.fullScreenCover(isPresented: Binding(
+            get: { alarmService.isAlarmRinging },
+            set: { alarmService.isAlarmRinging = $0 }
+        ), onDismiss: onDismiss) {
+            AlarmRingingView(coordinator: coordinator)
+                .nightModePresentation()
         }
     }
 }
@@ -424,7 +452,7 @@ struct CustomTabBar: View {
         HStack(spacing: 0) {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAccessibleAnimation(.easeInOut(duration: 0.2)) {
                         selectedTab = tab
                     }
                 } label: {
@@ -435,7 +463,8 @@ struct CustomTabBar: View {
                             Text(tab.label).font(.caption2)
                         }
                     }
-                    .foregroundColor(selectedTab == tab ? .blue : .gray)
+                    // Follow the theme accent so Night Mode does not show a blue tab.
+                    .foregroundColor(selectedTab == tab ? .accentColor : .secondary)
                     .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .accessibilityLabel(tab.label)

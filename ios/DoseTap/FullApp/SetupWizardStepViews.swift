@@ -289,26 +289,15 @@ struct NotificationStepView: View {
                 .cornerRadius(12)
 
                 if config.notificationsAuthorized {
-                    VStack(spacing: 12) {
-                        Toggle("Auto-snooze when appropriate", isOn: $config.autoSnoozeEnabled)
-                            .font(.subheadline)
-
+                    // Only choices that the app applies are shown here. Auto-snooze and
+                    // sound choices were removed because nothing read them (DOSETAP-91).
+                    VStack(alignment: .leading, spacing: 12) {
                         Toggle("Override Focus/Do Not Disturb", isOn: $config.focusModeOverride)
                             .font(.subheadline)
 
-                        HStack {
-                            Text("Notification Sound")
-                                .font(.subheadline)
-
-                            Spacer()
-
-                            Picker("Sound", selection: $config.notificationSound) {
-                                Text("Default").tag("default")
-                                Text("Gentle").tag("gentle")
-                                Text("Urgent").tag("urgent")
-                            }
-                            .pickerStyle(MenuPickerStyle())
-                        }
+                        Text("Snooze length and count are set in the previous step. Reminder sound uses the iOS notification sound.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     .padding(16)
                     .background(Color(UIColor.secondarySystemGroupedBackground))
@@ -353,23 +342,18 @@ struct PrivacyStepView: View {
             )
 
             VStack(spacing: 16) {
+                // No automatic age-based deletion exists, so setup does not offer a
+                // retention period it cannot enforce (DOSETAP-91).
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Data Retention")
                         .font(.subheadline)
                         .fontWeight(.medium)
 
-                    Picker("Retention Period", selection: $config.dataRetentionDays) {
-                        Text("90 days").tag(90)
-                        Text("1 year").tag(365)
-                        Text("2 years").tag(730)
-                        Text("Forever").tag(Int.max)
-                    }
-                    .pickerStyle(MenuPickerStyle())
-
-                    Text("How long to keep your dose history")
+                    Text("Your records stay on this device until you delete them in Settings. DoseTap does not delete history automatically.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(Color(UIColor.secondarySystemGroupedBackground))
                 .cornerRadius(12)

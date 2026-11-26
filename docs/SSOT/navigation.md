@@ -9,7 +9,7 @@ Morning Check-In keeps one Complete Check-In action in the bottom safe area whil
 answers scroll. History retains Review History Answers and its separate explicit
 confirmation. The keyboard must not cover the action; Close/Cancel never submits.
 
-On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Optional bottle-opening recording remains available in Pre-Sleep Check. Tonight's Bottle & supply card exposes amount and unopened-stock status plus direct quantity setup/review; it does not record an opening or dose merely by being opened. All five tabs share a native toolbar with theme at the leading edge and current-page capture at the trailing edge. Timeline exposes capture in both Live and Review, even without records. Its separate review-summary capture stays within Review content. Global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
+On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Log Medication and Daytime check-in are not nightly dose actions; they appear last, under Other records, after the quick log and summaries (DOSETAP-90). When the Dose 2 alarm cannot be confirmed, Tonight shows a full-width warning with Retry Alarm instead of a caption. Optional bottle-opening recording remains available in Pre-Sleep Check. Tonight's Bottle & supply card exposes amount and unopened-stock status plus direct quantity setup/review; it does not record an opening or dose merely by being opened. All five tabs share a native toolbar with theme at the leading edge and current-page capture at the trailing edge. Timeline exposes capture in both Live and Review, even without records. Its separate review-summary capture stays within Review content. Global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
 
 Take Dose 1 presents a native review sheet with occurrence, reminder presets and
 an exact alarm preview. Confirmation stays in the bottom safe area while content
@@ -83,7 +83,7 @@ administration. Existing My Medications picker settings remain a separate route.
 
 ### Independent daytime diary
 
-Tonight → Daytime check-in → Record now opens the existing current-observation
+Tonight → Other records → Daytime check-in → Record now opens the existing current-observation
 editor in one tap. The card stays available independently of nightly session
 state. Review check-ins opens the same ledger as History → Daytime check-in.
 Daytime reminder links on the card and ledger open the existing reminder settings;
@@ -120,3 +120,13 @@ refresh without losing unsaved edits. Unreadable state disables edits and Save
 until a valid retry.
 
 Settings → Daytime reminder provides one explicit Save for the master opt-in, selected weekdays, anchor, saved timezone, quiet hours and independent off-day rule. Clock anchors use a chosen clock time; main-wake anchors use an elapsed-minute offset; work anchors require reviewed shift endpoints or a saved break. “Use current timezone” is an explicit action; travel does not silently replace the saved zone. Enabling requires at least one weekday. Pausing remains available with an empty draft selection and retains the previous valid day selection. Status shows scheduled-through and expandable reasons for unscheduled dates. History keeps original intended time, anchor label and actual assessment time separate. Notification taps open an unanswered current check-in with immutable schedule protocol identity and label.
+
+## Dose controls and alarm screen (DOSETAP-90, DOSETAP-91, DOSETAP-93)
+
+- The dose button's spoken label always contains its visible text; status is its accessibility value. Before the window opens, the button reads "Waiting for Dose 2 window" with "Tap to review an early Dose 2"; a tap starts the existing early-dose warning and records nothing without confirmation.
+- Snooze controls name the configured snooze length (1–30 minutes), not a fixed 10 minutes.
+- The open-window status shows the alarm target and the window closing time. In the last 15 minutes, one countdown shows the closing time and minutes left in plain wording.
+- The in-app alarm screen offers Record Dose 2…, Snooze and Stop Alarm. Record Dose 2… stops the sound and starts the same Record Dose 2 review as the Tonight button; nothing is recorded until the user confirms. Snooze uses the notification snooze policy. Stop Alarm leaves Dose 2 unrecorded. The alarm screen is presented from an observer of the alarm service, so it appears as soon as ringing starts. A Record Dose 2 request from the alarm screen is used once and expires after 10 seconds.
+- Tonight shows every Quick Log button Settings allows (16). Labels use scalable text styles; accessibility text sizes use at most three columns.
+- First-run setup shows only choices the app applies. Notification sound, auto-snooze and data-retention pickers were removed; setup states that records stay on the device until deleted in Settings.
+- The Dashboard WHOOP card says WHOOP is not connected when there is no WHOOP connection, instead of asking for a wider date range.

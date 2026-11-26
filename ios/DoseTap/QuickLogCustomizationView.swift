@@ -35,7 +35,7 @@ struct QuickLogCustomizationView: View {
                         }
                         
                         // Empty slots - tappable to show add sheet
-                        ForEach(0..<(16 - settings.quickLogButtons.count), id: \.self) { _ in
+                        ForEach(0..<max(0, UserSettingsManager.maxQuickLogButtons - settings.quickLogButtons.count), id: \.self) { _ in
                             Button(action: {
                                 showAddSheet = true
                             }) {
@@ -55,7 +55,7 @@ struct QuickLogCustomizationView: View {
             } header: {
                 Text("QuickLog Grid (4×4)")
             } footer: {
-                Text("\(settings.quickLogButtons.count) of 16 slots used. Tap + to add events.")
+                Text("\(settings.quickLogButtons.count) of \(UserSettingsManager.maxQuickLogButtons) slots used. Tap + to add events.")
             }
             
             // Current Buttons (Editable)
@@ -113,13 +113,13 @@ struct QuickLogCustomizationView: View {
                                 .foregroundColor(.green)
                         }
                     }
-                    .disabled(settings.quickLogButtons.count >= 16)
+                    .disabled(settings.quickLogButtons.count >= UserSettingsManager.maxQuickLogButtons)
                 }
             } header: {
                 Text("Available Events")
             } footer: {
-                if settings.quickLogButtons.count >= 16 {
-                    Text("Maximum 16 buttons reached. Remove one to add another.")
+                if settings.quickLogButtons.count >= UserSettingsManager.maxQuickLogButtons {
+                    Text("Maximum \(UserSettingsManager.maxQuickLogButtons) buttons reached. Remove one to add another.")
                         .foregroundColor(.orange)
                 }
             }

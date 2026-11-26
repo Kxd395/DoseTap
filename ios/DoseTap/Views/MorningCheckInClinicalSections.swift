@@ -217,13 +217,13 @@ struct MorningCheckInSymptomTogglesSection: View {
 
             HStack(spacing: 12) {
                 symptomToggleButton(title: "Physical Symptoms", icon: "figure.wave", isActive: viewModel.hasPhysicalSymptoms) {
-                    withAnimation(.spring(response: 0.3)) {
+                    withAccessibleAnimation(.spring(response: 0.3)) {
                         viewModel.hasPhysicalSymptoms.toggle()
                     }
                 }
 
                 symptomToggleButton(title: "Sick/Respiratory", icon: "lungs.fill", isActive: viewModel.hasRespiratorySymptoms) {
-                    withAnimation(.spring(response: 0.3)) {
+                    withAccessibleAnimation(.spring(response: 0.3)) {
                         viewModel.hasRespiratorySymptoms.toggle()
                     }
                 }
@@ -476,7 +476,7 @@ struct MorningCheckInSleepEnvironmentSection: View {
     var body: some View {
         VStack(spacing: 12) {
             Button {
-                withAnimation(.spring(response: 0.3)) {
+                withAccessibleAnimation(.spring(response: 0.3)) {
                     viewModel.showSleepEnvironmentSection.toggle()
                 }
             } label: {
@@ -543,7 +543,7 @@ struct MorningCheckInSleepTherapySection: View {
     var body: some View {
         VStack(spacing: 12) {
             Button {
-                withAnimation(.spring(response: 0.3)) {
+                withAccessibleAnimation(.spring(response: 0.3)) {
                     viewModel.showSleepTherapySection.toggle()
                 }
             } label: {
@@ -575,7 +575,7 @@ struct MorningCheckInSleepTherapySection: View {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                                 ForEach(SleepTherapyDevice.allCases.filter { $0 != .none }, id: \.self) { device in
                                     Button {
-                                        withAnimation(.spring(response: 0.3)) {
+                                        withAccessibleAnimation(.spring(response: 0.3)) {
                                             viewModel.sleepTherapyDevice = device
                                         }
                                     } label: {
@@ -648,7 +648,7 @@ struct MorningCheckInNarcolepsySection: View {
     var body: some View {
         VStack(spacing: 12) {
             Button {
-                withAnimation(.spring(response: 0.3)) {
+                withAccessibleAnimation(.spring(response: 0.3)) {
                     viewModel.showNarcolepsySection.toggle()
                 }
             } label: {

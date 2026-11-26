@@ -40,7 +40,7 @@ struct DashboardAdditionalMeasuresView: View {
         case .dosing: DashboardDosingSnapshotCard(model: model)
         case .sleep: providerSleep
         case .whoop:
-            if model.whoopNights.isEmpty { Text("No WHOOP records in this range. Check the connection in Settings, then refresh or choose a wider range.") }
+            if model.whoopNights.isEmpty { Text(DashboardTabView.whoopUnavailableDetail(isConnected: WHOOPService.shared.isConnected)) }
             else { DashboardWHOOPCard(model: model) }
         case .prior: priorComparison
         case .trends: DashboardTrendChartsCard(model: model)

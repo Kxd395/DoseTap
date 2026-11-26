@@ -40,6 +40,7 @@ struct TonightDaytimeCheckInCard: View {
         .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
         .sheet(isPresented: $recording) {
             DaytimeCheckInEditor { observation in savedAt = observation.recordedAt }
+                .nightModePresentation()
         }
     }
 }

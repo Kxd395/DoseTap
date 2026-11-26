@@ -2,108 +2,53 @@ import SwiftUI
 import Combine
 import DoseCore
 
-// MARK: - Hard Stop Countdown View
-/// Prominent countdown UI shown when window is closing (<15 min remaining)
+// MARK: - Window Closing Countdown View
+/// Shown when the Dose 2 window closes in less than 15 minutes. One countdown,
+/// the closing clock time and plain wording. The earlier design showed two
+/// countdowns, a "HARD STOP" banner and "TAKE DOSE NOW!", which pushed a
+/// rushed decision at night (DOSETAP-93).
 struct HardStopCountdownView: View {
     let timeRemaining: TimeInterval
-    
+    var closesAt: Date? = nil
+    var tint: Color = .red
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 4) {
-            // Pulsing warning icon
-            HStack(spacing: 8) {
-                warningIcon
-                Text("HARD STOP")
-                    .font(.caption.bold())
-                    .tracking(2)
-                warningIcon
-            }
-            .foregroundColor(.red)
-            
-            // Large countdown timer
-            Text(formatCountdown)
-                .font(.system(size: 56, weight: .heavy, design: .rounded))
-                .foregroundColor(urgencyColor)
-                .monospacedDigit()
-                .animation(.easeInOut(duration: 0.3), value: timeRemaining)
-            
-            // Progress ring
-            ZStack {
-                Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 8)
-                
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(urgencyColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: progress)
-            }
-            .frame(width: 100, height: 100)
-            .overlay(
-                VStack(spacing: 0) {
-                    Text("time left")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text(TimeIntervalMath.formatMinutes(Int(timeRemaining / 60)))
-                        .font(.title.bold())
-                        .foregroundColor(urgencyColor)
-                    Text(" ")
-                        .font(.caption2)
-                        .foregroundColor(.clear)
+            if let closesAt {
+                Label {
+                    Text("Window closes at \(closesAt.formatted(date: .omitted, time: .shortened))")
+                        .foregroundColor(.primary)
+                } icon: {
+                    Image(systemName: "clock.badge.exclamationmark")
+                        .foregroundColor(tint)
                 }
-            )
-            
-            // Urgency message
-            Text(urgencyMessage)
-                .font(.subheadline.bold())
-                .foregroundColor(urgencyColor)
+                .font(.subheadline.weight(.semibold))
+            }
+
+            Text(Self.countdownText(timeRemaining))
+                .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                .foregroundColor(.primary)
+                .monospacedDigit()
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: timeRemaining)
+                .accessibilityLabel("\(Int(timeRemaining / 60)) minutes left")
+
+            Text(Self.message(for: timeRemaining))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.top, 4)
         }
     }
-    
-    @ViewBuilder
-    private var warningIcon: some View {
-        if #available(iOS 17.0, *) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.title2)
-                .symbolEffect(.pulse)
-        } else {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.title2)
-        }
+
+    static func countdownText(_ timeRemaining: TimeInterval) -> String {
+        let clamped = max(0, Int(timeRemaining))
+        return String(format: "%d:%02d left", clamped / 60, clamped % 60)
     }
-    
-    private var formatCountdown: String {
-        let minutes = Int(timeRemaining) / 60
-        let seconds = Int(timeRemaining) % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-    
-    private var progress: CGFloat {
-        // 15 minutes = 900 seconds is 100%
-        CGFloat(timeRemaining / 900)
-    }
-    
-    private var urgencyColor: Color {
-        let minutes = timeRemaining / 60
-        if minutes < 2 {
-            return .red
-        } else if minutes < 5 {
-            return .orange
-        } else {
-            return .yellow
-        }
-    }
-    
-    private var urgencyMessage: String {
-        let minutes = Int(timeRemaining / 60)
-        if minutes < 2 {
-            return "⚠️ TAKE DOSE NOW!"
-        } else if minutes < 5 {
-            return "Window closing very soon!"
-        } else {
-            return "Take Dose 2 before window closes"
-        }
+
+    static func message(for timeRemaining: TimeInterval) -> String {
+        timeRemaining < 120
+            ? "The window is about to close. Record Dose 2 only if you take it now."
+            : "Record Dose 2 before the window closes."
     }
 }
 
@@ -125,10 +70,13 @@ struct CompactStatusCard: View {
             HStack(spacing: 8) {
                 Image(systemName: statusIcon)
                     .font(.title3)
+                    .foregroundColor(statusColor)
+                // Status colors (green, orange, yellow) fail contrast as text on a
+                // light card, so the title uses the primary label color.
                 Text(statusTitle)
                     .font(.headline)
+                    .foregroundColor(.primary)
             }
-            .foregroundColor(statusColor)
             
             // Timer (waiting for window to open)
             if core.currentStatus == .beforeWindow, core.dose1Time != nil {
@@ -149,7 +97,7 @@ struct CompactStatusCard: View {
                     VStack(spacing: 2) {
                         Text(formatTimeRemaining)
                             .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(.orange)
+                            .foregroundColor(.primary)
                             .monospacedDigit()
                             .accessibilityLabel(accessibleTimeRemaining)
 
@@ -167,7 +115,7 @@ struct CompactStatusCard: View {
             }
             // Hard Stop Countdown (near close - <15 min)
             else if core.currentStatus == .nearClose, core.dose1Time != nil {
-                HardStopCountdownView(timeRemaining: windowCloseRemaining)
+                HardStopCountdownView(timeRemaining: windowCloseRemaining, closesAt: windowCloseTime, tint: statusColor)
             }
             else {
                 Text(statusDescription)
@@ -241,10 +189,10 @@ struct CompactStatusCard: View {
         case .beforeWindow:
             return "Waiting for window. \(accessibleTimeRemaining)"
         case .active:
-            return "Dose window is open. You can take Dose 2 now."
+            return "Dose window is open. " + Self.openWindowDescription(target: plannedTargetTime, closesAt: windowCloseTime)
         case .nearClose:
             let minutes = Int(windowCloseRemaining / 60)
-            return "Warning: Window closing soon! Only \(spokenMinutes(minutes)) remaining."
+            return "Window closing soon. \(spokenMinutes(minutes)) remaining."
         case .closed:
             return "The planned window ended. The Dose 2 record is unresolved; record what actually happened."
         case .completed:
@@ -303,7 +251,7 @@ struct CompactStatusCard: View {
         case .noDose1: return "Ready for Dose 1"
         case .beforeWindow: return "Waiting for Window"
         case .active: return "Window Open"
-        case .nearClose: return "Closing Soon!"
+        case .nearClose: return "Closing Soon"
         case .closed: return "Dose 2 Record Needed"
         case .completed: return "Dose 2 Outcome Recorded"
         case .finalizing: return "Finalizing Session"
@@ -314,8 +262,9 @@ struct CompactStatusCard: View {
         switch core.currentStatus {
         case .noDose1: return "Tap below to start"
         case .beforeWindow: return "Wait for optimal timing"
-        case .active: return "Take Dose 2 now"
-        case .nearClose: return "Less than \(TimeIntervalMath.formatMinutes(15)) left!"
+        case .active:
+            return Self.openWindowDescription(target: plannedTargetTime, closesAt: windowCloseTime)
+        case .nearClose: return "Less than \(TimeIntervalMath.formatMinutes(15)) left"
         case .closed: return "Window ended — record what happened"
         case .completed:
             return core.isSkipped && core.dose2Time == nil ? "Marked missed / not taken" : "Actual occurrence saved ✓"
@@ -332,7 +281,30 @@ struct CompactStatusCard: View {
         case .nearClose: return theme == .night ? theme.errorColor : .red
         case .closed: return theme == .night ? theme.warningColor : .orange
         case .completed: return theme == .night ? Color(red: 0.6, green: 0.3, blue: 0.2) : .purple
-        case .finalizing: return theme == .night ? theme.warningColor : .yellow
+        case .finalizing: return theme == .night ? theme.warningColor : .orange
+        }
+    }
+
+    private var windowCloseTime: Date? {
+        core.dose1Time?.addingTimeInterval(windowCloseMinutes * 60)
+    }
+
+    /// Alarm target after snoozes when known, else Dose 1 plus tonight's interval.
+    private var plannedTargetTime: Date? {
+        guard let dose1 = core.dose1Time else { return nil }
+        return AlarmService.shared.targetWakeTime
+            ?? dose1.addingTimeInterval(Double(SessionRepository.shared.activeDoseTargetMinutes) * 60)
+    }
+
+    static func openWindowDescription(target: Date?, closesAt: Date?) -> String {
+        let format: (Date) -> String = { $0.formatted(date: .omitted, time: .shortened) }
+        switch (target, closesAt) {
+        case let (target?, closesAt?):
+            return "Target \(format(target)) · closes \(format(closesAt))"
+        case let (nil, closesAt?):
+            return "Window closes at \(format(closesAt))"
+        default:
+            return "Record Dose 2 when you take it"
         }
     }
 }

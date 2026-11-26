@@ -413,52 +413,78 @@ struct AlarmIndicatorView: View {
             let alarmTime = alarmService.targetWakeTime ?? d1.addingTimeInterval(Double(sessionRepo.activeDoseTargetMinutes) * 60)
             let snoozeCount = alarmService.snoozeCount
             
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: alarmService.alarmScheduled ? "alarm.fill" : "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
+            if alarmService.alarmScheduled {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "alarm.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Dose 2 alarm: \(formattedTime(alarmTime))")
-                        .font(.caption.bold())
-                        .foregroundColor(alarmService.alarmScheduled ? .orange : .red)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Dose 2 alarm: \(formattedTime(alarmTime))")
+                            .font(.caption.bold())
+                            .foregroundColor(.orange)
 
-                    if snoozeCount > 0 {
-                        Text("(+\(snoozeCount * alarmService.snoozeDurationMinutes)m)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-
-                    if let schedulingError = alarmService.lastSchedulingError {
-                        Text(schedulingError)
-                            .font(.caption2)
-                            .foregroundColor(.red)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Button(isRetryingAlarm ? "Retrying…" : "Retry Alarm") {
-                            isRetryingAlarm = true
-                            Task {
-                                await alarmService.reconcileSession(sessionRepo, reason: .manualRetry, forceReschedule: true)
-                                isRetryingAlarm = false
-                            }
+                        if snoozeCount > 0 {
+                            Text("(+\(snoozeCount * alarmService.snoozeDurationMinutes)m)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .disabled(isRetryingAlarm)
-                        .accessibilityHint("Rebuilds and verifies the pending Dose 2 alarm and safety reminders")
+
+                        if let schedulingError = alarmService.lastSchedulingError {
+                            Text(schedulingError)
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                            retryButton.controlSize(.small)
+                        }
                     }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.15))
+                .cornerRadius(8)
+            } else {
+                // A missing Dose 2 alarm is the most important failure on Tonight,
+                // so it is a full-width warning instead of a caption (DOSETAP-90).
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Dose 2 alarm not confirmed", systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.bold())
+                        .foregroundColor(.red)
+                    Text("Planned for \(formattedTime(alarmTime)). DoseTap cannot confirm a pending alarm. Retry, or check Settings → Locked-phone alarm setup & test.")
+                        .font(.footnote)
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let schedulingError = alarmService.lastSchedulingError {
+                        Text(schedulingError)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    retryButton
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .background(Color.red.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.red.opacity(0.5), lineWidth: 1))
+                .cornerRadius(10)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("tonight-alarm-not-confirmed")
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                alarmService.alarmScheduled
-                    ? Color.orange.opacity(0.15)
-                    : Color.red.opacity(0.08)
-            )
-            .cornerRadius(8)
             }
         }
+    }
+
+    private var retryButton: some View {
+        Button(isRetryingAlarm ? "Retrying…" : "Retry Alarm") {
+            isRetryingAlarm = true
+            Task {
+                await alarmService.reconcileSession(sessionRepo, reason: .manualRetry, forceReschedule: true)
+                isRetryingAlarm = false
+            }
+        }
+        .buttonStyle(.bordered)
+        .disabled(isRetryingAlarm)
+        .accessibilityHint("Rebuilds and verifies the pending Dose 2 alarm and safety reminders")
     }
     
     private func formattedTime(_ date: Date) -> String {

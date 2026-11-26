@@ -1106,3 +1106,105 @@ final class DashboardDoseIntegrityMetricTests: XCTestCase {
         )
     }
 }
+
+// MARK: - UI/UX review fixes (DOSETAP-90, DOSETAP-91, DOSETAP-93)
+
+final class DoseControlCopyTests: XCTestCase {
+    private let allStatuses: [DoseStatus] = [.noDose1, .beforeWindow, .active, .nearClose, .closed, .completed, .finalizing]
+
+    func test_spokenLabelContainsVisibleTitleForEveryStatus() {
+        for status in allStatuses {
+            for (isSkipped, hasDose2) in [(false, false), (true, false), (false, true)] {
+                let copy = DoseControlCopy.primary(status: status, isSkipped: isSkipped, hasDose2: hasDose2)
+                let visible = copy.title.replacingOccurrences(of: " ✓", with: "")
+                XCTAssertTrue(copy.accessibilityLabel.contains(visible),
+                              "Voice Control needs the visible text in the label for \(status)")
+                XCTAssertFalse(copy.accessibilityLabel.lowercased().hasSuffix("button"),
+                               "VoiceOver already announces the button trait for \(status)")
+            }
+        }
+    }
+
+    func test_waitingStateSaysTapStartsEarlyReviewNotARecord() {
+        let copy = DoseControlCopy.primary(status: .beforeWindow, isSkipped: false, hasDose2: false)
+        XCTAssertEqual(copy.title, "Waiting for Dose 2 window")
+        XCTAssertEqual(copy.subtitle, "Tap to review an early Dose 2")
+        XCTAssertTrue(copy.accessibilityHint.contains("Nothing is recorded unless you confirm"))
+    }
+
+    func test_missedDose2OffersCorrection() {
+        let copy = DoseControlCopy.primary(status: .completed, isSkipped: true, hasDose2: false)
+        XCTAssertEqual(copy.title, "Correct Dose 2 Record")
+    }
+
+    func test_snoozeLabelUsesConfiguredMinutesWithinLimits() {
+        XCTAssertEqual(DoseControlCopy.snoozeLabel(minutes: 10), "Snooze +10m")
+        XCTAssertEqual(DoseControlCopy.snoozeLabel(minutes: 15), "Snooze +15m")
+        XCTAssertEqual(DoseControlCopy.snoozeLabel(minutes: 0), "Snooze +1m")
+        XCTAssertEqual(DoseControlCopy.snoozeLabel(minutes: 90), "Snooze +30m")
+    }
+
+    func test_alarmReviewRequestOnlyStartsDose2ReviewPhases() {
+        XCTAssertTrue(CompactDoseButton.respondsToDose2ReviewRequest(.active))
+        XCTAssertTrue(CompactDoseButton.respondsToDose2ReviewRequest(.nearClose))
+        XCTAssertTrue(CompactDoseButton.respondsToDose2ReviewRequest(.beforeWindow))
+        XCTAssertTrue(CompactDoseButton.respondsToDose2ReviewRequest(.closed))
+        XCTAssertFalse(CompactDoseButton.respondsToDose2ReviewRequest(.noDose1), "The alarm must never start Dose 1")
+        XCTAssertFalse(CompactDoseButton.respondsToDose2ReviewRequest(.completed))
+        XCTAssertFalse(CompactDoseButton.respondsToDose2ReviewRequest(.finalizing))
+    }
+}
+
+final class QuickLogLayoutTests: XCTestCase {
+    func test_tonightShowsEverySlotSettingsAllow() {
+        XCTAssertEqual(UserSettingsManager.maxQuickLogButtons, 16)
+        XCTAssertEqual(QuickEventPanel.columns(forCount: 16, isAccessibilitySize: false), 4, "16 buttons use a 4x4 grid")
+        XCTAssertEqual(QuickEventPanel.columns(forCount: 15, isAccessibilitySize: false), 5)
+        XCTAssertEqual(QuickEventPanel.columns(forCount: 9, isAccessibilitySize: false), 3)
+        XCTAssertEqual(QuickEventPanel.columns(forCount: 0, isAccessibilitySize: false), 1)
+    }
+
+    func test_accessibilityTextSizesUseAtMostThreeColumns() {
+        for count in 1...UserSettingsManager.maxQuickLogButtons {
+            XCTAssertLessThanOrEqual(QuickEventPanel.columns(forCount: count, isAccessibilitySize: true), 3)
+        }
+    }
+}
+
+final class StatusCardCopyTests: XCTestCase {
+    func test_openWindowNamesTargetAndClosingTimes() {
+        let target = Date(timeIntervalSince1970: 1_800_000_000)
+        let close = target.addingTimeInterval(75 * 60)
+        let text = CompactStatusCard.openWindowDescription(target: target, closesAt: close)
+        XCTAssertTrue(text.hasPrefix("Target "))
+        XCTAssertTrue(text.contains(" · closes "))
+        XCTAssertTrue(CompactStatusCard.openWindowDescription(target: nil, closesAt: close).hasPrefix("Window closes at "))
+    }
+
+    func test_closingCountdownIsSingleCalmValue() {
+        XCTAssertEqual(HardStopCountdownView.countdownText(12 * 60 + 5), "12:05 left")
+        XCTAssertEqual(HardStopCountdownView.countdownText(-3), "0:00 left")
+        XCTAssertFalse(HardStopCountdownView.message(for: 60).contains("!"))
+        XCTAssertFalse(HardStopCountdownView.message(for: 600).uppercased() == HardStopCountdownView.message(for: 600))
+    }
+
+    func test_whoopCardNamesMissingConnection() {
+        XCTAssertTrue(DashboardTabView.whoopUnavailableDetail(isConnected: false).hasPrefix("WHOOP is not connected"))
+        XCTAssertTrue(DashboardTabView.whoopUnavailableDetail(isConnected: true).hasPrefix("No WHOOP nights in this range"))
+    }
+}
+
+@MainActor
+final class Dose2ReviewRequestTests: XCTestCase {
+    func test_requestIsTakenOnceAndExpires() {
+        let router = URLRouter.shared
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        router.requestDose2Review(now: start)
+        XCTAssertEqual(router.selectedTab, .tonight)
+        XCTAssertTrue(router.takeDose2ReviewRequest(now: start.addingTimeInterval(1)))
+        XCTAssertFalse(router.takeDose2ReviewRequest(now: start.addingTimeInterval(2)), "A redraw must not replay the request")
+        router.requestDose2Review(now: start)
+        XCTAssertFalse(router.takeDose2ReviewRequest(now: start.addingTimeInterval(11)), "Stale requests never open a review")
+        XCTAssertNil(router.dose2ReviewRequest)
+    }
+}
