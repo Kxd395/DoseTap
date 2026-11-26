@@ -40,7 +40,8 @@ enum SleepIntervalChartScale {
         let center = (range.lowerBound + range.upperBound) / 2
         guard translation.isFinite, length.isFinite, length > 0 else { return center }
         let half = (range.upperBound - range.lowerBound) / 2
-        let shifted = center + (inverted ? 1 : -1) * translation / length * half * 2
+        let direction: Double = inverted ? 1 : -1
+        let shifted: Double = center + direction * (translation / length) * half * 2
         return min(bounds.upperBound - half, max(bounds.lowerBound + half, shifted))
     }
     static func domain(maximum: Double, focus: Double?, zoom: Double, minimumSpan: Double) -> ClosedRange<Double> {
@@ -49,7 +50,8 @@ enum SleepIntervalChartScale {
         let lower = -12.5, fullSpan = upper - lower
         let factor = zoom.isFinite ? min(8, max(1, zoom)) : 1
         let span = min(fullSpan, max(minimumSpan, fullSpan / factor))
-        let center = focus.flatMap { $0.isFinite ? $0 : nil } ?? (upper + lower) / 2
+        let middle: Double = (upper + lower) / 2
+        let center: Double = focus.flatMap { $0.isFinite ? $0 : nil } ?? middle
         let start = min(upper - span, max(lower, center - span / 2))
         return start...(start + span)
     }
@@ -150,8 +152,9 @@ struct DashboardSleepIntervalChart: View {
     }
     private func changeZoom(_ value: Double) {
         if zoom == 1 {
-            focus = selected.map { CGPoint(x: $0.x, y: $0.sleep) }
-                ?? CGPoint(x: (xDomain.lowerBound + xDomain.upperBound) / 2, y: (yDomain.lowerBound + yDomain.upperBound) / 2)
+            let middleX: Double = (xDomain.lowerBound + xDomain.upperBound) / 2
+            let middleY: Double = (yDomain.lowerBound + yDomain.upperBound) / 2
+            focus = selected.map { CGPoint(x: $0.x, y: $0.sleep) } ?? CGPoint(x: middleX, y: middleY)
         }
         zoom = value
         if zoom == 1 { focus = nil }
@@ -180,18 +183,22 @@ struct DashboardSleepIntervalChart: View {
             .chartXAxis {
                 AxisMarks(values: SleepIntervalChartScale.ticks(in: xDomain, step: 12.5)) { value in
                     if let minute = value.as(Double.self) {
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: minute.truncatingRemainder(dividingBy: 25) == 0 ? 0.7 : 0.35))
+                        let gridWidth: CGFloat = minute.truncatingRemainder(dividingBy: 25) == 0 ? 0.7 : 0.35
+                        let labelStep: Double = zoom > 1 ? 25 : 50
+                        let tickLabel: String = minute == 0 ? "Single\ndose" : SleepIntervalChartPoint.number(minute)
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: gridWidth))
                             .foregroundStyle(Color.secondary.opacity(0.25))
-                        if minute >= 0 && minute.truncatingRemainder(dividingBy: zoom > 1 ? 25 : 50) == 0 {
-                            AxisValueLabel { Text(minute == 0 ? "Single\ndose" : SleepIntervalChartPoint.number(minute)) }
+                        if minute >= 0 && minute.truncatingRemainder(dividingBy: labelStep) == 0 {
+                            AxisValueLabel { Text(verbatim: tickLabel) }
                         }
                     }
                 }
             }.chartYAxis {
                 AxisMarks(values: SleepIntervalChartScale.ticks(in: yDomain, step: 25)) { value in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5)).foregroundStyle(Color.secondary.opacity(0.25))
+                    let labelStep: Double = zoom > 1 ? 25 : 100
                     if let minute = value.as(Double.self), minute >= 0,
-                       minute.truncatingRemainder(dividingBy: zoom > 1 ? 25 : 100) == 0 { AxisValueLabel() }
+                       minute.truncatingRemainder(dividingBy: labelStep) == 0 { AxisValueLabel() }
                 }
             }.accessibilityIdentifier("dashboard-interval-points")
             .chartOverlay { proxy in GeometryReader { geometry in
@@ -215,11 +222,14 @@ struct DashboardSleepIntervalChart: View {
                     }
                     ForEach(points.filter(\.single)) { point in
                         if let target = targets.first(where: { $0.id == point.id }) {
-                            Text("1 · " + SleepIntervalChartPoint.number(point.sleep) + " min")
+                            // Typed steps keep this layout arithmetic within older type-checker limits.
+                            let labelWidth: CGFloat = min(110, frame.width)
+                            let labelX: CGFloat = min(frame.maxX - labelWidth / 2, frame.minX + target.point.x + 12 + labelWidth / 2)
+                            let labelY: CGFloat = max(frame.minY + 8, frame.minY + target.point.y - 12)
+                            Text(verbatim: "1 · \(SleepIntervalChartPoint.number(point.sleep)) min")
                                 .font(.caption2.bold()).foregroundStyle(color(point))
-                                .frame(width: min(110, frame.width), alignment: .leading)
-                                .position(x: min(frame.maxX - min(110, frame.width) / 2, frame.minX + target.point.x + 12 + min(110, frame.width) / 2),
-                                          y: max(frame.minY + 8, frame.minY + target.point.y - 12))
+                                .frame(width: labelWidth, alignment: .leading)
+                                .position(x: labelX, y: labelY)
                                 .allowsHitTesting(false).accessibilityHidden(true)
                         }
                     }

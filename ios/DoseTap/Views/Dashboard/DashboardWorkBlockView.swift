@@ -38,15 +38,23 @@ struct DashboardWorkBlockView: View {
 
     private var rows: [WorkCycleObservation] { observations.filter { positionFilter == "All" || $0.position == positionFilter } }
     private var positions: [String] {
-        WorkPhase.allCases.flatMap { phase in
-            Set(observations.filter { $0.phase == phase }.map(\.position)).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        WorkPhase.allCases.flatMap { phase -> [String] in
+            let phasePositions: Set<String> = Set(observations.filter { $0.phase == phase }.map(\.position))
+            return phasePositions.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
         }
     }
     private var selectedExportContext: WorkCycleExportContext {
         let provider: DashboardProviderAccess.Provider = model.sleepSource == .appleHealth ? .health : .whoop
         let hasSnapshot = model.sleepSource == .appleHealth ? model.healthSnapshot != nil : model.whoopSnapshot != nil
-        let definition = !metric.isProviderSleep && metric != .doseInterval ? (metric == .dose2ToRequiredWake ? DashboardRecordedWakeTarget.version : "actual_shift_intervals_v1") : metric == .doseInterval ? DashboardDosePattern.version
-            : "\(DashboardSleepMetricProjection.version):\(metric == .mainSleep ? "mainProviderEpisode" : "observedAfterDose2")"
+        let definition: String
+        if metric == .doseInterval {
+            definition = DashboardDosePattern.version
+        } else if !metric.isProviderSleep {
+            definition = metric == .dose2ToRequiredWake ? DashboardRecordedWakeTarget.version : "actual_shift_intervals_v1"
+        } else {
+            let episode: String = metric == .mainSleep ? "mainProviderEpisode" : "observedAfterDose2"
+            definition = "\(DashboardSleepMetricProjection.version):\(episode)"
+        }
         return .init(selectedSource: metric.isProviderSleep ? model.sleepSource.rawValue : "Reported administration / work evidence", selectedDefinition: definition,
             timeZoneIdentifier: model.reportingTimeZone.identifier,
             periodStart: model.reportingPeriod?.start ?? model.currentReportWindow?.start,
