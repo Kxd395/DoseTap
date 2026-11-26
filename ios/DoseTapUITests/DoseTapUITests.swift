@@ -3497,6 +3497,9 @@ final class DoseTapDiaryHistoryUITests: XCTestCase {
         XCTAssertEqual(applied, SQLITE_OK)
         XCTAssertEqual(closed, SQLITE_OK)
         return try (Data(contentsOf: url) as NSData).compressed(using: .zlib).base64EncodedString()
+    }
+}
+
 extension DoseTapUITests {
     func testDaytimeIndependentCheckInPersists() throws {
         func reveal(_ element: XCUIElement, down: Bool = false) {
