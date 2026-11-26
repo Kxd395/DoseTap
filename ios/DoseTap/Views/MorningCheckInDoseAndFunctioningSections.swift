@@ -159,10 +159,9 @@ struct MorningCheckInDoseReconciliationSection: View {
                                 .accessibilityIdentifier("morning-dose2-in-window")
                         }
                     } else if viewModel.loggedDose2Skipped {
-                        MorningCheckInDoseStatusRow(
-                            title: "Dose 2 recorded as skipped",
-                            detail: "Use History to correct this outcome."
-                        )
+                        MorningCheckInDoseStatusRow(title: "Dose 2 not taken — already recorded",
+                            detail: "The omission is already recorded. These morning answers do not repeat it or create an administration. Use History for corrections.")
+                            .accessibilityIdentifier("morning-dose2-omission-already-recorded")
                     } else {
                         Picker("Dose 2 status", selection: $viewModel.dose2Reconciliation) {
                             ForEach(Dose2ReconciliationChoice.allCases) { choice in
@@ -185,11 +184,7 @@ struct MorningCheckInDoseReconciliationSection: View {
                                 dose: 2, estimate: $viewModel.reconcileDose2Time
                             )
                             if viewModel.needsOutsideWindowEstimateConfirmation {
-                                Label("This estimate is outside the app’s Dose 2 window. Check that it reflects when you took the dose.",
-                                      systemImage: "exclamationmark.triangle")
-                                    .font(.footnote)
-                                    .foregroundStyle(.orange)
-                                Toggle("Confirm outside-window estimate", isOn: $viewModel.outsideWindowEstimateConfirmed)
+                                MorningOutsideWindowEstimateConfirmation(confirmed: $viewModel.outsideWindowEstimateConfirmed)
                             }
                             Stepper(value: $viewModel.reconcileDose2AmountMg, in: 250...20_000, step: 250) {
                                 HStack {
@@ -274,10 +269,13 @@ struct MorningCheckInMorningFunctioningSection: View {
             MorningCheckInSectionCard(title: "Mental Clarity", icon: "lightbulb.max.fill") {
                 MorningCheckInScoreSlider(
                     value: $viewModel.mentalClarity,
+                    questionLabel: "Mental clarity",
+                    accessibilityID: "morning-mental-clarity",
                     range: 1...5,
                     accentColor: .yellow,
                     lowLabel: "Foggy",
-                    highLabel: "Clear"
+                    highLabel: "Clear",
+                    showsQuestionLabel: false
                 )
             }
 
@@ -331,10 +329,13 @@ struct MorningCheckInMorningFunctioningSection: View {
             MorningCheckInSectionCard(title: "Readiness For The Day", icon: "figure.walk") {
                 MorningCheckInScoreSlider(
                     value: $viewModel.readinessForDay,
+                    questionLabel: "Readiness for the day",
+                    accessibilityID: "morning-readiness-for-day",
                     range: 1...5,
                     accentColor: .green,
                     lowLabel: "Barely",
-                    highLabel: "Ready"
+                    highLabel: "Ready",
+                    showsQuestionLabel: false
                 )
             }
 

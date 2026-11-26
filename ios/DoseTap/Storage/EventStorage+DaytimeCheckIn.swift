@@ -1,95 +1,71 @@
-import DoseCore
 import Foundation
 import SQLite3
+import DoseCore
 
 @MainActor
 extension EventStorage {
-    private static let daytimeOwnershipReceipt = "native_daytime_checkins_v1"
-
-    func hasNativeDaytimeCheckIns() throws -> Bool {
-        try !readExportRows("SELECT 1 FROM schema_migrations WHERE id = ?1",
-                           binding: Self.daytimeOwnershipReceipt) { _ in true }.isEmpty
-    }
-
     func daytimeCheckIns() throws -> DaytimeCheckInLedger {
-        try decodeDaytimeCheckIns(exportIndependentSourceRecords(in: "daytime_checkins"))
+        guard databaseInitializationFailure == nil, db != nil else { throw DaytimeDiaryError.unreadable }
+        let values: [DaytimeCheckIn] = try readExportRows("SELECT revision_id, observation_id, payload FROM daytime_checkins ORDER BY rowid") { stmt in
+            func text(_ column: Int32) throws -> String {
+                guard sqlite3_column_type(stmt, column) == SQLITE_TEXT, let bytes = sqlite3_column_text(stmt, column),
+                      let value = String(bytes: UnsafeBufferPointer(start: bytes, count: Int(sqlite3_column_bytes(stmt, column))), encoding: .utf8)
+                else { throw DaytimeDiaryError.unreadable }
+                return value
+            }
+            let value = try DaytimeCheckIn.decode(text(2))
+            guard try text(0) == value.revisionID.uuidString, try text(1) == value.id.uuidString else { throw DaytimeDiaryError.unreadable }
+            return value
+        }
+        return try DaytimeCheckInLedger(revisions: values)
     }
 
-    private func decodeDaytimeCheckIns(_ rows: [StoredExportSourceRecord]) throws -> DaytimeCheckInLedger {
-        let revisions = try rows.map { row in
-            guard let payload = row.columns["payload"]?.text else { throw DaytimeDiaryError.unreadable }
-            let entry = try DaytimeCheckIn.decode(payload)
-            guard row.columns["revision_id"]?.text == entry.revisionID.uuidString,
-                  row.columns["observation_id"]?.text == entry.id.uuidString else {
-                throw DaytimeDiaryError.unreadable
-            }
-            return entry
+    /// Commit one immutable revision atomically; identical retries do not append twice.
+    func saveDaytimeCheckIn(_ value: DaytimeCheckIn, validateNewLinks: ([DaytimeSourceLink]) throws -> Void = { _ in throw DaytimeDiaryError.invalid }) throws -> Bool {
+        let payload = try value.encoded()
+        guard databaseInitializationFailure == nil, let db, injectedMedicationFailure(at: .begin) == nil,
+              sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { throw DaytimeDiaryError.notCommitted }
+        var committed = false
+        defer { if !committed {
+            sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            storageLog.error("Independent daytime observation transaction rolled back")
+        } }
+        if let review = value.eventReview {
+            let events = try daytimeEvents().current
+            guard review.eventIDs.allSatisfy({ id in events.contains { $0.id == id && $0.occurredAt >= review.from && $0.occurredAt <= review.to } }) else { throw DaytimeDiaryError.invalid }
         }
-        return try DaytimeCheckInLedger(revisions: revisions)
-    }
-
-    func saveDaytimeCheckIn(_ entry: DaytimeCheckIn) throws -> Bool {
-        let payload = try entry.encoded()
-        guard databaseInitializationFailure == nil, let db,
-              injectedMedicationFailure(at: .begin) == nil else { throw DaytimeDiaryError.notCommitted }
-        return try withSQLiteTransaction {
-            let tables = try independentRecordTables(checkUnknownTables: true)
-            if tables.isEmpty {
-                // Create the owned table and its receipt in the same transaction as the first observation.
-                let sql = """
-                CREATE TABLE daytime_checkins (
-                    revision_id TEXT PRIMARY KEY, observation_id TEXT NOT NULL, payload TEXT NOT NULL
-                );
-                INSERT INTO schema_migrations (id) VALUES ('\(Self.daytimeOwnershipReceipt)');
-                """
-                guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw DaytimeDiaryError.notCommitted }
+        let ledger = try daytimeCheckIns()
+        let existing = ledger.revisions.first { $0.revisionID == value.revisionID }
+        if let existing {
+            guard existing == value else { throw DaytimeDiaryError.conflict }
+        } else {
+            _ = try DaytimeCheckInLedger(revisions: ledger.revisions + [value])
+            if value.predecessorID == nil, let links = value.sourceLinks, !links.isEmpty { try validateNewLinks(links) }
+            guard injectedMedicationFailure(at: .insert) == nil else { throw DaytimeDiaryError.notCommitted }
+            var stmt: OpaquePointer?
+            defer { sqlite3_finalize(stmt) }
+            guard sqlite3_prepare_v2(db, "INSERT INTO daytime_checkins (revision_id, observation_id, payload) VALUES (?, ?, ?)", -1, &stmt, nil) == SQLITE_OK,
+                  let stmt else { throw DaytimeDiaryError.notCommitted }
+            for (index, text) in [value.revisionID.uuidString, value.id.uuidString, payload].enumerated() {
+                guard sqlite3_bind_text(stmt, Int32(index + 1), text, -1, SQLITE_TRANSIENT) == SQLITE_OK else { throw DaytimeDiaryError.notCommitted }
             }
-            let ledger = try decodeDaytimeCheckIns(readIndependentRecords(table: "daytime_checkins"))
-            if let saved = ledger.revisions.first(where: { $0.revisionID == entry.revisionID }) {
-                guard saved == entry else { throw DaytimeDiaryError.conflict }
-                return false
-            }
-
-            if let predecessor = entry.predecessorID {
-                guard let current = ledger.current.first(where: { $0.id == entry.id }),
-                      current.revisionID == predecessor,
-                      current.activity == entry.activity, current.setting == entry.setting,
-                      current.coping == entry.coping, current.copingActions == entry.copingActions,
-                      current.note == entry.note, current.eventReview == entry.eventReview else {
-                    throw DaytimeDiaryError.conflict
-                }
-            } else {
-                guard entry.promptID == nil, entry.eventReview == nil, entry.sourceLinks?.isEmpty != false else {
-                    throw DaytimeDiaryError.invalid
-                }
-            }
-            _ = try DaytimeCheckInLedger(revisions: ledger.revisions + [entry])
-
-            var statement: OpaquePointer?
-            defer { sqlite3_finalize(statement) }
-            let sql = "INSERT INTO daytime_checkins (revision_id, observation_id, payload) VALUES (?, ?, ?)"
-            guard injectedMedicationFailure(at: .insert) == nil,
-                  sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
-                throw DaytimeDiaryError.notCommitted
-            }
-            for (index, value) in [entry.revisionID.uuidString, entry.id.uuidString, payload].enumerated() {
-                guard sqlite3_bind_text(statement, Int32(index + 1), value, -1, SQLITE_TRANSIENT) == SQLITE_OK else {
-                    throw DaytimeDiaryError.notCommitted
-                }
-            }
-            guard sqlite3_step(statement) == SQLITE_DONE, sqlite3_changes(db) == 1,
-                  injectedMedicationFailure(at: .commit) == nil else { throw DaytimeDiaryError.notCommitted }
-            return true
+            guard sqlite3_step(stmt) == SQLITE_DONE, sqlite3_changes(db) == 1 else { throw DaytimeDiaryError.notCommitted }
         }
+        guard injectedMedicationFailure(at: .commit) == nil,
+              sqlite3_exec(db, "COMMIT", nil, nil, nil) == SQLITE_OK else { throw DaytimeDiaryError.notCommitted }
+        committed = true
+        storageLog.info("Independent daytime observation commit verified")
+        return existing == nil
     }
 }
 
 @MainActor
 extension SessionRepository {
     func daytimeCheckIns() throws -> DaytimeCheckInLedger { try storage.daytimeCheckIns() }
-
-    func saveDaytimeCheckIn(_ entry: DaytimeCheckIn) throws {
-        guard entry.recordedAt <= clock() else { throw DaytimeDiaryError.invalid }
-        if try storage.saveDaytimeCheckIn(entry) { sessionDidChange.send() }
+    func saveDaytimeCheckIn(_ value: DaytimeCheckIn) throws {
+        guard value.recordedAt <= clock() else { throw DaytimeDiaryError.invalid }
+        if try storage.saveDaytimeCheckIn(value, validateNewLinks: { links in
+            try self.validateDaytimeSourceSelection(links, asOf: self.clock())
+        }) { sessionDidChange.send() }
     }
 }

@@ -204,7 +204,7 @@ private struct DiaryRecordDetail: View {
             if correctionSaved { dismiss() }
         }) {
             if let latest {
-                DaytimeCheckInEditor(original: latest) { correctionSaved = true }
+                DaytimeCheckInEditor(original: latest) { _ in correctionSaved = true }
             }
         }
     }

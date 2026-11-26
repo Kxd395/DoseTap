@@ -64,6 +64,14 @@ extension EventStorage {
             return false
         }
         let createSQL = """
+        CREATE TABLE IF NOT EXISTS daytime_events (
+            revision_id TEXT PRIMARY KEY, event_id TEXT NOT NULL, payload TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_daytime_event ON daytime_events(event_id);
+        CREATE TABLE IF NOT EXISTS daytime_checkins (
+            revision_id TEXT PRIMARY KEY, observation_id TEXT NOT NULL, payload TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_daytime_observation ON daytime_checkins(observation_id);
         CREATE TABLE IF NOT EXISTS medication_preset_revisions (
             id TEXT PRIMARY KEY, preset_id TEXT NOT NULL, predecessor_id TEXT,
             recorded_at_utc TEXT NOT NULL, payload TEXT NOT NULL
@@ -73,9 +81,25 @@ extension EventStorage {
             recorded_at_utc TEXT NOT NULL, occurred_at_utc TEXT, payload TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS daytime_prompt_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            payload TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS supply_state (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             payload TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS work_block_context (
+            id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS physician_review_records (
+            id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('visit', 'report')), payload TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS nap_diary (
+            id INTEGER PRIMARY KEY CHECK (id = 1), payload TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS work_wake_schedule (
@@ -122,6 +146,18 @@ extension EventStorage {
         );
         
         -- Sleep session metadata (non-calendar lifecycle)
+        CREATE TABLE IF NOT EXISTS dashboard_dose_reviews (
+            observation_id TEXT PRIMARY KEY,
+            session_date TEXT NOT NULL,
+            payload TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS dashboard_provider_associations (
+            episode_id TEXT PRIMARY KEY, provider TEXT NOT NULL, session_id TEXT NOT NULL,
+            session_date TEXT NOT NULL, session_fingerprint TEXT NOT NULL, episode_fingerprint TEXT NOT NULL,
+            revision TEXT NOT NULL, recorded_at TEXT NOT NULL, UNIQUE(provider, session_id)
+        );
+
         CREATE TABLE IF NOT EXISTS sleep_sessions (
             session_id TEXT PRIMARY KEY,
             session_date TEXT NOT NULL,

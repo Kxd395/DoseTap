@@ -41,7 +41,7 @@ final class DashboardReportingRangeTests: XCTestCase {
 
     func testFixedDaysStayCivilAcrossBothDSTTransitions() throws {
         for instant in ["2026-03-10T22:00:00-04:00", "2026-11-03T22:00:00-05:00"] {
-            for (range, count) in [(DashboardReportingRange.week, 7), (.twoWeeks, 14), (.month, 30), (.quarter, 90)] {
+            for (range, count) in [(DashboardReportingRange.week, 7), (.twoWeeks, 14), (.fourWeeks, 28), (.month, 30), (.quarter, 90)] {
                 let value = try window(range, instant)
                 var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
                 XCTAssertEqual(calendar.dateComponents([.day], from: try XCTUnwrap(value.start), to: value.endExclusive).day, count)

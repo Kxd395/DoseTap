@@ -22,11 +22,11 @@ struct QuestionSection<Content: View>: View {
 struct OptionGrid<T: RawRepresentable & CaseIterable & Hashable>: View where T.RawValue == String, T: DisplayTextProvider {
     let options: [T]
     @Binding var selection: T?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
+    }
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
@@ -36,18 +36,25 @@ struct OptionGrid<T: RawRepresentable & CaseIterable & Hashable>: View where T.R
                         selection = option
                     }
                 } label: {
-                    Text(option.displayText)
-                        .font(.subheadline)
-                        .fontWeight(selection == option ? .semibold : .regular)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(selection == option ? Color.blue : Color(.systemGray5))
-                        )
-                        .foregroundColor(selection == option ? .white : .primary)
+                    HStack(spacing: 8) {
+                        Text(option.displayText).frame(maxWidth: .infinity)
+                        QuestionnaireSelectionMark(isSelected: selection == option)
+                    }
+                    .font(.subheadline)
+                    .fontWeight(selection == option ? .semibold : .regular)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(selection == option ? Color.blue : Color(.systemGray5))
+                    )
+                    .foregroundColor(selection == option ? .white : .primary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text(option.displayText))
+                .accessibilityValue(selection == option ? "Selected" : "Not selected")
+                .accessibilityAddTraits(selection == option ? .isSelected : [])
+                .accessibilityIdentifier("questionnaire-option-\(String(describing: T.self))-\(option.rawValue)")
             }
         }
     }
@@ -56,11 +63,11 @@ struct OptionGrid<T: RawRepresentable & CaseIterable & Hashable>: View where T.R
 struct MultiSelectGrid<T: RawRepresentable & CaseIterable & Hashable>: View where T.RawValue == String, T: DisplayTextProvider {
     let options: [T]
     @Binding var selections: [T]
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
+    }
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
@@ -74,29 +81,55 @@ struct MultiSelectGrid<T: RawRepresentable & CaseIterable & Hashable>: View wher
                         }
                     }
                 } label: {
-                    Text(option.displayText)
-                        .font(.subheadline)
-                        .fontWeight(selections.contains(option) ? .semibold : .regular)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(selections.contains(option) ? Color.blue : Color(.systemGray5))
-                        )
-                        .foregroundColor(selections.contains(option) ? .white : .primary)
+                    HStack(spacing: 8) {
+                        Text(option.displayText).frame(maxWidth: .infinity)
+                        QuestionnaireSelectionMark(isSelected: selections.contains(option))
+                    }
+                    .font(.subheadline)
+                    .fontWeight(selections.contains(option) ? .semibold : .regular)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(selections.contains(option) ? Color.blue : Color(.systemGray5))
+                    )
+                    .foregroundColor(selections.contains(option) ? .white : .primary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text(option.displayText))
+                .accessibilityValue(selections.contains(option) ? "Selected" : "Not selected")
+                .accessibilityAddTraits(selections.contains(option) ? .isSelected : [])
+                .accessibilityIdentifier("questionnaire-multi-\(String(describing: T.self))-\(option.rawValue)")
             }
         }
     }
 }
 
+struct QuestionnaireSelectionMark: View {
+    let isSelected: Bool
+
+    var body: some View {
+        Image(systemName: "checkmark")
+            .font(.caption.bold())
+            .foregroundStyle(Color.primary)
+            .padding(3)
+            .background(Color(.systemBackground), in: Circle())
+            .overlay { Circle().strokeBorder(Color.primary, lineWidth: 1) }
+            .opacity(isSelected ? 1 : 0)
+            .accessibilityHidden(true)
+    }
+}
+
 struct StressSlider: View {
     @Binding var value: Int?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 5), spacing: 8) {
                 ForEach(1...5, id: \.self) { level in
                     Button {
                         withAnimation(.easeInOut(duration: 0.15)) {
@@ -108,6 +141,7 @@ struct StressSlider: View {
                                 .font(.title2.bold())
                             Text(stressLabel(level))
                                 .font(.caption2)
+                            QuestionnaireSelectionMark(isSelected: value == level)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -115,12 +149,21 @@ struct StressSlider: View {
                             RoundedRectangle(cornerRadius: 10)
                                 .fill(value == level ? stressColor(level) : Color(.systemGray5))
                         )
-                        .foregroundColor(value == level ? .white : .primary)
+                        .foregroundColor(value == level ? selectedTextColor(level) : .primary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Stress \(level) of 5, \(stressLabel(level))"))
+                    .accessibilityValue(value == level ? "Selected" : "Not selected")
+                    .accessibilityAddTraits(value == level ? .isSelected : [])
+                    .accessibilityIdentifier("questionnaire-stress-\(level)")
                 }
             }
         }
+    }
+
+    private func selectedTextColor(_ level: Int) -> Color {
+        // Increased Contrast darkens the warm fills in Light appearance.
+        colorScheme == .light && colorSchemeContrast == .increased && level >= 3 ? .white : .black
     }
 
     private func stressLabel(_ level: Int) -> String {

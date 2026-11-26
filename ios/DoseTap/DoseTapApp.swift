@@ -207,22 +207,42 @@ struct DoseTapApp: App {
             .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-medication-save"))) {
                 MedicationPickerView()
             }
+            .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-sleep-naps"))) {
+                SleepNapsFixtureView()
+            }
             .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting-dose-sleep"))) {
                 ReviewedDoseSleepFixtureView()
             }
+            .sheet(isPresented: .constant(ProcessInfo.processInfo.arguments.contains("--uitesting")
+                && ProcessInfo.processInfo.arguments.contains("--uitesting-daytime-sleep-reasons"))) {
+                NavigationStack {
+                    Form {
+                        DaytimeSleepEvidenceSection(reasons: [
+                            .init(kind: .activeDoseSession, startedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                            .init(kind: .nap, startedAt: Date(timeIntervalSince1970: 1_700_003_600)),
+                            .init(kind: .mainSleep, startedAt: Date(timeIntervalSince1970: 1_700_007_200))
+                        ], checkedAt: Date(timeIntervalSince1970: 1_700_086_400))
+                    }
+                    .navigationTitle("Saved sleep evidence")
+                }
+            }
             #endif
+            .modifier(DaytimePromptPresentation())
+            .onReceive(container.sessionRepository.sessionDidChange) { _ in
+                Task { await DaytimePromptService.shared.reconcile() }
+            }
             .onAppear {
                 ReleaseArtifactSmokeMarker.recordIfRequested()
-                Task { await SupplyReminderService.shared.reconcile() }
+                Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() }
             }
             .onChange(of: scenePhase) { phase in
-                if phase == .active { Task { await SupplyReminderService.shared.reconcile() } }
+                if phase == .active { Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() } }
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-                Task { await SupplyReminderService.shared.reconcile() }
+                Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
-                Task { await SupplyReminderService.shared.reconcile() }
+                Task { await SupplyReminderService.shared.reconcile(); await DaytimePromptService.shared.reconcile() }
             }
             .onChange(of: isSetupComplete) { completed in
                 if completed {

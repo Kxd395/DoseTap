@@ -13,32 +13,52 @@ extension DashboardAnalyticsModel {
     }
 
     var currentReportWindow: DashboardReportingWindow? {
-        selectedRange.window(asOf: reportingAsOf, timeZone: reportingTimeZone)
+        if let cachedReportingWindow { return cachedReportingWindow }
+        let window = selectedRange.window(asOf: reportingAsOf, timeZone: reportingTimeZone, reviewedPeriod: reportingPeriod)
+        cachedReportingWindow = window
+        return window
     }
 
     private func filteredNights(prior: Bool) -> [DashboardNightAggregate] {
         guard let window = currentReportWindow else { return [] }
-        return nights.filter { $0.hasAnyData && window.contains($0.sessionDate, prior: prior) }
-            .sorted { $0.sessionDate > $1.sessionDate }
+        if cachedPeriodRows == nil {
+            let sorted = nights.filter(\.hasAnyData).sorted { $0.sessionDate > $1.sessionDate }
+            cachedPeriodRows = (sorted.filter { window.contains($0.sessionDate, prior: false) },
+                                sorted.filter { window.contains($0.sessionDate, prior: true) })
+        }
+        return prior ? cachedPeriodRows?.prior ?? [] : cachedPeriodRows?.current ?? []
     }
 
     var rangeDescription: String {
         guard let window = currentReportWindow else { return "Reporting dates unavailable" }
         let first = window.firstTreatmentDate ?? populatedNights.last?.sessionDate
         guard let first else { return "All available local dates" }
-        return "\(first) – \(window.lastTreatmentDate) · \(window.timeZone.identifier) · 6 p.m. rollover"
+        let dates = "\(first) – \(window.lastTreatmentDate) · \(window.timeZone.identifier) · 6 p.m. rollover"
+        guard let period = window.reviewedPeriod else { return dates }
+        let formatter = DateFormatter(); formatter.timeZone = window.timeZone
+        formatter.dateStyle = .medium; formatter.timeStyle = .short
+        return dates + "\nReviewed bounds: \(formatter.string(from: period.start)) – \(formatter.string(from: period.endExclusive)) (end exclusive). Whole boundary nights may extend outside these instants."
     }
 
     var healthQueryDescription: String {
-        guard let query = healthQueryWindow else { return "Apple Health has not been queried for this report." }
+        guard let query = healthQueryWindow else { return "Apple Health has no successful query for this report." }
         let formatter = DateFormatter(); formatter.locale = .current; formatter.timeZone = query.timeZone
         formatter.dateStyle = .medium; formatter.timeStyle = .short
-        let period = "Apple Health query requested \(formatter.string(from: query.healthQueryStart)) – \(formatter.string(from: query.asOf)) (\(query.timeZone.identifier)); up to \(query.healthQueryDays) treatment nights."
-        if query.range != selectedRange { return period + " The selected range has changed; refresh coverage is pending." }
-        let coverage = query.healthQueryTruncatesPriorPeriod
+        let stale = healthSnapshot?.failedAttemptAt.map { "Stale Apple Health results; failed attempt at \(formatter.string(from: $0)). " } ?? ""
+        let period = stale + "Apple Health successful query requested \(formatter.string(from: query.healthQueryStart)) – \(formatter.string(from: query.healthQueryEnd)) (\(query.timeZone.identifier)); up to \(query.healthQueryDays) treatment nights."
+        if query != currentReportWindow { return period + " The selected range has changed or its reviewed bounds changed; refresh coverage is pending." }
+        let coverage = query.healthQueryTruncatesSelectedPeriod
+            ? " The 730-night limit omits the beginning of the selected period; local history is retained."
+            : query.healthQueryTruncatesPriorPeriod
             ? " The 730-night limit omits the beginning of the preceding calendar period."
-            : (query.range == .all ? " All Time includes local history beyond provider retrieval." : " Query bounds include the selected and preceding periods.")
+            : (query.range == .all ? " All Time includes local history beyond provider retrieval." : query.reviewedPeriod == nil ? " Query bounds include the selected and preceding periods." : " Query bounds cover selected treatment nights; no prior period is inferred.")
         return period + coverage + " Query bounds do not establish complete sleep measurements."
+    }
+
+    var whoopQueryDescription: String {
+        guard let snapshot = whoopSnapshot else { return "WHOOP has no successful query for this report." }
+        let pending = snapshot.window.range != selectedRange ? " The selected range has changed; refresh coverage is pending." : ""
+        return snapshot.description(provider: "WHOOP") + pending + " Retrieval is limited to 30 days; query bounds do not establish complete measurements."
     }
 
     var explicitDayTypeCount: Int {

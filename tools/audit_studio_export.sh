@@ -305,6 +305,44 @@ elif ("archiveScope" in bundle or "independentRecordsIncluded" in bundle) and no
         bundle.get("archiveScope") == "local_subset" and bundle.get("independentRecordsIncluded") is False):
     issue("P1", "Legacy scope cannot claim independent records")
 
+if schema_version == 6:
+    import base64
+    keys = {"dashboard_dose_reviews": "observation_id", "dashboard_provider_associations": "episode_id",
+            "daytime_checkins": "revision_id", "daytime_events": "revision_id", "daytime_prompt_state": "id",
+            "physician_review_records": "id", "work_block_context": "id", "nap_diary": "id"}
+    try:
+        assert bundle.get("archiveScope") == "manual_full_local_records" and bundle.get("independentRecordsIncluded") is True
+        independent = bundle.get("independentSourceRecords")
+        assert isinstance(independent, list)
+        for row in independent:
+            assert isinstance(row, dict) and row.get("sourceTable") in keys
+            columns = row.get("columns")
+            assert isinstance(columns, dict) and all(isinstance(k, str) and k for k in columns)
+            for column in columns.values():
+                assert isinstance(column, dict)
+                kind = column.get("type")
+                populated = [k for k in ("text", "integer", "real", "blobBase64") if column.get(k) is not None]
+                if kind == "null": assert not populated
+                else:
+                    field = {"text": "text", "integer": "integer", "real": "real", "blob": "blobBase64"}[kind]
+                    assert populated == [field]
+                    value = column[field]
+                    if kind == "text": assert isinstance(value, str)
+                    elif kind == "integer": assert type(value) is int and -(2**63) <= value < 2**63
+                    elif kind == "real": assert type(value) in (int, float) and math.isfinite(value)
+                    else:
+                        assert isinstance(value, str)
+                        base64.b64decode(value, validate=True)
+            identity = columns[keys[row["sourceTable"]]]
+            assert (identity.get("type") == "text" and identity.get("text")) or identity.get("type") == "integer"
+    except (AssertionError, ValueError, TypeError, KeyError, OverflowError):
+        issue("P1", "Schema 6 independent source records are missing or malformed")
+elif "independentSourceRecords" in bundle:
+    issue("P1", "Independent source records require schema 6")
+elif ("archiveScope" in bundle or "independentRecordsIncluded" in bundle) and not (
+        bundle.get("archiveScope") == "local_subset" and bundle.get("independentRecordsIncluded") is False):
+    issue("P1", "Legacy scope cannot claim independent records")
+
 if schema_version >= 4:
     required_columns = "started_utc,ended_utc,window_target_min,window_actual_min,adherence_flag,whoop_recovery,avg_hr,sleep_efficiency,notes,session_date,session_id,actual_interval_seconds,interval_status,interval_review_reason,historical_window_status,dose2_reminder_enabled,reminder_interval_minutes".split(",")
     if session_columns[:len(required_columns)] != required_columns:

@@ -1,9 +1,13 @@
 # DoseTap SSOT Navigation
 
 Status: Current SSOT index
-Last verified: 2026-09-11
+Last verified: 2026-09-30
 
 This file is a pointer map for the SSOT. The canonical spec lives in `docs/SSOT/README.md`.
+
+Morning Check-In keeps one Complete Check-In action in the bottom safe area while
+answers scroll. History retains Review History Answers and its separate explicit
+confirmation. The keyboard must not cover the action; Close/Cancel never submits.
 
 On iPhone, Tonight places the Pre-Sleep Check entry immediately before the primary dose action, including its logged/edit state. Preparation precedes taking a dose; quick logs and statistics follow the nightly actions. Optional bottle-opening recording remains available in Pre-Sleep Check. Tonight's Bottle & supply card exposes amount and unopened-stock status plus direct quantity setup/review; it does not record an opening or dose merely by being opened. All five tabs share a native toolbar with theme at the leading edge and current-page capture at the trailing edge. Timeline exposes capture in both Live and Review, even without records. Its separate review-summary capture stays within Review content. Global floating controls must not cover screen content or back navigation. The work-warning sheet separates its dated schedule summary, explicit recording action, and date-only adjustments.
 
@@ -61,9 +65,15 @@ Nightly wake overrides persist in the existing local UserDefaults store under `s
 - Production readiness: `docs/PRODUCTION_READINESS_CHECKLIST.md`
 - Archived point-in-time plans/results: `docs/archive/`
 
-Dashboard opens with All selected: Overview (recorded timing, sleep and WHOOP), Trends (explicit sleep source, comparisons, lifestyle/mood/stress), and Data (coverage, integrations, recent 14 nights, captured metric reference) appear in one scroll. Overview, Trends and Data remain optional filters and preserve the date range. Missing WHOOP, prior-period or timing-group data has an explanatory card rather than silently removing the section. Empty ranges retain Data cards and the metric reference without showing fabricated outcome statistics. Pull-to-refresh awaits data loading; provider errors stay visible.
+## Focused dashboard views
 
-All, Overview, Trends and Data share the same card implementations and metric definitions. Each exposes the Dashboard colors & missing data explanation. Overview restores build-14 summary coverage/streak/status, Trends restores neutral interval change and paired comparisons, and Data includes each recent night’s coverage.
+Dashboard opens on a chart-focused Overview with the full selected-period dose-spacing scatter, a Sleep vs spacing view including confirmed single-dose nights, work-before-sleep shapes/filter, and direct Records/Explore actions. Detailed dose, sleep and recovery summaries remain in Explore. Four short destinations organize the phone: Overview, Trends, Explore and Records. Explore retains all detailed replay, interval, sleep/nap, dose-pattern, work, context, daytime and physician routes, and the legacy recorded-measure panels. Short period/view controls use compact typography without clamping accessibility sizes; lengthy reporting, source and timezone explanations belong in expandable content or the shared-filter sheet. Detail pages retain a direct Overview route. The visible page title is separate from the short navigation control. The Overview timing comparison and detailed comparisons honor the shared night-inspection filters; recorded-measure trend cards describe the whole reporting period. Unsupported legacy questionnaire aggregates remain withheld.
+
+Replay-related pages and the internal replay mode menu share one model-owned mode. Changing a page only changes presentation: it does not reload sources, reset the reporting period, clear a stable observation selection or invalidate checked sleep coverage. Actual source, selection, cutoff, timezone or provider changes still invalidate checked evidence. A refresh retains stable identifiers while marking filtered or unavailable selections explicitly.
+
+The shared-filter sheet owns sleep source, dose pattern, work phase and planned/confirmed basis, documented context and partial-value inclusion. Resetting filters retains the selected night/provider ID; clearing that ID is a separate action and does not clear an independent nap or daytime selection. Each independent-record view states its own period and filter scope. Night-empty guidance cannot hide daytime, nap, medication or physician records.
+
+Review Data retains source coverage, integrations, provider matching, duplicate review, the metric inventory, local/iPad storage explanation and the color/missing-data legend. Other Recorded Measures retains the trustworthy dose/provider panels and the selected panel when leaving and returning; these panels explicitly describe their whole-period scope. Original morning and pre-sleep questionnaire values remain inspectable with stable source identity and needs-review labels, without inferred confirmation, absence, percentages, averages or paired outcomes from legacy defaults. Provider errors and unavailable states remain visible, and refresh awaits completion.
 
 ## Saved medication setup (build 70)
 
@@ -71,8 +81,42 @@ Settings → Saved medication presets → Add medication preset or Revise preset
 Revision history is read-only. Save preset only writes label setup, never a taken
 administration. Existing My Medications picker settings remain a separate route.
 
-## Daytime check-in (DOSETAP-58)
+### Independent daytime diary
 
-Tonight opens the manual Daytime check-in form directly. History → Diary records
-→ Daytime check-ins also offers entry. Opening the latest revision exposes
-Correct response. Older revisions remain available in the same list.
+Tonight → Daytime check-in → Record now opens the existing current-observation
+editor in one tap. The card stays available independently of nightly session
+state. Review check-ins opens the same ledger as History → Daytime check-in.
+Daytime reminder links on the card and ledger open the existing reminder settings;
+schedule changes still require Save reminder. Successful saves show the recording
+timestamp on Tonight without displaying a previous rating before another entry.
+
+History → Daytime check-in opens independent observations, current custom 0–10 entry, explicit remembered entries and correction history. Opening does not create a nighttime session. No score is selected initially; save failure retains the exact pending revision for retry.
+
+### Original diary records
+
+History → Diary records lists every independent collection kept from build 108
+onward: daytime check-ins and events, naps, reminder history, physician visits,
+work context, dose reviews and provider associations. Opening a record shows its
+stored fields and original payload without changing it. For daytime check-ins,
+the latest revision offers Correct response, which opens the same editor as
+History → Daytime check-in; earlier revisions stay in the list.
+
+## Dashboard reporting period
+
+The phone dashboard's reporting-period menu offers 7/28/90 days, 6/12 calendar months and legacy preset ranges. Custom dates opens one cancellable review sheet with inclusive start, exclusive end and captured timezone; Apply validates before changing the selection. Since last completed visit reads confirmed visit history and directs an empty-history user to Physician review without substituting a booking or a guessed date. The period explanation identifies whole treatment-night membership at the 18:00 rollover, including boundary-night overlap.
+
+## Physician review
+
+The physician-review screen opens a completed-visit history and explicit report-period selection, followed by unscored activity notes and questions. Save and preview persists one immutable snapshot. Saved previews reopen the captured values; corrections generate another preview. The preview contains a separate Share button. Opening or saving never invokes the activity sheet or sends health records.
+
+### Optional daytime reminder
+
+The reminder page opens with saved status, last-check time and the next future
+verified queued attempt. The queue horizon and saved timezone remain explicit;
+displayed status times use the device timezone. Permission denial offers Open
+iOS Settings. Save is available in the toolbar as well as below the configuration.
+The draft waits for a valid load, remains separate from saved status and survives
+refresh without losing unsaved edits. Unreadable state disables edits and Save
+until a valid retry.
+
+Settings → Daytime reminder provides one explicit Save for the master opt-in, selected weekdays, anchor, saved timezone, quiet hours and independent off-day rule. Clock anchors use a chosen clock time; main-wake anchors use an elapsed-minute offset; work anchors require reviewed shift endpoints or a saved break. “Use current timezone” is an explicit action; travel does not silently replace the saved zone. Enabling requires at least one weekday. Pausing remains available with an empty draft selection and retains the previous valid day selection. Status shows scheduled-through and expandable reasons for unscheduled dates. History keeps original intended time, anchor label and actual assessment time separate. Notification taps open an unanswered current check-in with immutable schedule protocol identity and label.

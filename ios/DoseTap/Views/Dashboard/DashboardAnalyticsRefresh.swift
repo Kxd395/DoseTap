@@ -24,105 +24,143 @@ extension DashboardAnalyticsModel {
         let generation = UUID()
         refreshGeneration = generation
         isLoading = true
+        providerAssociationsReady = false
+        doseReviewReadReady = false
+        invalidateContextPublication()
+        invalidateWorkInspectionContext()
         defer { if refreshGeneration == generation { isLoading = false } }
         let asOf = now(), zone = timeZone(), range = selectedRange
+        let customRange = customReportingRange
+        let localRevision = localSnapshotRevision
         let access = providerAccess.revision
         refreshProviderAccess = access
         let healthEnabled = providerQueries.healthEnabled()
         let whoopEnabled = providerQueries.whoopEnabled(), whoopConnected = providerQueries.whoopConnected()
         func requestIsCurrent() -> Bool {
             !Task.isCancelled && refreshGeneration == generation && providerAccess.revision == access
+                && localSnapshotRevision == localRevision
                 && range == selectedRange && zone == timeZone()
+                && customRange == customReportingRange
                 && healthEnabled == providerQueries.healthEnabled()
                 && whoopEnabled == providerQueries.whoopEnabled() && whoopConnected == providerQueries.whoopConnected()
         }
-        guard let requestedWindow = range.window(asOf: asOf, timeZone: zone) else {
-            errorMessage = "Reporting dates could not be determined. Check the device date and refresh."
+        let requestedWindow: DashboardReportingWindow
+        do { requestedWindow = try resolveReportingWindow(asOf: asOf, timeZone: zone) }
+        catch {
+            errorMessage = reportingPeriodError(error)
             return
         }
         var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
-        var refreshError: String?
-        var queriedHealth = false
+        var refreshErrors: [String] = []
+        var health = includeProviders && healthEnabled && healthSnapshot?.matches(timeZone: zone, epoch: access[.health]) == true ? healthSnapshot : nil
+        var whoopResult = includeProviders && whoopEnabled && whoopConnected && whoopSnapshot?.matches(timeZone: zone, epoch: access[.whoop]) == true ? whoopSnapshot : nil
 
-        var healthByKey: [String: HealthKitService.SleepNightSummary] = [:]
-        if includeProviders && healthEnabled {
-            let readable = await providerQueries.prepareHealth()
-            guard requestIsCurrent() else { return }
-            if readable {
-                do {
-                    queriedHealth = true
-                    let summaries = try await providerQueries.healthHistory(requestedWindow)
-                    guard requestIsCurrent() else { return }
-                    for summary in summaries {
-                        let key = sessionKey(for: eveningAnchorDate(for: summary.date, timeZone: zone), timeZone: zone)
-                        if healthByKey[key] == nil { healthByKey[key] = summary }
-                    }
-                } catch {
-                    guard requestIsCurrent() else { return }
-                    refreshError = "Apple Health sleep could not refresh. Local records are still available. Try Refresh again."
-                }
-            } else if let lastError = healthKit.lastError, !lastError.isEmpty {
-                refreshError = lastError
-            }
-        }
-
-        var whoopByKey: [String: WHOOPNightSummary] = [:]
-        if includeProviders && whoopEnabled && whoopConnected {
+        // First paint does not wait for permissions or a provider's network request.
+        // Final publication below re-reads current local evidence and establishes readiness.
+        if nights.isEmpty && includeProviders && (healthEnabled || (whoopEnabled && whoopConnected)) {
             do {
-                let fetchDays = min(days, 30)
-                let endDate = asOf
-                let startDate = calendar.date(byAdding: .day, value: -fetchDays, to: endDate) ?? endDate
-                let summaries = try await providerQueries.whoopHistory(startDate, endDate)
+                let local = try await sessionRepo.dashboardContextSnapshotAsync(capturedAt: asOf)
                 guard requestIsCurrent() else { return }
-                if let warning = whoop.lastError { refreshError = warning }
-                for summary in summaries {
-                    let key = sessionKey(for: summary.date, timeZone: zone)
-                    if summary.totalSleepMinutes > (whoopByKey[key]?.totalSleepMinutes ?? -1) {
-                        whoopByKey[key] = summary
-                    }
+                if !local.sessions.isEmpty {
+                    reportingAsOf = asOf; reportingTimeZone = zone
+                    reportingPeriod = requestedWindow.reviewedPeriod
+                    nights = identityAggregates(local: local.sessions, health: [:], whoop: [:])
                 }
             } catch {
                 guard requestIsCurrent() else { return }
-                refreshError = "WHOOP sleep could not refresh. Local records are still available. Try Refresh again."
+                errorMessage = "Local records could not be read completely. Try Refresh again."
+                return
             }
         }
 
-        let sessionKeys = Set(sessionRepo.allSessionDatesForSync())
-            .union(healthByKey.keys).union(whoopByKey.keys).sorted(by: >)
-        var aggregates: [DashboardNightAggregate] = []
-        for key in sessionKeys {
+        if includeProviders && healthEnabled {
+            let preparation = await providerQueries.prepareHealth()
             guard requestIsCurrent() else { return }
-            let derivedDose = Self.deriveDoseMetrics(from: sessionRepo.fetchDoseEvents(forSessionDate: key))
-            let events = sessionRepo.fetchSleepEvents(for: key).sorted { $0.timestamp < $1.timestamp }
-            let duplicateClusters = buildStoredEventDuplicateGroups(events: events).count
+            switch preparation {
+            case .ready:
+                do {
+                    let summaries = try await providerQueries.healthHistory(requestedWindow)
+                    guard requestIsCurrent() else { return }
+                    var values: [String: HealthKitService.SleepNightSummary] = [:]
+                    for summary in summaries {
+                        let key = sessionKey(for: eveningAnchorDate(for: summary.date, timeZone: zone), timeZone: zone)
+                        if values[key] == nil { values[key] = summary }
+                    }
+                    health = .init(values: values, window: requestedWindow, queryStart: requestedWindow.healthQueryStart, epoch: access[.health])
+                } catch {
+                    guard requestIsCurrent(), !DashboardProviderFailure.isCancelled(error) else { return }
+                    if DashboardProviderFailure.isTransient(error) { health?.failedAttemptAt = asOf } else { health = nil }
+                    refreshErrors.append("Apple Health sleep could not refresh. \(health == nil ? "No usable previous results are available." : "Showing a stale snapshot.") Local records remain available.")
+                }
+            case .transientFailure:
+                health?.failedAttemptAt = asOf
+                refreshErrors.append("Apple Health access status could not refresh. \(health == nil ? "No usable previous results are available." : "Showing a stale snapshot.")")
+            case .unavailable:
+                health = nil
+                refreshErrors.append("Apple Health access is unavailable. Check access in Settings.")
+            }
+        }
 
-            var aggregate = DashboardNightAggregate(
-                sessionDate: key,
-                dose1Time: derivedDose.dose1Time,
-                dose2Time: derivedDose.dose2Time,
-                dose2Skipped: derivedDose.dose2Skipped,
-                snoozeCount: derivedDose.snoozeCount,
-                extraDoseCount: derivedDose.extraDoseCount,
-                events: events,
-                morningCheckIn: sessionRepo.fetchMorningCheckIn(for: key),
-                preSleepLog: sessionRepo.fetchPreSleepLog(forSessionDate: key),
-                healthSummary: healthByKey[key],
-                whoopSummary: whoopByKey[key],
-                duplicateClusterCount: duplicateClusters,
-                napSummary: sessionRepo.napSummary(for: key)
-            )
-            do { aggregate.outcome = try sessionRepo.nightOutcomeSnapshot(sessionDate: key).record?.answers }
-            catch { aggregate.outcomeReadFailed = true }
-            aggregates.append(aggregate)
-            await Task.yield()
+        if includeProviders && whoopEnabled && whoopConnected {
+            do {
+                let fetchDays = max(1, min(days, 30))
+                let queryEnd = requestedWindow.healthQueryEnd
+                let limitStart = calendar.date(byAdding: .day, value: -fetchDays, to: queryEnd) ?? queryEnd
+                let startDate = requestedWindow.reviewedPeriod == nil ? limitStart : max(limitStart, requestedWindow.healthQueryStart)
+                let result = try await providerQueries.whoopHistory(startDate, queryEnd)
+                guard requestIsCurrent() else { return }
+                var values: [String: WHOOPNightSummary] = [:]
+                for summary in result.summaries {
+                    let key = sessionKey(for: summary.date, timeZone: zone)
+                    if summary.totalSleepMinutes > (values[key]?.totalSleepMinutes ?? -1) { values[key] = summary }
+                }
+                whoopResult = .init(values: values, window: requestedWindow, queryStart: startDate,
+                                    epoch: access[.whoop], isPartial: result.recoveryStatus == .failed)
+                if result.recoveryStatus == .failed { refreshErrors.append("WHOOP sleep refreshed; recovery metrics could not refresh.") }
+            } catch {
+                guard requestIsCurrent(), !DashboardProviderFailure.isCancelled(error) else { return }
+                if DashboardProviderFailure.isTransient(error) { whoopResult?.failedAttemptAt = asOf } else { whoopResult = nil }
+                refreshErrors.append("WHOOP sleep could not refresh. \(whoopResult == nil ? "No usable previous results are available." : "Showing a stale snapshot.") Local records remain available.")
+            }
+        }
+        let healthByKey = health?.values ?? [:], whoopByKey = whoopResult?.values ?? [:]
+
+        let aggregates: [DashboardNightAggregate]
+        let associations: [DashboardProviderAssociation]
+        let context: DashboardContextTimeline
+        let workContext: WorkContextDocument?
+        do {
+            let snapshot = try await sessionRepo.dashboardContextSnapshotAsync(capturedAt: asOf)
+            guard requestIsCurrent() else { return }
+            context = snapshot.timeline
+            workContext = try sessionRepo.workContext()
+            associations = snapshot.associations
+            let reviews = try sessionRepo.dashboardDoseReviews()
+            aggregates = identityAggregates(local: snapshot.sessions, health: healthByKey, whoop: whoopByKey,
+                associations: snapshot.associations, contextTimeline: context)
+                .map { row in var row = row; row.doseReviewLedger = reviews[row.id]; return row }
+        } catch {
+            guard requestIsCurrent() else { return }
+            errorMessage = "Local records could not be read completely. Previous dashboard data is retained. Try Refresh again."
+            return
         }
 
         guard requestIsCurrent() else { return }
         publishedProviderAccess = access
         reportingAsOf = asOf; reportingTimeZone = zone
-        healthQueryWindow = queriedHealth ? requestedWindow : nil
-        errorMessage = refreshError
-        nights = aggregates.sorted { $0.sessionDate > $1.sessionDate }
+        reportingPeriod = requestedWindow.reviewedPeriod
+        publishedCustomReportingRange = customRange
+        healthSnapshot = health; whoopSnapshot = whoopResult
+        healthQueryWindow = health?.window
+        errorMessage = refreshErrors.isEmpty ? nil : refreshErrors.joined(separator: " ")
+        if !refreshErrors.isEmpty { dashboardLogger.warning("Dashboard refresh completed with \(refreshErrors.count, privacy: .public) provider warnings") }
+        nights = aggregates
+        savedProviderAssociations = associations
+        providerAssociationsReady = true
+        doseReviewReadReady = true
+        contextTimeline = context
+        contextReadReady = true
+        publishWorkInspectionContext(workContext, nights: aggregates, asOf: asOf)
         integrationStates = buildIntegrationStates(healthMatches: healthByKey.count, whoopMatches: whoopByKey.count)
         lastRefresh = asOf
         isLoading = false
@@ -134,8 +172,8 @@ extension DashboardAnalyticsModel {
             sorted.filter { CanonicalDoseEventType(canonicalizing: $0.eventType) == kind }
         }
         return DashboardDerivedDoseMetrics(
-            dose1Time: events(.dose1).first?.timestamp,
-            dose2Time: events(.dose2).first?.timestamp,
+            dose1Time: events(.dose1).count == 1 ? events(.dose1).first?.timestamp : nil,
+            dose2Time: events(.dose2).count == 1 ? events(.dose2).first?.timestamp : nil,
             dose2Skipped: !events(.dose2Skipped).isEmpty,
             extraDoseCount: events(.extraDose).count,
             snoozeCount: events(.snooze).count
@@ -219,6 +257,12 @@ extension DashboardAnalyticsModel {
                 : .gray
         )
 
-        return [healthState, whoopState, cloudState]
+        func snapshotState<T>(_ state: DashboardIntegrationState, _ snapshot: DashboardProviderSnapshot<T>?) -> DashboardIntegrationState {
+            guard let snapshot else { return state }
+            let stale = snapshot.failedAttemptAt != nil
+            return .init(id: state.id, name: state.name, status: stale ? "Stale" : (snapshot.isPartial ? "Partial" : state.status),
+                detail: snapshot.description(provider: state.name), color: stale || snapshot.isPartial ? .orange : state.color)
+        }
+        return [snapshotState(healthState, healthSnapshot), snapshotState(whoopState, whoopSnapshot), cloudState]
     }
 }

@@ -143,5 +143,6 @@ struct Card1TimingStress<Context: View>: View {
             .animation(.easeInOut(duration: 0.2), value: answers.stressProgression)
             .animation(.easeInOut(duration: 0.2), value: answers.intendedSleepTime)
         }
+        .accessibilityIdentifier("pre-sleep-timing-scroll")
     }
 }

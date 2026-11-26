@@ -25,7 +25,9 @@ final class ImportedSessionDeletionTests: XCTestCase {
 
     private func fixture() throws -> EventStorage {
         let storage = EventStorage.inMemory()
+        // The schema creates these collections; replace them with minimal dated shapes.
         try execute("""
+            DROP TABLE dashboard_dose_reviews; DROP TABLE dashboard_provider_associations; DROP TABLE daytime_events;
             CREATE TABLE dashboard_dose_reviews (observation_id TEXT PRIMARY KEY, session_date TEXT, payload TEXT);
             CREATE TABLE dashboard_provider_associations (episode_id TEXT PRIMARY KEY, session_date TEXT, session_id TEXT);
             CREATE TABLE daytime_events (id TEXT PRIMARY KEY, payload TEXT);
@@ -91,11 +93,14 @@ final class ImportedSessionDeletionTests: XCTestCase {
         try checkRows([recent], in: storage)
     }
 
-    func testNoImportedTablesAndUnexpectedSchema() throws {
+    func testEmptyImportedTablesAndUnexpectedSchema() throws {
         let storage = EventStorage.inMemory()
         XCTAssertTrue(storage.clearOldData(olderThanDays: 30))
         XCTAssertTrue(storage.deleteSession(sessionDate: old, recordCloudKitDeletion: false))
-        try execute("CREATE VIEW dashboard_dose_reviews AS SELECT session_date FROM dose_events", in: storage)
+        try execute("""
+            DROP TABLE dashboard_dose_reviews;
+            CREATE VIEW dashboard_dose_reviews AS SELECT session_date FROM dose_events;
+            """, in: storage)
         XCTAssertFalse(storage.clearOldData(olderThanDays: 30))
         XCTAssertFalse(storage.deleteSession(sessionDate: old))
         XCTAssertTrue(storage.fetchCloudKitTombstones().isEmpty)

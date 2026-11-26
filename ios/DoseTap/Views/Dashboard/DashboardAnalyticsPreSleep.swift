@@ -53,7 +53,7 @@ extension DashboardAnalyticsModel {
             let bedtimeDrivers = night.preSleepLog?.answers?.resolvedStressDrivers ?? []
             let wakeDrivers = night.morningCheckIn?.resolvedStressDrivers ?? []
             let point = DashboardStressTrendPoint(
-                sessionDate: night.sessionDate,
+                stableID: night.id, sessionDate: night.sessionDate,
                 date: date,
                 bedtimeStress: night.preSleepLog?.answers?.stressLevel.map(Double.init),
                 wakeStress: night.morningCheckIn?.stressLevel.map(Double.init),

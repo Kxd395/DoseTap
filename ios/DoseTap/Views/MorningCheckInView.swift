@@ -99,11 +99,7 @@ public struct MorningCheckInView: View {
                         .id(SectionLink.sleep)
                     MorningSleepingSetupSection(viewModel: viewModel)
                     if !viewModel.isHistory {
-                        if viewModel.hasCommittedDoseReconciliation {
-                            Text("Medication choices will not be reapplied. Retrying saves only your morning answers. Use History for further medication corrections.")
-                                .font(.footnote)
-                                .accessibilityIdentifier("morning-medication-review-saved")
-                        } else { MorningCheckInDoseReconciliationSection(viewModel: viewModel) }
+                        MorningDoseHistoryReviewSection(viewModel: viewModel)
                     }
                     else { Text("Treatment night: \(viewModel.sessionDate). These answers do not add doses or close tonight's session. Use Add / Correct Records for medication changes.").font(.footnote) }
                     MorningCheckInNightContextSection(viewModel: viewModel)
@@ -130,14 +126,21 @@ public struct MorningCheckInView: View {
                     MorningCheckInNotesSection(viewModel: viewModel)
                         .id(SectionLink.notes)
                     if !viewModel.isHistory { MorningCheckInRememberSettingsSection(viewModel: viewModel) }
-                    MorningCheckInSubmitSection(
-                        viewModel: viewModel,
-                        dismissAction: { dismiss() },
-                        onComplete: onComplete
-                    )
                 }
                 .padding()
                 .frame(width: geometry.size.width)
+            }
+            .accessibilityIdentifier("morning-check-in-scroll")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                MorningCheckInSubmitSection(
+                    viewModel: viewModel,
+                    dismissAction: { dismiss() },
+                    onComplete: onComplete,
+                    statusMaximumHeight: geometry.size.height / 4
+                )
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .background(.bar)
             }
         }
     }

@@ -32,17 +32,15 @@ final class DaytimeAuthoringStorageTests: XCTestCase {
         XCTAssertTrue(try repository.daytimeCheckIns().revisions.isEmpty)
     }
 
-    func testUnmarkedPartialPhoneSchemaStaysRejected() throws {
+    func testMissingDiaryCollectionBlocksFullExportAndResetWithoutLosingRecords() throws {
         let storage = EventStorage.inMemory()
-        XCTAssertEqual(sqlite3_exec(storage.db, """
-            CREATE TABLE daytime_checkins (
-                revision_id TEXT PRIMARY KEY, observation_id TEXT NOT NULL, payload TEXT NOT NULL
-            )
-            """, nil, nil, nil), SQLITE_OK)
         let repo = SessionRepository(storage: storage, notificationScheduler: FakeNotificationScheduler(), clock: { self.now })
         let entry = try DaytimeCheckIn(assessedAt: now, recordedAt: now, timeZoneIdentifier: "UTC", response: 5)
-        XCTAssertThrowsError(try repo.saveDaytimeCheckIn(entry))
+        try repo.saveDaytimeCheckIn(entry)
+        // Schema initialization creates every diary collection; a missing one was removed outside this build.
+        XCTAssertEqual(sqlite3_exec(storage.db, "DROP TABLE nap_diary", nil, nil, nil), SQLITE_OK)
         XCTAssertThrowsError(try repo.exportIndependentSourceRecords())
         XCTAssertFalse(storage.clearAllData())
+        XCTAssertEqual(try repo.daytimeCheckIns().current, [entry])
     }
 }

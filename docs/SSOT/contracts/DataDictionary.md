@@ -447,3 +447,14 @@ amount is explicitly reported. Prepared amount leaves the bottle once; linking o
 discarding a preparation never subtracts it twice. These allocated amounts are
 inventory reports, not a backfill of actual administered amounts in dose_events.
 See [quantity and preparation rules](../bottle-tracking.md).
+
+## Independent daytime observations
+
+`daytime_checkins`: `revision_id` is the immutable revision UUID; `observation_id` identifies one observation across corrections; `payload` is versioned validated custom diary JSON. UTC assessed/created/recorded timestamps and timezone offset, instrument/content identifiers, explicit response status, activity/coping and provenance remain independent of nighttime questionnaires. Missing response is never numeric zero.
+
+`daytime_events(revision_id TEXT PRIMARY KEY, event_id TEXT NOT NULL, payload TEXT NOT NULL)` retains original and corrected explicit daytime events. `idx_daytime_event` groups revisions. A check-in can reference existing stable event IDs within an explicit review interval; links do not duplicate event records. Clear All Data includes this independent ledger.
+
+Optional `daytime_checkins.payload.sourceLinks` preserves explicitly selected existing source references. Each carries source kind/ID, optional durable revision, semantic SHA-256 key, original event IDs, optional source calendar date/timezone, timestamp bounds/quality and selection time. Missing links in older JSON remain absent. Related references do not insert medication or nap events or become inferred treatment-response pairs.
+## Independent reviewed naps
+
+`nap_diary` is an additive singleton table (`id INTEGER PRIMARY KEY CHECK(id=1)`, `payload TEXT NOT NULL`). The version1 NapDiaryDocument JSON stores append-only reviewed episodes/day reviews and an optimistic document revision. Dates use Foundation numeric seconds since2001-01-01 UTC; calendar dates and timezones are explicit. Exact SQLite TEXT bytes are decoded and validated; stale writes, replaced history and corrupt payloads fail visibly. No medication/session/alarm rows are created. Clear All Data includes the ledger; `.daytimeDiary` nearby snapshots preserve its original payload and source table without inventing a nightly association. Provider coverage remains transient and is not stored here.
