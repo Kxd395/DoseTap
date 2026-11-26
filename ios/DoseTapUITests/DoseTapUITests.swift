@@ -3361,7 +3361,8 @@ final class DoseTapDiaryHistoryUITests: XCTestCase {
         entry.tap()
         let zero = app.buttons["daytime-rating-0"]
         XCTAssertTrue(zero.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["daytime-save"].isEnabled)
+        // No rating is preselected. An unrated save records an incomplete observation.
+        XCTAssertEqual(app.staticTexts["daytime-rating-summary"].label, "Choose a rating")
         zero.tap()
         XCTAssertEqual(app.staticTexts["daytime-rating-summary"].label, "Your rating: 0/10")
         app.buttons["daytime-save"].tap()
