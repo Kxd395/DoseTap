@@ -17,7 +17,9 @@ final class ExportSourceSnapshotTests: XCTestCase {
                 "session_fingerprint", "episode_fingerprint", "revision", "recorded_at"]
                 .filter { $0 != key }.map { "\($0) TEXT" }.joined(separator: ", ")
             // Keep the source identities and required columns, including additional SQLite types.
+            // The schema creates every diary collection; replace each with an unusual but valid shape.
             execute("""
+            DROP TABLE IF EXISTS \(table);
             CREATE TABLE \(table)(\(key) TEXT PRIMARY KEY, payload TEXT, missing TEXT, zero REAL, binary BLOB,
                 \(linkColumns));
             INSERT INTO \(table)(\(key),payload,missing,zero,binary) VALUES ('original', '{"revision":1,"score":0}', NULL, 0, X'0001');
@@ -26,7 +28,7 @@ final class ExportSourceSnapshotTests: XCTestCase {
         return storage
     }
 
-    func testNativeDatabaseWithoutIndependentCollectionsSupportsFullExport() throws {
+    func testFreshDatabaseWithEmptyIndependentCollectionsSupportsFullExport() throws {
         let storage = EventStorage.inMemory()
         let source = SessionRepository(storage: storage)
         XCTAssertTrue(try source.exportIndependentSourceRecords().isEmpty)

@@ -1,9 +1,9 @@
 # DoseTap SSOT (Single Source of Truth)
 
 Status: Current behavior authority
-Last verified: 2026-09-30
-SSOT revision: 0.4.19
-App version defined in this revision's Xcode project: 0.4.19 (88)
+Last verified: 2026-11-25
+SSOT revision: 0.4.21
+App version defined in this revision's Xcode project: 0.4.21 (111)
 Integration and acceptance evidence: [Quick-log availability](../review/2026-09-24-quick-log-availability.md), [Excel contrast delivery](../review/2026-09-22-excel-contrast-delivery.md), [export delivery record](../review/2026-09-17-export-failure-diagnosis.md) and the DOSETAP-72 and DOSETAP-13 Plane workpads. The project version alone does not establish acceptance.
 
 This document is the authoritative specification for current DoseTap behavior. It describes the intended shipping contract and is checked against the implementation. A code/spec mismatch is a defect to reconcile explicitly; changing this file must not be used to hide an unsafe implementation change.
@@ -20,7 +20,67 @@ global notifications and medication timing windows do not change. Restart and
 History correction must not automatically recreate opted-out reminders. Explicit
 alarm changes may re-enable them for the still-active dose.
 
+## Questionnaire accessibility and completion (DOSETAP-81)
+
+Shared morning/bedtime choices expose selected state to assistive technology and
+show a non-color selection indicator. Morning driving-confidence and daytime-
+sleepiness sliders identify their question and current score without changing
+their existing scales or self-report meaning. Bedtime page changes honor either
+the app or system Reduce Motion preference while retaining the same answers.
+Morning completion remains reachable below the scrolling form and above the
+keyboard. One submission owner retains save failures, retry, reminder warnings
+and explicit History confirmation; closing alone still does not save a draft.
+
+## Daytime check-in access (DOSETAP-58)
+
+Tonight provides a Daytime check-in card under Other records, after the nightly
+actions and quick log (DOSETAP-90). It is available
+when a previous night needs review or morning closeout is complete. Record now
+opens the existing unanswered custom diary directly. A successful durable save
+returns to Tonight with its recording timestamp; cancellation shows no success.
+Review check-ins opens the independent ledger. Reminder setup is reachable from
+both this card and the ledger, using the existing explicit Save reminder flow.
+Opening these routes does not enable a reminder or record medication.
+
+Daytime reminder opens with the saved scheduling status and last-check time.
+After successful notification readback it shows the next future queued attempt
+and the end of the verified queue. Permission denial links to iOS Settings.
+Reconciliation clears stale queue evidence before checking; a saved routine alone
+does not claim a notification is queued or delivered. Save is also in the toolbar.
+
+Randomized wake routines optionally offer three workday windows (2–4, 6–9,
+and 11–13 hours after reported wake) and two off-day windows (3–5 and 8–10).
+Saved work status and separate bedtime cutoffs are required; times remain stable
+on refresh and missing wake evidence never becomes a guessed schedule.
+
+Sleep suppression also reads explicitly reported final wake from the validated
+night-outcome history. Earlier lights-out cannot keep suppressing after that wake;
+later sleep and unfinished naps remain suppressors. Future events do not describe
+current sleep, and unreadable evidence cannot produce a verified reminder queue.
+Batch snapshots keep SQL query counts independent of retained-night count while
+rechecking sources after asynchronous notification work.
+
+When sleep evidence pauses reminders, the screen lists every applicable saved
+cause (open dose session, nap start, lights out) with its occurrence date/time
+and the evidence capture time, displayed in the device timezone. These describe
+saved records, not a claim that the person is currently asleep. A same-time end
+does not count as a later end. Reasons come from the same snapshot and predicates
+that decide suppression; no extra queries, inferred wake, or record edits occur.
+Each refresh clears prior explanations before reading. Only successfully saved
+sleep suppression with verified owned-request cancellation publishes reasons;
+paused routines, denied permission, rejected actions and failures show no stale
+sleep explanation. Multiple simultaneous causes remain visible.
+
+## Physician review preparation (DOSETAP-59)
+
+The [physician review contract](contracts/physician-review.md) defines completed-visit anchors, explicit report bounds, immutable preview snapshots and unscored notes. It does not authorize automatic sharing or instrument scoring.
+
 ## Canonical References
+
+- Phone dashboard reporting supports 7/28/90 days, 6/12 calendar months, legacy 14/30-day and All Time choices, reviewed custom bounds and Since last completed visit. Custom and visit periods reuse the completed-visit ledger and `PhysicianReportPeriod`; a future booking cannot anchor a report. The captured timezone, cutoff and query bounds remain fixed during each refresh. Invalid bounds or a failed visit-ledger read produce no substituted period. Dashboard membership remains whole treatment nights with an 18:00 rollover; boundary nights can include observations outside the exact reviewed instants and are labeled accordingly. Custom/visit views have no inferred prior-period comparison. Provider retrieval limits and stale snapshots remain explicit.
+- Independent daytime observations use `DashboardReportingRange.daytimeWindow`, which anchors preset bounds to Gregorian local civil days and keeps the captured instant as an exclusive upper cutoff. Custom and completed-visit periods retain their exact reviewed instants; daytime membership never uses the overnight 18:00 rollover. All Time begins at the earliest actual evidence timestamp supplied by the caller; absent evidence remains an unknown start with zero calendar-day coverage, never a synthetic epoch or a numeric sleepiness result. Empty windows produce no diary analysis.
+
+- Recorded-measure questionnaire details display a saved pre-sleep session ID verbatim when present and “Not stored” when absent. This display does not infer a session association or change the saved record.
 
 - Code entry points: `ios/DoseTap/Storage/SessionRepository.swift`, `ios/Core/DoseTapCore.swift`, `ios/DoseTap/ContentView.swift`
 - Views: `ios/DoseTap/Views/TonightView.swift`, `ios/DoseTap/Views/CompactDoseButton.swift`, `ios/DoseTap/Views/DetailsView.swift`
@@ -39,6 +99,21 @@ Notes:
 - If you need planned or speculative features, see `docs/FEATURE_TRIAGE.md` (not SSOT).
 
 ---
+
+## Morning night-type chart selection
+
+Overview Sleep vs spacing and Trends Interval vs Sleep share a multiple-selection
+morning night-type filter. All categories start selected. A night is included if
+its exact saved morning category is selected; missing or unusable context belongs
+to Unsure / unknown. Clear all shows no matching nights and explicit guidance to
+choose at least one category. Select all restores every category. The selection
+survives switching dashboard views or context basis during the model lifetime;
+Reviewed shifts retains its independent filter. This display selection does not
+edit check-ins, medication records, provider associations or stored/export values.
+
+## Work-block context
+
+[Work-block context contract](contracts/work-block-context.md) defines effective rosters, explicit attendance and reviewed sleep associations independently of wake scheduling.
 
 ## Domain Entities and Invariants
 
@@ -442,6 +517,10 @@ Wide-layout adaptations:
 - **History**: Side-by-side calendar picker (left) and selected day detail (right) on iPad.
 - **Timeline/Settings**: Benefit from wider content area; no structural change needed.
 
+Compact iPhone tabs retain independent navigation ownership across appearance changes and page swipes. Changing appearance must preserve each navigation header without transferring navigation items between tab controllers. This presentation fix does not change diary records or reminders.
+
+At accessibility text sizes, insights headings and recorded-night counts use separate leading-aligned rows. Standard text retains the horizontal header and existing metric layout.
+
 Compact History insights use one row of four metrics at standard text sizes, with wrapping labels. Larger accessibility text and detailed definitions use fewer columns. Tonight uses one outer horizontal inset and no duplicate tab-bar spacer. The ready-for-tonight layout, including a previous-night reminder and the weekly summary, should fit a standard portrait phone without incidental scrolling. Scrolling remains available for smaller screens, larger text, additional logs, and safety warnings; controls and warnings must never be clipped to force a fit.
 
 Tab selection is synced between compact (TabView `$urlRouter.selectedTab`) and regular (sidebar selection `$urlRouter.selectedTab`) layouts. Deep links work identically in both modes.
@@ -542,7 +621,8 @@ General medication entries report storage failure separately from duplicate revi
 
 ## Manual daytime check-ins (DOSETAP-58)
 
-Tonight and History offer a manual check-in. Each save creates an independent
+Tonight's Daytime check-in card and History → Daytime check-in offer a manual
+check-in. Each save creates an independent
 observation, even when another check-in exists that day. An explicit 0 is a
 rating. Unsure, skipped and incomplete responses retain no numeric value.
 Current or explicitly remembered occurrences retain their original time and
@@ -557,14 +637,15 @@ medication or alarms. The reminder planner can read the build-108 ledger and
 keeps observed wake, workday and off-day rules, quiet hours, and prompt outcomes
 distinct. A clock-time reminder can reuse a prompt only from its current
 schedule. Due prompts from previous schedules remain in history.
-The planner starts disabled. iOS notification delivery and action
-routing require separate integration with the current storage and alarm paths.
+The reminder starts disabled. After the user enables and saves it, the app
+schedules local notifications for the verified queue horizon and records each
+prompt's outcome; planned times alone do not establish delivery, and physical
+delivery remains an owner-observed gate.
 
-Fresh databases create the compatible check-in collection on the first
-successful save and record its ownership in SQLite. Builds with the complete
-phone diary schema retain all source tables and payloads. Incomplete phone
-schemas remain unreadable for full manual export, and reset still refuses
-collections it does not own.
+Schema initialization creates every diary collection, so all source tables and
+payloads are retained on fresh and upgraded databases. A database with a missing
+or extra diary collection is unreadable for full manual export, and reset refuses
+collections it does not own. History → Diary records opens each original record.
 
 ## Missing overnight dose timing (DOSETAP-34)
 
@@ -702,7 +783,7 @@ Persistence is local SQLite via `EventStorage`.
 
 Settings → Manage History → Clear Tonight's Events removes recognized sleep and quick-log entries for the active session. It preserves doses, check-ins, reminders, historical sessions and unrecognized legacy rows. With only a date available, clearing is limited to legacy rows for that night. The change is published after the event deletions and their sync tombstones commit together. A failed clear displays a retry message.
 
-Reset failure behavior is defined in [Storage initialization and reset](storage-initialization-and-reset.md). Database deletion must commit before preferences, active-session state or alarms are cleared.
+Reset failure behavior is defined in [Storage initialization and reset](storage-initialization-and-reset.md). Database deletion must commit before preferences, active-session state, alarms or reminder intent are cleared. This bounded reset does not delete external provider data.
 
 The executable schema is `EventStorage.createTables()` in `ios/DoseTap/Storage/EventStorage+Schema.swift`, including the SQLite `user_version` and internal `schema_migrations` ledger. `docs/DATABASE_SCHEMA.md` and `docs/SSOT/contracts/DataDictionary.md` contain the field-by-field inventory and must move with that source. Do not duplicate mutable schema versions, table totals, or partial table lists in this overview.
 
@@ -910,7 +991,7 @@ State transitions:
 ### Data Surface Gating
 
 All WHOOP data display is gated behind `WHOOPService.isEnabled` and/or data presence checks:
-- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV appear in the WHOOP card with observed sample counts and as compact Overview summaries, all using the same provider aggregates.
+- **Dashboard:** WHOOP measurements appear only with recorded WHOOP nights; otherwise its card explains the missing data and connection/range checks. Recovery and HRV appear in detailed WHOOP and recorded-summary cards with observed sample counts, all using the same provider aggregates.
 - **Timeline:** `extractBiometricData()` returns empty arrays when `!WHOOPService.isEnabled`.
 - **Night Review:** `HealthDataCard` WHOOP section guarded behind `WHOOPService.isEnabled`.
 - **Sleep Snapshot:** WHOOP Metrics section guarded behind `averageWhoopRecovery != nil || averageWhoopHRV != nil`.
@@ -956,6 +1037,10 @@ Work schedule configuration and dated overrides are stored together in SQLite `w
 - The card covers up to 14 most recent recorded night keys, not necessarily 14 consecutive calendar nights. Its header says Recorded nights and shows the actual count. Display the bathroom count explanation in compact History as well as detailed review/capture, with full accessible labels.
 - Corrections and deletions refresh the same read-only summary. No migration, source-event rewriting, medication action or alarm change is part of this correction.
 
+### Dashboard dose-pattern evidence (DOSETAP-45)
+
+The [dose-pattern contract](contracts/dashboard-dose-patterns.md) separates reported administrations, explicitly completed counts, historical patient-reported plans and metric availability. It does not change medication records or alarms.
+
 ### Dashboard analytics contract (DOSETAP-45)
 
 Calendar reporting windows follow the [shared range contract](contracts/dashboard-calendar-ranges.md).
@@ -972,7 +1057,7 @@ Calendar reporting windows follow the [shared range contract](contracts/dashboar
 - Missing observations remain missing, never zero or an implicit negative answer. Bathroom analytics count logs; duration is not measured. Pre-sleep completion requires a completed log. Stress-driver frequency counts each driver at most once per night.
 - Studio's 30-day dose-timing cards use valid recorded timestamp pairs only, disclose their usable pair count, and show No data when no pairs exist. Classify each pair from unrounded elapsed seconds, never a legacy adherence flag. The average interval is descriptive; it is not labeled Optimal, Good, or an effectiveness result.
 - Sleep comparisons use one explicitly selected provider without fallback. Show sample counts, source coverage and fetch errors. Descriptive timing groups and associations do not measure medication effectiveness or establish causation; changes in an average are not automatically improvements.
-- Dashboard defaults to All, showing Overview, Trends and Data in one scroll; these groups remain optional filters. The captured metric reference is available in All and Data. Missing WHOOP, prior-period or timing-group inputs show explanatory cards. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
+- Dashboard defaults to a chart-focused Overview: full-period dose spacing, a sleep-versus-spacing comparison with confirmed single-dose categories, confirmed work-before-sleep symbols/filter and direct routes to records and analysis. Detailed summaries remain in Explore; Trends and Records retain their existing scopes. Empty, loading and partial-provider states remain visible. Existing Typical Week, nightly overrides, medication supply and alarm behavior are unchanged.
 
 Tonight’s weekly summary covers the seven finished civil nights before the current night. “Dose 2 recorded” is the fraction of Dose-1 nights with a recorded second dose; explicit skips and unrecorded outcomes are shown separately. Gaps are not a day streak, and orphan second doses cannot inflate the rate.
 
@@ -1075,3 +1160,78 @@ query, add a persistent provider cache, or retain data after transient errors.
 Optional bounded sleep-source transfer and receiver validation follow the
 [provider evidence contract](contracts/dashboard-provider-evidence.md). This adds
 original provider intervals, not reviewed sleep totals or dose advice.
+
+### Dashboard session identity (DOSETAP-45)
+
+Dashboard rows retain exact session identity independently of treatment-date grouping. Same-date sessions never share dose pairs, questionnaires, events or outcome answers. Date-only legacy records remain a labeled unresolved row and cannot supply a paired interval. The reporting read is one SQLite snapshot; failed or partial reads preserve the previous dashboard and report failure. Provider episodes keep a separate stable source identity. A treatment date alone cannot associate provider sleep with medication. Explicit saved provider associations take precedence. Without any saved relationship for the episode or the session/provider, a transient time-supported association may attach the selected primary episode to the sole resolved treatment-date session: exactly one Dose 1 lies from 120 minutes before to 30 minutes after the observed episode start, every additional canonical dose lies before its observed end, and the observed span is positive and at most 16 hours. Duplicate/conflicting doses, multiple local sessions, nonfinite or missing bounds and stale explicit relationships stay separate. This is labeled automatic time matching, not a reviewed relationship, and creates no stored association. Date alone never suffices. Apple Health still returns the selected primary episode per evening; this does not claim complete episode discovery. Session closure is lifecycle evidence, never administration-count confirmation.
+
+Explicit dashboard sleep matching saves a local-only versioned relationship between a named provider episode and a resolved session. Saving requires a fresh current provider snapshot and unchanged local records. The saved provider and complete local-source fingerprints must still match before sleep attaches; corrected records/episodes return to provider-only review without deleting sleep. One provider episode cannot belong to two sessions, and one session cannot silently replace an already matched episode from that provider. Removing a match changes no dose or provider record. Association metadata is excluded from nearby/cloud transport until provider transport consent is implemented.
+
+Provider-match confirmation captures immutable local/provider fingerprints and the displayed relationship revision (including explicit absence). A later source, session or relationship change rejects the confirmation. Unlink likewise requires the reviewed revision. Saved relationships remain removable when current provider evidence is missing or changed. A failed/cancelled local refresh blocks new matching until a complete publication succeeds. Dashboard pending-dose status requires the actual unended current-session lifecycle; an unclosed historical record is not active.
+## Independent daytime diary (DOSETAP-58)
+
+[Daytime contract](contracts/daytime-check-in.md) defines separate custom 0–10 observations, revision history and failure semantics. They do not create or close nighttime sessions and are not licensed scale assessments.
+
+Optional daytime reminders use the [versioned prompt contract](contracts/daytime-prompts.md): explicit opt-in, a seven-day routine horizon, quiet/sleep suppression, independent actual assessment time, and no inferred delivery or symptoms.
+
+### Dashboard context annotations (B24)
+
+Relevant trend comparisons partition by the explicit patient-entered medication-label revision period and recorded questionnaire instrument/content version/language. Label references are not verified prescriptions or proof of administration. Effective dates come only from source effective intervals; recording a questionnaire version does not establish its rollout date. Unknown occurrence/effective dates remain unplaced with their recorded observation provenance. Unknown context or an observation spanning a context boundary remains separate rather than silently joining a compatible stratum. Missing doses and current preferences never manufacture historical regimen changes.
+
+The native dashboard reads context, exact sessions, provider relationships and the immutable preset ledger in one transaction. Stored normalized questionnaire versions join only the matching source record, exact session ID and treatment date. Orphan/mislinked content evidence remains in the annotation ledger; legacy responses without a version keep an unknown version. Context uses actual dose/provider bounds, never form completion or the treatment-date label. `contextReadReady` is false during refresh, after read failure or provider invalidation; report/filter consumers require it before using the retained timeline.
+
+### Sleep and naps review (DOSETAP-45)
+
+[Sleep and naps contract](contracts/sleep-naps.md) defines independent reviewed nap episodes, explicit daily completeness, overlap reconciliation and separate reported/rest/provider measures.
+
+### Nearby matched Apple Health episodes
+
+The optional `sleepEpisodes` sidecar carries named Apple Health main-episode derivations from the already opted-in bounded raw sleep packet, including original query completion time. It never performs a new query or enables sharing. Local association is exported only after the current saved provider and local fingerprints match within the raw-row SQLite snapshot transaction. Missing, stale or ambiguous matches retain provider-only identity. Private fingerprints are never transported. Episode intervals and original endpoint definitions remain distinct from app closing/check-in times. The consumer validates bounds, source receipt and exact local identity; an absent sidecar is unavailable, not zero sleep.
+Context and morning outcome comparisons follow [the context contract](contracts/context-morning-outcomes.md).
+
+### Shared dashboard inspection
+
+[Shared inspection contract](contracts/dashboard-inspection.md) defines canonical selection, applicable filters, failed-read behavior, frozen work-context classification and atomic prospective work-plan capture. Night-level filters do not silently become independent daytime filters.
+
+### Independent roadmap records in explicit exports
+
+Studio bundle schema 6 retains original typed SQLite rows for daytime check-ins/events, nap history, prompt schedules, physician review history, work context and dashboard review/association metadata in a required root `independentSourceRecords` array. These records retain their own identifiers and revision payloads without invented night/date associations. All source reads must succeed before publication; an empty array means no records, not a failed read. Studio preserves the rows through import/re-export and exposes their fields in the workbook source catalog. This explicit local archive contract does not expand nearby provider-sharing consent. Older schema 1–5 archives remain readable.
+
+Independent payload strings are preserved byte-for-byte as SQLite text. Daytime assessment/event payload timestamps use seconds since 1970; prompt payload timestamps use UTC ISO8601 with millisecond precision; nap, physician-review, work-context and dose-review Codable payload timestamps use seconds since 2001. The workbook Field Guide identifies this difference; source numbers are not silently converted between epochs.
+
+Schema 6 declares `archiveScope=manual_full_local_records` and `independentRecordsIncluded=true`. Scheduled archives retain the schema 5 local subset, declare exclusions and direct users to the full manual export for independent records. Neither archive scope is a tested full-app restore.
+
+Full manual Excel and Studio exports require an explicit review describing original private notes and exact timestamps before any file or provider enrichment is created. Cancel creates no archive. Scheduled exports retain the labeled local subset. Focused dashboard/physician exports preserve their separate selected-record policies; a full archive is deliberate raw-record disclosure, not a default clinical report or tested app restore.
+
+### iPad independent daytime companion
+
+The daytime companion reads immutable transferred custom observation/event revisions and nap source records. It uses an explicitly supplied civil half-open report period frozen at source capture, never treatment-night date matching. Unknown collection or work/medication context remains unknown. Scheduled, self-initiated, symptom-triggered and retrospective samples retain separate filters and comparable strata; sparse ordinal points never become a continuous curve or ESS score. Export contains only the selected points with their source revision, exact occurrence/recording times, definitions and filter scope.
+
+### Phone dashboard recovery (DOSETAP-45)
+
+The overview-first phone navigation follows [navigation](navigation.md). Build 89 owner-reported appearance and responsiveness are unresolved acceptance failures. Restore useful first-screen summaries and secondary detailed inspection without changing records, source eligibility or historical questionnaire confirmation. Validate normal and accessibility layouts and measure rendering/refresh work; reachability alone does not establish usability.
+
+Dashboard reporting-window, period-row and replay projections are in-memory read caches only. Published model changes invalidate them synchronously after mutation; reviewed-coverage changes and provider-access revisions invalidate replay evidence. Cache hits preserve exact IDs, ordering, source eligibility, endpoint choices and export values. No cached projection writes records or survives process restart.
+
+Dashboard refresh captures typed local rows, preset evidence and provider relationships in one synchronous read transaction, then closes the transaction before decoding the immutable copy off the main actor. The worker never receives SQLite handles, storage objects or shared mutable date formatters. Cancellation and local-record/provider revisions prevent obsolete publication. Existing synchronous snapshot consumers retain the same decoding and identity rules.
+
+On first dashboard load with enabled providers, publish a complete local-only snapshot before awaiting provider requests. This provisional display keeps provider matching, dose-review and context readiness false until final refresh publication. Existing displays remain retained during subsequent refreshes. A local read error is visible and never replaced by an empty success; cancelled or superseded work cannot overwrite a newer display.
+
+### Dashboard timing presentation (DOSETAP-45, build 92)
+
+Build 92 supersedes the build-91 two-count/14-pair overview with the full selected-period interval scatter requested by the owner. Timing colors and the existing inclusive 150–240 minute reference are separate from work-before-sleep marker shapes. The second view plots recorded main-sleep minutes against spacing, with confirmed single-dose nights at a separately labeled Single dose category at zero; their actual interval remains not applicable. Missing Dose 2 alone is not confirmation. Existing morning skip and later dose-time corrections drive classification without duplicate chart entry. Shared filters apply to the overview comparison. Exact records and source details remain expandable. See [the replay contract](contracts/dashboard-replay.md) and [build-92 evidence](../review/2026-10-01-dashboard-timing.md).
+
+The bounded Overview uses an eager vertical stack so returning from Records and scrolling does not recycle its chart/cards through a lazy layout. Larger record/analysis collections retain their own existing layouts.
+
+Dashboard navigation and control backgrounds explicitly follow the selected Light, Dark or Night appearance so a theme switch cannot leave a contrasting stale header band.
+
+### Sleep interval chart inspection
+
+Overview Sleep vs spacing and Trends Interval vs Sleep share exact canonical observation rows. Confirmed single-dose nights with recorded sleep appear at a labeled zero category, never as measured zero-minute spacing; unknown dose count and missing sleep remain unplotted. Single-dose markers use a distinct teal color and a 1 label with sleep minutes; larger outlined markers retain blue/lavender/amber spacing colors (warm variants in Night Mode); confirmed work/off/unknown use square/circle/diamond shapes independently. Grid lines show 25-minute divisions and finer 12.5-minute interval subdivisions, with adaptive labels and bounded tick counts. Tap or pointer hover inspects exact source values; overlapping targets offer all candidate identities. Pinch and accessible zoom controls change only display scales, focus around selection and retain a reset. Changing provider, range or source rows resets display zoom; it does not edit records, filters or exports.
+
+Phone94 introduced chart inspection; phone95 additionally projects saved morning night context. Installation and physical acceptance require separate evidence.
+
+### Morning-reported night context in timing charts
+Timing charts default to the saved morning check-in's night type for the exact resolved session and treatment date, not its morning submission date. Off, work, into block, out of block, recovery and unsure remain distinct; first-night-off is an independent positive report. Invalid, future, ambiguous or mismatched check-ins remain unknown. Reviewed adjacent-shift attendance is available as a separate basis and must never be inferred or written from a morning category. Point details and CSV preserve the morning record identity and reported timestamp alongside the existing reviewed work classification.
+
+Sleep-spacing inspection keeps a display-only viewport separate from record selection. Zoom initially focuses a selected night, then preserves the viewport; dragging a zoomed plot or accessible directional controls moves the viewport within full data bounds. Selecting another night does not jump the viewport. Reset and source/filter changes restore the full range. Nearby plotted records open a dated candidate chooser, preserving their exact identities and values; shared coordinates do not establish duplicate storage rows. Neither viewport nor inspection selection changes source data or export coordinates.

@@ -7,8 +7,70 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DR74BF01 /* DataResetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DR74FR01 /* DataResetPresentation.swift */; };
+		PHFN10012 /* PhysicianReportedOutcomeContexts.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHFN0012 /* PhysicianReportedOutcomeContexts.swift */; };
+		PHFN10011 /* PhysicianProviderEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHFN0011 /* PhysicianProviderEvidence.swift */; };
+		PHFN10010 /* PhysicianDaytimeContextEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHFN0010 /* PhysicianDaytimeContextEvidence.swift */; };
+		PHRU1009 /* PhysicianNapSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU009 /* PhysicianNapSources.swift */; };
+		PHRU1008 /* PhysicianDaytimeSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU008 /* PhysicianDaytimeSources.swift */; };
+		PHRU1007 /* PhysicianCanonicalMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU007 /* PhysicianCanonicalMetrics.swift */; };
+		DPPK001B /* DashboardPagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPPK001F; };
+		DICT001B /* DashboardInspectionControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = DICT001F; };
+		DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DADM001F; };
+		DPUI001B /* DosePatternDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI001F; };
+		UI_DP01B /* DosePatternDashboardUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_DP01F; };
+		DRPL106 /* DashboardReplayPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL006 /* DashboardReplayPresentation.swift */; };
+		DRPL107 /* DashboardReplayComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL007 /* DashboardReplayComparison.swift */; };
+		DRPL108 /* DashboardIntervalExplorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL008 /* DashboardIntervalExplorer.swift */; };
+		DINS001B /* DashboardInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DINS001F; };
+		DPUI002B /* DosePatternDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI002F; };
+		DPUI003B /* DosePatternPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI003F; };
+		SINT001B /* DashboardSleepIntervalChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = SINT001F; };
+		RNCT001B /* DashboardReportedNightContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = RNCT001F; };
+		DPUI004B /* DosePatternReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI004F; };
+		DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPUI005F; };
+		DHSIDE101 /* DashboardSharedSleepProducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DHSIDE001 /* DashboardSharedSleepProducer.swift */; };
+		NAP007B /* SleepNapsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP007F /* SleepNapsUITests.swift */; };
+		NAP006B /* SleepNapsFixtureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP006F /* SleepNapsFixtureView.swift */; };
+		NAP005B /* NapPeriodEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP005F /* NapPeriodEligibility.swift */; };
+		NAP009B /* DashboardNapInspection.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP009F /* DashboardNapInspection.swift */; };
+		NAP008B /* NapDoseComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP008F /* NapDoseComparisonView.swift */; };
+		NAP004B /* SleepNapsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP004F /* SleepNapsDashboardView.swift */; };
+		DPAD101 /* DashboardDosePatternAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAD001 /* DashboardDosePatternAdapter.swift */; };
+		DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDRV101; };
+		DIDENT108 /* DashboardContextProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT008 /* DashboardContextProjection.swift */; };
+		DIDENT107 /* DashboardContextSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT007 /* DashboardContextSnapshot.swift */; };
+		DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT006 /* DashboardAssociationUITestFixture.swift */; };
+		DIDENT105 /* ProviderSessionAssociationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT005 /* ProviderSessionAssociationView.swift */; };
+		DIDENT104 /* DashboardProviderMatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT004 /* DashboardProviderMatching.swift */; };
+		DIDENT103 /* DashboardProviderAssociations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT003 /* DashboardProviderAssociations.swift */; };
+		DRPL103 /* DashboardReviewedCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL003 /* DashboardReviewedCoverage.swift */; };
+		DRPL102 /* DashboardReplayEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL002 /* DashboardReplayEndpoints.swift */; };
+		DRPL101 /* DashboardReplayAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL001 /* DashboardReplayAdapter.swift */; };
+		DRPL100 /* DashboardReplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL000 /* DashboardReplayView.swift */; };
+		NAP003B /* NapProviderCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP003F /* NapProviderCheck.swift */; };
+		NAP002B /* NapEpisodeEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP002F /* NapEpisodeEditor.swift */; };
+		NAP001B /* EventStorage+NapDiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = NAP001F /* EventStorage+NapDiary.swift */; };
+		DIDENT102 /* DashboardIdentityAggregation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT002 /* DashboardIdentityAggregation.swift */; };
+		DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */ = {isa = PBXBuildFile; fileRef = DIDENT001 /* SessionRepositoryDashboardIdentities.swift */; };
+		WBOUT104 /* WorkShiftEventEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT004 /* WorkShiftEventEditor.swift */; };
+		WBOUT105 /* WorkSleepEventEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT005 /* WorkSleepEventEditor.swift */; };
+		WBCTX003 /* WorkContextEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX103 /* WorkContextEditors.swift */; };
+		WBOUT003 /* WorkCycleReportedOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT103 /* WorkCycleReportedOutcomesView.swift */; };
+		WBOUT002 /* WorkCycleNapDayReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT102 /* WorkCycleNapDayReport.swift */; };
+		WBOUT001 /* WorkCycleCategoryReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBOUT101 /* WorkCycleCategoryReport.swift */; };
+		WBCTX002 /* DashboardWorkBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX102 /* DashboardWorkBlockView.swift */; };
+		WBCTX001 /* EventStorage+WorkContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBCTX101 /* EventStorage+WorkContext.swift */; };
+		PHRU1006 /* PhysicianDashboardReviewLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU006 /* PhysicianDashboardReviewLink.swift */; };
+		PHRU1005 /* PhysicianReportAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU005 /* PhysicianReportAdapter.swift */; };
+		PHRU1004 /* PhysicianReportPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU004 /* PhysicianReportPDF.swift */; };
+		PHRU1003 /* PhysicianReportPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU003 /* PhysicianReportPreview.swift */; };
+		PHRU1002 /* PhysicianReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRU002 /* PhysicianReviewView.swift */; };
+		DPRU1001 /* DashboardPeriodControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPRU001 /* DashboardPeriodControls.swift */; };
+		PHRV101 /* EventStorage+PhysicianReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRV001 /* EventStorage+PhysicianReview.swift */; };
+		DYPR002 /* DaytimeReminderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DYPR102 /* DaytimeReminderView.swift */; };
+		DYPR001 /* DaytimePromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DYPR101 /* DaytimePromptService.swift */; };
 		DPAC101 /* DashboardProviderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPAC001 /* DashboardProviderAccess.swift */; };
+		DPSN101 /* DashboardProviderSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DPSN001 /* DashboardProviderSnapshot.swift */; };
 		BOTQ01B /* BottleQuantityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTQ01F /* BottleQuantityView.swift */; };
 		BOTS01B /* BottleSupplyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BOTS01F /* BottleSupplyViews.swift */; };
 		DB770003 /* DashboardTransferView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770004 /* DashboardTransferView.swift */; };
@@ -16,6 +78,7 @@
 		DB770001 /* DashboardPublisherIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB770002 /* DashboardPublisherIdentity.swift */; };
 		AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */; };
 		5E58C76954CF526C132B5579 /* EventStorage+DashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */; };
+		PHRT1001 /* PhysicianReviewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHRT001 /* PhysicianReviewUITests.swift */; };
 		D074B303 /* MedicationPresetSettingsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F303 /* MedicationPresetSettingsUITests.swift */; };
 		D074B302 /* MedicationPresetSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F302 /* MedicationPresetSettingsView.swift */; };
 		D074B301 /* MedicationPresetSetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D074F301 /* MedicationPresetSetupModel.swift */; };
@@ -77,7 +140,6 @@
 		CLUST103 /* TimelineReviewViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST003 /* TimelineReviewViews.swift */; };
 		CLUST104 /* HistoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST004 /* HistoryViews.swift */; };
 		1AB721451D7C4D41A86F5A01 /* IndependentDiaryHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */; };
-		0DDCB5F12E644E9EBD074811 /* DaytimeCheckInEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */; };
 		CLUST105 /* DeferredCloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST005 /* DeferredCloudKitSyncService.swift */; };
 		CLUST107 /* DashboardTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST106 /* DashboardTypes.swift */; };
 		CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = CLUST109 /* DashboardAnalyticsRefresh.swift */; };
@@ -105,7 +167,6 @@
 		ESB002 /* EventStorage+Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF002 /* EventStorage+Session.swift */; };
 		ESB003 /* EventStorage+Exports.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF003 /* EventStorage+Exports.swift */; };
 		ESB045 /* EventStorage+ExportSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF045 /* EventStorage+ExportSources.swift */; };
-		0DDCB5F12E644E9EBD074813 /* EventStorage+DaytimeCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */; };
 		ESB004 /* EventStorage+EventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF004 /* EventStorage+EventStore.swift */; };
 		ESB005 /* StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF005 /* StorageModels.swift */; };
 		ESB006 /* EventStorage+Dose.swift in Sources */ = {isa = PBXBuildFile; fileRef = ESF006 /* EventStorage+Dose.swift */; };
@@ -147,6 +208,7 @@
 		PSL007 /* PreSleepLogActivityNapsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = PSL008 /* PreSleepLogActivityNapsCard.swift */; };
 		SSU001 /* SleepingSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSU002 /* SleepingSetupViews.swift */; };
 		SET001 /* SettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET101 /* SettingsSections.swift */; };
+		RST106B1 /* DataResetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = RST106F1 /* DataResetPresentation.swift */; };
 		SET002 /* SettingsActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET102 /* SettingsActions.swift */; };
 		SET003 /* SettingsStudioExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = SET103 /* SettingsStudioExport.swift */; };
 		SRQ001 /* SessionRepositoryQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRQ101 /* SessionRepositoryQueries.swift */; };
@@ -173,6 +235,8 @@
 		TLR003 /* TimelineReviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = TLR103 /* TimelineReviewSupport.swift */; };
 		D395ABCC0C01465B8E54413B /* Build108SyntheticUpgrade.sql in Resources */ = {isa = PBXBuildFile; fileRef = 76B23F831B20464C99AA9D9F /* Build108SyntheticUpgrade.sql */; };
 		UI_B01 /* DoseTapUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F01 /* DoseTapUITests.swift */; };
+		DYPU001 /* DaytimePromptUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DYPU101 /* DaytimePromptUITests.swift */; };
+		QNAU001 /* QuestionnaireAccessibilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = QNAU101 /* QuestionnaireAccessibilityUITests.swift */; };
 		UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = UI_F02 /* DoseTapUITestsLaunchTests.swift */; };
 		UNDO003 /* UndoSnackbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO004 /* UndoSnackbarView.swift */; };
 		UNDO005 /* MedicationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO006 /* MedicationSettingsView.swift */; };
@@ -182,6 +246,23 @@
 		UNDO007 /* MedicationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNDO008 /* MedicationPickerView.swift */; };
 		WHM001 /* WHOOPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = WHM002 /* WHOOPModels.swift */; };
 		WP001 /* WeeklyPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WP002 /* WeeklyPlanner.swift */; };
+		DAYB001 /* EventStorage+DaytimeCheckIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF001 /* EventStorage+DaytimeCheckIn.swift */; };
+		DYPR003 /* EventStorage+DaytimePrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DYPR103 /* EventStorage+DaytimePrompts.swift */; };
+		DAYB002 /* DaytimeCheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF002 /* DaytimeCheckInView.swift */; };
+		DAYB003 /* EventStorage+DaytimeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF003 /* EventStorage+DaytimeEvent.swift */; };
+		DAYB004 /* DaytimeEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF004 /* DaytimeEventView.swift */; };
+		DAYB005 /* DaytimeTrendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF005 /* DaytimeTrendsView.swift */; };
+		DAYB006 /* DaytimeDashboardRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF006 /* DaytimeDashboardRoute.swift */; };
+		DAYSRCB09 /* DaytimeWakeProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYSRCF09 /* DaytimeWakeProjection.swift */; };
+		DAYSRCB08 /* DaytimeSourcePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYSRCF08 /* DaytimeSourcePicker.swift */; };
+		DAYSRCB07 /* DaytimeSourceCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYSRCF07 /* DaytimeSourceCandidates.swift */; };
+		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAYF007 /* SessionRepositoryDaytimeSources.swift */; };
+		CTX003B /* ContextMorningOutcomesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX003F; };
+		CTX002B /* ContextMorningOutcomesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX002F; };
+		CTX001B /* ContextMorningProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTX001F; };
+		WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBPROJ101 /* DashboardWorkCycleProjection.swift */; };
+		DRPL105 /* DashboardReplayUITestFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL005 /* DashboardReplayUITestFixture.swift */; };
+		DRPL104 /* DashboardReplayExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DRPL004 /* DashboardReplayExport.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -202,14 +283,77 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		DR74FR01 /* DataResetPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataResetPresentation.swift; sourceTree = "<group>"; };
+		PHFN0012 /* PhysicianReportedOutcomeContexts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportedOutcomeContexts.swift; sourceTree = "<group>"; };
+		PHFN0011 /* PhysicianProviderEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianProviderEvidence.swift; sourceTree = "<group>"; };
+		PHFN0010 /* PhysicianDaytimeContextEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDaytimeContextEvidence.swift; sourceTree = "<group>"; };
+		PHRU009 /* PhysicianNapSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianNapSources.swift; sourceTree = "<group>"; };
+		PHRU008 /* PhysicianDaytimeSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDaytimeSources.swift; sourceTree = "<group>"; };
+		PHRU007 /* PhysicianCanonicalMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianCanonicalMetrics.swift; sourceTree = "<group>"; };
+		DPPK001F /* DashboardPagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPagePicker.swift; sourceTree = "<group>"; };
+		DICT001F /* DashboardInspectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspectionControls.swift; sourceTree = "<group>"; };
+		DADM001F /* DashboardAdditionalMeasuresView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAdditionalMeasuresView.swift; sourceTree = "<group>"; };
+		DPUI001F /* DosePatternDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardView.swift; sourceTree = "<group>"; };
+		UI_DP01F /* DosePatternDashboardUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDashboardUITests.swift; sourceTree = "<group>"; };
+		DRPL006 /* DashboardReplayPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayPresentation.swift; sourceTree = "<group>"; };
+		DRPL007 /* DashboardReplayComparison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayComparison.swift; sourceTree = "<group>"; };
+		DRPL008 /* DashboardIntervalExplorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIntervalExplorer.swift; sourceTree = "<group>"; };
+		DINS001F /* DashboardInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardInspection.swift; sourceTree = "<group>"; };
+		DPUI002F /* DosePatternDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternDetailSheet.swift; sourceTree = "<group>"; };
+		DPUI003F /* DosePatternPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternPresentation.swift; sourceTree = "<group>"; };
+		SINT001F /* DashboardSleepIntervalChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSleepIntervalChart.swift; sourceTree = "<group>"; };
+		RNCT001F /* DashboardReportedNightContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReportedNightContext.swift; sourceTree = "<group>"; };
+		DPUI004F /* DosePatternReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DosePatternReviewSheet.swift; sourceTree = "<group>"; };
+		DPUI005F /* MorningDoseHistoryReviewSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningDoseHistoryReviewSection.swift; sourceTree = "<group>"; };
+		DHSIDE001 /* DashboardSharedSleepProducer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardSharedSleepProducer.swift; sourceTree = "<group>"; };
+		NAP007F /* SleepNapsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsUITests.swift"; sourceTree = "<group>"; };
+		NAP006F /* SleepNapsFixtureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsFixtureView.swift"; sourceTree = "<group>"; };
+		NAP005F /* NapPeriodEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapPeriodEligibility.swift"; sourceTree = "<group>"; };
+		NAP009F /* DashboardNapInspection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DashboardNapInspection.swift"; sourceTree = "<group>"; };
+		NAP008F /* NapDoseComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapDoseComparisonView.swift"; sourceTree = "<group>"; };
+		NAP004F /* SleepNapsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SleepNapsDashboardView.swift"; sourceTree = "<group>"; };
+		DPAD001 /* DashboardDosePatternAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardDosePatternAdapter.swift; sourceTree = "<group>"; };
+		DDRV101 /* EventStorage+DashboardDoseReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardDoseReview.swift"; sourceTree = "<group>"; };
+		DIDENT008 /* DashboardContextProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContextProjection.swift; sourceTree = "<group>"; };
+		DIDENT007 /* DashboardContextSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardContextSnapshot.swift; sourceTree = "<group>"; };
+		DIDENT006 /* DashboardAssociationUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAssociationUITestFixture.swift; sourceTree = "<group>"; };
+		DIDENT005 /* ProviderSessionAssociationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSessionAssociationView.swift; sourceTree = "<group>"; };
+		DIDENT004 /* DashboardProviderMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderMatching.swift; sourceTree = "<group>"; };
+		DIDENT003 /* DashboardProviderAssociations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAssociations.swift; sourceTree = "<group>"; };
+		DRPL003 /* DashboardReviewedCoverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReviewedCoverage.swift; sourceTree = "<group>"; };
+		DRPL002 /* DashboardReplayEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayEndpoints.swift; sourceTree = "<group>"; };
+		DRPL001 /* DashboardReplayAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayAdapter.swift; sourceTree = "<group>"; };
+		DRPL000 /* DashboardReplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayView.swift; sourceTree = "<group>"; };
+		NAP003F /* NapProviderCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapProviderCheck.swift"; sourceTree = "<group>"; };
+		NAP002F /* NapEpisodeEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NapEpisodeEditor.swift"; sourceTree = "<group>"; };
+		NAP001F /* EventStorage+NapDiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+NapDiary.swift"; sourceTree = "<group>"; };
+		DIDENT002 /* DashboardIdentityAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardIdentityAggregation.swift; sourceTree = "<group>"; };
+		DIDENT001 /* SessionRepositoryDashboardIdentities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDashboardIdentities.swift; sourceTree = "<group>"; };
+		WBOUT004 /* WorkShiftEventEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkShiftEventEditor.swift; sourceTree = "<group>"; };
+		WBOUT005 /* WorkSleepEventEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkSleepEventEditor.swift; sourceTree = "<group>"; };
+		WBCTX103 /* WorkContextEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkContextEditors.swift; sourceTree = "<group>"; };
+		WBOUT103 /* WorkCycleReportedOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleReportedOutcomesView.swift; sourceTree = "<group>"; };
+		WBOUT102 /* WorkCycleNapDayReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleNapDayReport.swift; sourceTree = "<group>"; };
+		WBOUT101 /* WorkCycleCategoryReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkCycleCategoryReport.swift; sourceTree = "<group>"; };
+		WBCTX102 /* DashboardWorkBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkBlockView.swift; sourceTree = "<group>"; };
+		WBCTX101 /* EventStorage+WorkContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+WorkContext.swift"; sourceTree = "<group>"; };
+		PHRU006 /* PhysicianDashboardReviewLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianDashboardReviewLink.swift; sourceTree = "<group>"; };
+		PHRU005 /* PhysicianReportAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportAdapter.swift; sourceTree = "<group>"; };
+		PHRU004 /* PhysicianReportPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPDF.swift; sourceTree = "<group>"; };
+		PHRU003 /* PhysicianReportPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReportPreview.swift; sourceTree = "<group>"; };
+		PHRU002 /* PhysicianReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewView.swift; sourceTree = "<group>"; };
+		DPRU001 /* DashboardPeriodControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPeriodControls.swift; sourceTree = "<group>"; };
+		PHRV001 /* EventStorage+PhysicianReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+PhysicianReview.swift"; sourceTree = "<group>"; };
+		DYPR102 /* DaytimeReminderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeReminderView.swift; sourceTree = "<group>"; };
+		DYPR101 /* DaytimePromptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimePromptService.swift; sourceTree = "<group>"; };
 		DPAC001 /* DashboardProviderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderAccess.swift; sourceTree = "<group>"; };
+		DPSN001 /* DashboardProviderSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardProviderSnapshot.swift; sourceTree = "<group>"; };
 		BOTQ01F /* BottleQuantityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleQuantityView.swift; sourceTree = "<group>"; };
 		BOTS01F /* BottleSupplyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottleSupplyViews.swift; sourceTree = "<group>"; };
 		DB770004 /* DashboardTransferView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Views/DashboardTransferView.swift; sourceTree = "<group>"; };
 		DB770002 /* DashboardPublisherIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPublisherIdentity.swift; sourceTree = "<group>"; };
 		72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionRepositoryDashboardSnapshot.swift"; sourceTree = "<group>"; };
 		56DB383323DB5206C15956FD /* EventStorage+DashboardSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DashboardSnapshot.swift"; sourceTree = "<group>"; };
+		PHRT001 /* PhysicianReviewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicianReviewUITests.swift; sourceTree = "<group>"; };
 		D074F303 /* MedicationPresetSettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsUITests.swift; sourceTree = "<group>"; };
 		D074F302 /* MedicationPresetSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSettingsView.swift; sourceTree = "<group>"; };
 		D074F301 /* MedicationPresetSetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPresetSetupModel.swift; sourceTree = "<group>"; };
@@ -297,7 +441,6 @@
 		CLUST003 /* TimelineReviewViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewViews.swift; sourceTree = "<group>"; };
 		CLUST004 /* HistoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViews.swift; sourceTree = "<group>"; };
 		8BB19746C7A2424AB962C53F /* IndependentDiaryHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndependentDiaryHistoryView.swift; sourceTree = "<group>"; };
-		B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeCheckInEditor.swift; sourceTree = "<group>"; };
 		CLUST005 /* DeferredCloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeferredCloudKitSyncService.swift; sourceTree = "<group>"; };
 		CLUST106 /* DashboardTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardTypes.swift; sourceTree = "<group>"; };
 		CLUST109 /* DashboardAnalyticsRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardAnalyticsRefresh.swift; sourceTree = "<group>"; };
@@ -325,7 +468,6 @@
 		ESF002 /* EventStorage+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Session.swift"; sourceTree = "<group>"; };
 		ESF003 /* EventStorage+Exports.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Exports.swift"; sourceTree = "<group>"; };
 		ESF045 /* EventStorage+ExportSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+ExportSources.swift"; sourceTree = "<group>"; };
-		B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeCheckIn.swift"; sourceTree = "<group>"; };
 		ESF004 /* EventStorage+EventStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+EventStore.swift"; sourceTree = "<group>"; };
 		ESF005 /* StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModels.swift; sourceTree = "<group>"; };
 		ESF006 /* EventStorage+Dose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+Dose.swift"; sourceTree = "<group>"; };
@@ -366,6 +508,7 @@
 		PSL008 /* PreSleepLogActivityNapsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreSleepLogActivityNapsCard.swift; sourceTree = "<group>"; };
 		SSU002 /* SleepingSetupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepingSetupViews.swift; sourceTree = "<group>"; };
 		SET101 /* SettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSections.swift; sourceTree = "<group>"; };
+		RST106F1 /* DataResetPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataResetPresentation.swift; sourceTree = "<group>"; };
 		SET102 /* SettingsActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsActions.swift; sourceTree = "<group>"; };
 		SET103 /* SettingsStudioExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStudioExport.swift; sourceTree = "<group>"; };
 		SRQ101 /* SessionRepositoryQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryQueries.swift; sourceTree = "<group>"; };
@@ -392,6 +535,8 @@
 		TLR103 /* TimelineReviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineReviewSupport.swift; sourceTree = "<group>"; };
 		76B23F831B20464C99AA9D9F /* Build108SyntheticUpgrade.sql */ = {isa = PBXFileReference; lastKnownFileType = text; name = Build108SyntheticUpgrade.sql; path = DoseTapTests/Fixtures/Build108SyntheticUpgrade.sql; sourceTree = SOURCE_ROOT; };
 		UI_F01 /* DoseTapUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITests.swift; sourceTree = "<group>"; };
+		DYPU101 /* DaytimePromptUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimePromptUITests.swift; sourceTree = "<group>"; };
+		QNAU101 /* QuestionnaireAccessibilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionnaireAccessibilityUITests.swift; sourceTree = "<group>"; };
 		UI_F02 /* DoseTapUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseTapUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		UI_PROD01 /* DoseTapUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DoseTapUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		UNDO004 /* UndoSnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoSnackbarView.swift; sourceTree = "<group>"; };
@@ -402,6 +547,23 @@
 		UNDO008 /* MedicationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationPickerView.swift; sourceTree = "<group>"; };
 		WHM002 /* WHOOPModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WHOOPModels.swift; sourceTree = "<group>"; };
 		WP002 /* WeeklyPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyPlanner.swift; sourceTree = "<group>"; };
+		DAYF001 /* EventStorage+DaytimeCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeCheckIn.swift"; sourceTree = "<group>"; };
+		DYPR103 /* EventStorage+DaytimePrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimePrompts.swift"; sourceTree = "<group>"; };
+		DAYF002 /* DaytimeCheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeCheckInView.swift; sourceTree = "<group>"; };
+		DAYF003 /* EventStorage+DaytimeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EventStorage+DaytimeEvent.swift"; sourceTree = "<group>"; };
+		DAYF004 /* DaytimeEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeEventView.swift; sourceTree = "<group>"; };
+		DAYF005 /* DaytimeTrendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeTrendsView.swift; sourceTree = "<group>"; };
+		DAYF006 /* DaytimeDashboardRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeDashboardRoute.swift; sourceTree = "<group>"; };
+		DAYSRCF09 /* DaytimeWakeProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeWakeProjection.swift; sourceTree = "<group>"; };
+		DAYSRCF08 /* DaytimeSourcePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeSourcePicker.swift; sourceTree = "<group>"; };
+		DAYSRCF07 /* DaytimeSourceCandidates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DaytimeSourceCandidates.swift; sourceTree = "<group>"; };
+		DAYF007 /* SessionRepositoryDaytimeSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRepositoryDaytimeSources.swift; sourceTree = "<group>"; };
+		CTX003F /* ContextMorningOutcomesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesUITests.swift; sourceTree = "<group>"; };
+		CTX002F /* ContextMorningOutcomesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningOutcomesView.swift; sourceTree = "<group>"; };
+		CTX001F /* ContextMorningProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextMorningProjection.swift; sourceTree = "<group>"; };
+		WBPROJ101 /* DashboardWorkCycleProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardWorkCycleProjection.swift; sourceTree = "<group>"; };
+		DRPL005 /* DashboardReplayUITestFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayUITestFixture.swift; sourceTree = "<group>"; };
+		DRPL004 /* DashboardReplayExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardReplayExport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -513,10 +675,12 @@
 				HK002 /* HealthKitService.swift */,
 				6FEE161A09D6441A8D4448DA /* InsightsCalculator.swift */,
 				D049AFCF96FC4AFF9120309E /* Secrets.swift */,
+				DYPR102 /* DaytimeReminderView.swift */,
+				DYPR101 /* DaytimePromptService.swift */,
 				B358CDCA949364F93BD996D6 /* SettingsView.swift */,
 				SET101 /* SettingsSections.swift */,
+				RST106F1 /* DataResetPresentation.swift */,
 				SET102 /* SettingsActions.swift */,
-				DR74FR01 /* DataResetPresentation.swift */,
 				SET103 /* SettingsStudioExport.swift */,
 				EXCEL_FR01 /* SettingsExcelExport.swift */,
 				SVS_FR01 /* HealthKitSettingsView.swift */,
@@ -575,11 +739,54 @@
 			isa = PBXGroup;
 			children = (
 				CLUST001 /* DashboardModels.swift */,
+				DINS001F /* DashboardInspection.swift */,
+				DRPL006 /* DashboardReplayPresentation.swift */,
+		DRPL007 /* DashboardReplayComparison.swift */,
+		DRPL008 /* DashboardIntervalExplorer.swift */,
+				DPPK001F /* DashboardPagePicker.swift */,
+				DICT001F /* DashboardInspectionControls.swift */,
+				DADM001F /* DashboardAdditionalMeasuresView.swift */,
+				DRPL005 /* DashboardReplayUITestFixture.swift */,
+				DRPL004 /* DashboardReplayExport.swift */,
+				DRPL003 /* DashboardReviewedCoverage.swift */,
+				DRPL002 /* DashboardReplayEndpoints.swift */,
+				DRPL001 /* DashboardReplayAdapter.swift */,
+				DRPL000 /* DashboardReplayView.swift */,
+				NAP003F /* NapProviderCheck.swift */,
+				NAP006F /* SleepNapsFixtureView.swift */,
+				NAP005F /* NapPeriodEligibility.swift */,
+				NAP009F /* DashboardNapInspection.swift */,
+				NAP008F /* NapDoseComparisonView.swift */,
+				NAP004F /* SleepNapsDashboardView.swift */,
+				NAP002F /* NapEpisodeEditor.swift */,
 				CLUST002 /* DashboardViews.swift */,
+				DIDENT005 /* ProviderSessionAssociationView.swift */,
+				DPUI002F /* DosePatternDetailSheet.swift */,
+				DPUI001F /* DosePatternDashboardView.swift */,
+				DPUI003F /* DosePatternPresentation.swift */,
+				SINT001F /* DashboardSleepIntervalChart.swift */,
+				RNCT001F /* DashboardReportedNightContext.swift */,
+				CTX001F /* ContextMorningProjection.swift */,
+				CTX002F /* ContextMorningOutcomesView.swift */,
+				DPUI004F /* DosePatternReviewSheet.swift */,
+				DPUI005F /* MorningDoseHistoryReviewSection.swift */,
+				DIDENT008 /* DashboardContextProjection.swift */,
+				DIDENT004 /* DashboardProviderMatching.swift */,
+				DIDENT002 /* DashboardIdentityAggregation.swift */,
+				DPAD001 /* DashboardDosePatternAdapter.swift */,
+				WBPROJ101 /* DashboardWorkCycleProjection.swift */,
+				WBOUT004 /* WorkShiftEventEditor.swift */,
+				WBOUT005 /* WorkSleepEventEditor.swift */,
+				WBCTX103 /* WorkContextEditors.swift */,
+				WBOUT103 /* WorkCycleReportedOutcomesView.swift */,
+				WBOUT102 /* WorkCycleNapDayReport.swift */,
+				WBOUT101 /* WorkCycleCategoryReport.swift */,
+				WBCTX102 /* DashboardWorkBlockView.swift */,
 				CLUST106 /* DashboardTypes.swift */,
 				CLUST109 /* DashboardAnalyticsRefresh.swift */,
 				CLUST111 /* DashboardAnalyticsSupport.swift */,
 				CLUST113 /* DashboardAnalyticsMetrics.swift */,
+				DPRU001 /* DashboardPeriodControls.swift */,
 				CLUST115 /* DashboardAnalyticsPreSleep.swift */,
 				CLUST119 /* DashboardAnalyticsMorning.swift */,
 				CLUST117 /* DashboardAnalyticsCatalog.swift */,
@@ -636,6 +843,7 @@
 				HKP002 /* HealthKitProviding.swift */,
 				RNS002 /* ReviewedNightSleepLoader.swift */,
 				DPAC001 /* DashboardProviderAccess.swift */,
+		DPSN001 /* DashboardProviderSnapshot.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -650,8 +858,10 @@
 				ESF003 /* EventStorage+Exports.swift */,
 				DC74F001 /* EventStorage+MedicationCapture.swift */,
 				DC74F002 /* EventStorage+MedicationPresets.swift */,
+				DAYF001 /* EventStorage+DaytimeCheckIn.swift */,
+				DAYF003 /* EventStorage+DaytimeEvent.swift */,
+				DYPR103 /* EventStorage+DaytimePrompts.swift */,
 				ESF045 /* EventStorage+ExportSources.swift */,
-				B7F961B2CE0744D19E698412 /* EventStorage+DaytimeCheckIn.swift */,
 				ESF004 /* EventStorage+EventStore.swift */,
 				ESF005 /* StorageModels.swift */,
 				ESF009 /* StorageRecordModels.swift */,
@@ -661,12 +871,22 @@
 				ESF021 /* EventStorage+MorningCheckIn.swift */,
 				ESF022 /* EventStorage+CheckInSubmissions.swift */,
 				NWF002 /* EventStorage+NightOutcome.swift */,
+				DDRV101 /* EventStorage+DashboardDoseReview.swift */,
+				PHRV001 /* EventStorage+PhysicianReview.swift */,
+				NAP001F /* EventStorage+NapDiary.swift */,
 				HQF001 /* EventStorage+HistoryQuestionnaires.swift */,
 				ESF023 /* EventStorage+SessionSupport.swift */,
 				ESF024 /* EventStorage+SymptomEvents.swift */,
 				64641673735B464BB4E4B02F /* SessionRepository.swift */,
 				SRQ101 /* SessionRepositoryQueries.swift */,
+				DAYF007 /* SessionRepositoryDaytimeSources.swift */,
 				SRQ102 /* SessionRepositoryMedication.swift */,
+				DIDENT006 /* DashboardAssociationUITestFixture.swift */,
+				DIDENT007 /* DashboardContextSnapshot.swift */,
+				DIDENT003 /* DashboardProviderAssociations.swift */,
+				DHSIDE001 /* DashboardSharedSleepProducer.swift */,
+				DIDENT001 /* SessionRepositoryDashboardIdentities.swift */,
+				WBCTX101 /* EventStorage+WorkContext.swift */,
 				72CFAA5DE2681CBC5A3CDB0C /* SessionRepositoryDashboardSnapshot.swift */,
 				DB770002 /* DashboardPublisherIdentity.swift */,
 				DB770004 /* DashboardTransferView.swift */,
@@ -733,11 +953,28 @@
 				707FF265ADBBA04484376264 /* ThemeSettingsView.swift */,
 				EDIT001 /* EditDoseTimeView.swift */,
 				NWF001 /* NightOutcomeView.swift */,
+				DAYF002 /* DaytimeCheckInView.swift */,
+				DAYF005 /* DaytimeTrendsView.swift */,
+		DAYF006 /* DaytimeDashboardRoute.swift */,
+		DAYSRCF09 /* DaytimeWakeProjection.swift */,
+		DAYSRCF08 /* DaytimeSourcePicker.swift */,
+		DAYSRCF07 /* DaytimeSourceCandidates.swift */,
+				DAYF004 /* DaytimeEventView.swift */,
+				PHRU003 /* PhysicianReportPreview.swift */,
+				PHRU006 /* PhysicianDashboardReviewLink.swift */,
+				PHRU007 /* PhysicianCanonicalMetrics.swift */,
+				PHRU008 /* PhysicianDaytimeSources.swift */,
+				PHRU009 /* PhysicianNapSources.swift */,
+				PHFN0010 /* PhysicianDaytimeContextEvidence.swift */,
+				PHFN0011 /* PhysicianProviderEvidence.swift */,
+				PHFN0012 /* PhysicianReportedOutcomeContexts.swift */,
+				PHRU005 /* PhysicianReportAdapter.swift */,
+				PHRU004 /* PhysicianReportPDF.swift */,
+				PHRU002 /* PhysicianReviewView.swift */,
 				GRP_DASHBOARD /* Dashboard */,
 				GRP_TIMELINE /* Timeline */,
 				GRP_HISTORY /* History */,
 				4E03D9DEC5D04B32AACF98BA /* TonightView.swift */,
-				B7F961B2CE0744D19E698410 /* DaytimeCheckInEditor.swift */,
 				0C7B30C64C784164BA6C294F /* WeeklyInsightsCard.swift */,
 				B44F86E9E72D452CAFED6B16 /* SleepPlanCards.swift */,
 				22B9CA2EF895428EA7912896 /* CompactStatusCard.swift */,
@@ -755,7 +992,13 @@
 			isa = PBXGroup;
 			children = (
 				76B23F831B20464C99AA9D9F /* Build108SyntheticUpgrade.sql */,
+				UI_DP01F /* DosePatternDashboardUITests.swift */,
 				UI_F01 /* DoseTapUITests.swift */,
+				DYPU101 /* DaytimePromptUITests.swift */,
+				QNAU101 /* QuestionnaireAccessibilityUITests.swift */,
+				CTX003F /* ContextMorningOutcomesUITests.swift */,
+				NAP007F /* SleepNapsUITests.swift */,
+				PHRT001 /* PhysicianReviewUITests.swift */,
 				D074F303 /* MedicationPresetSettingsUITests.swift */,
 				UI_F02 /* DoseTapUITestsLaunchTests.swift */,
 			);
@@ -993,7 +1236,9 @@
 				WP001 /* WeeklyPlanner.swift in Sources */,
 				HKP001 /* HealthKitProviding.swift in Sources */,
 				RNS001 /* ReviewedNightSleepLoader.swift in Sources */,
+				DIDENT106 /* DashboardAssociationUITestFixture.swift in Sources */,
 				DPAC101 /* DashboardProviderAccess.swift in Sources */,
+		DPSN101 /* DashboardProviderSnapshot.swift in Sources */,
 				UNDO003 /* UndoSnackbarView.swift in Sources */,
 				UNDO005 /* MedicationSettingsView.swift in Sources */,
 				D074B302 /* MedicationPresetSettingsView.swift in Sources */,
@@ -1008,12 +1253,41 @@
 				UNDO007 /* MedicationPickerView.swift in Sources */,
 				EDIT002 /* EditDoseTimeView.swift in Sources */,
 				NWB001 /* NightOutcomeView.swift in Sources */,
+				DAYB002 /* DaytimeCheckInView.swift in Sources */,
+				DAYB005 /* DaytimeTrendsView.swift in Sources */,
+		DAYB006 /* DaytimeDashboardRoute.swift in Sources */,
+		DAYSRCB09 /* DaytimeWakeProjection.swift in Sources */,
+		DAYSRCB08 /* DaytimeSourcePicker.swift in Sources */,
+		DAYSRCB07 /* DaytimeSourceCandidates.swift in Sources */,
+		DAYB007 /* SessionRepositoryDaytimeSources.swift in Sources */,
+				DAYB004 /* DaytimeEventView.swift in Sources */,
 				NWB002 /* EventStorage+NightOutcome.swift in Sources */,
+				DDRV001 /* EventStorage+DashboardDoseReview.swift in Sources */,
+				PHRU1003 /* PhysicianReportPreview.swift in Sources */,
+				PHRU1006 /* PhysicianDashboardReviewLink.swift in Sources */,
+				PHRU1007 /* PhysicianCanonicalMetrics.swift in Sources */,
+				PHRU1008 /* PhysicianDaytimeSources.swift in Sources */,
+				PHRU1009 /* PhysicianNapSources.swift in Sources */,
+				PHFN10010 /* PhysicianDaytimeContextEvidence.swift in Sources */,
+				PHFN10011 /* PhysicianProviderEvidence.swift in Sources */,
+				PHFN10012 /* PhysicianReportedOutcomeContexts.swift in Sources */,
+				PHRU1005 /* PhysicianReportAdapter.swift in Sources */,
+				PHRU1004 /* PhysicianReportPDF.swift in Sources */,
+				PHRU1002 /* PhysicianReviewView.swift in Sources */,
+				PHRV101 /* EventStorage+PhysicianReview.swift in Sources */,
+				NAP003B /* NapProviderCheck.swift in Sources */,
+				NAP006B /* SleepNapsFixtureView.swift in Sources */,
+				NAP005B /* NapPeriodEligibility.swift in Sources */,
+				NAP009B /* DashboardNapInspection.swift in Sources */,
+				NAP008B /* NapDoseComparisonView.swift in Sources */,
+				NAP004B /* SleepNapsDashboardView.swift in Sources */,
+				NAP002B /* NapEpisodeEditor.swift in Sources */,
+				NAP001B /* EventStorage+NapDiary.swift in Sources */,
 				0A777B0D5CC54803B060A980 /* UserSettingsManager.swift in Sources */,
 				626911F284B24C54BA73D7F8 /* SettingsView.swift in Sources */,
 				SET001 /* SettingsSections.swift in Sources */,
+				RST106B1 /* DataResetPresentation.swift in Sources */,
 				SET002 /* SettingsActions.swift in Sources */,
-				DR74BF01 /* DataResetPresentation.swift in Sources */,
 				SET003 /* SettingsStudioExport.swift in Sources */,
 				EXCEL_BF01 /* SettingsExcelExport.swift in Sources */,
 				SVS_BF01 /* HealthKitSettingsView.swift in Sources */,
@@ -1031,8 +1305,10 @@
 				ESB003 /* EventStorage+Exports.swift in Sources */,
 				DC74B001 /* EventStorage+MedicationCapture.swift in Sources */,
 				DC74B002 /* EventStorage+MedicationPresets.swift in Sources */,
+				DAYB001 /* EventStorage+DaytimeCheckIn.swift in Sources */,
+				DAYB003 /* EventStorage+DaytimeEvent.swift in Sources */,
+				DYPR003 /* EventStorage+DaytimePrompts.swift in Sources */,
 				ESB045 /* EventStorage+ExportSources.swift in Sources */,
-				0DDCB5F12E644E9EBD074813 /* EventStorage+DaytimeCheckIn.swift in Sources */,
 				ESB004 /* EventStorage+EventStore.swift in Sources */,
 				ESB005 /* StorageModels.swift in Sources */,
 				ESB009 /* StorageRecordModels.swift in Sources */,
@@ -1047,6 +1323,11 @@
 				92518D93643945F4B64E860F /* SessionRepository.swift in Sources */,
 				SRQ001 /* SessionRepositoryQueries.swift in Sources */,
 				SRQ002 /* SessionRepositoryMedication.swift in Sources */,
+				DIDENT107 /* DashboardContextSnapshot.swift in Sources */,
+				DIDENT103 /* DashboardProviderAssociations.swift in Sources */,
+				DHSIDE101 /* DashboardSharedSleepProducer.swift in Sources */,
+				DIDENT101 /* SessionRepositoryDashboardIdentities.swift in Sources */,
+				WBCTX001 /* EventStorage+WorkContext.swift in Sources */,
 				AE5EED904A21B803837709F5 /* SessionRepositoryDashboardSnapshot.swift in Sources */,
 				DB770001 /* DashboardPublisherIdentity.swift in Sources */,
 				DB770003 /* DashboardTransferView.swift in Sources */,
@@ -1104,13 +1385,51 @@
 				FFCE63C8C666930BEE06D38F /* ThemeSettingsView.swift in Sources */,
 				SSV001 /* SessionSupportViews.swift in Sources */,
 				1B95E3AD96741FD0E9FED120 /* Secrets.swift in Sources */,
+				DYPR002 /* DaytimeReminderView.swift in Sources */,
+				DYPR001 /* DaytimePromptService.swift in Sources */,
 				CLUST101 /* DashboardModels.swift in Sources */,
+				DINS001B /* DashboardInspection.swift in Sources */,
+				DRPL106 /* DashboardReplayPresentation.swift in Sources */,
+		DRPL107 /* DashboardReplayComparison.swift in Sources */,
+		DRPL108 /* DashboardIntervalExplorer.swift in Sources */,
+				DPPK001B /* DashboardPagePicker.swift in Sources */,
+				DICT001B /* DashboardInspectionControls.swift in Sources */,
+				DADM001B /* DashboardAdditionalMeasuresView.swift in Sources */,
+				DRPL105 /* DashboardReplayUITestFixture.swift in Sources */,
+				DRPL104 /* DashboardReplayExport.swift in Sources */,
+				DRPL103 /* DashboardReviewedCoverage.swift in Sources */,
+				DRPL102 /* DashboardReplayEndpoints.swift in Sources */,
+				DRPL101 /* DashboardReplayAdapter.swift in Sources */,
+				DRPL100 /* DashboardReplayView.swift in Sources */,
 				CLUST102 /* DashboardViews.swift in Sources */,
+				DPUI002B /* DosePatternDetailSheet.swift in Sources */,
+				DPUI003B /* DosePatternPresentation.swift in Sources */,
+				SINT001B /* DashboardSleepIntervalChart.swift in Sources */,
+				RNCT001B /* DashboardReportedNightContext.swift in Sources */,
+				CTX001B /* ContextMorningProjection.swift in Sources */,
+				CTX002B /* ContextMorningOutcomesView.swift in Sources */,
+				DPUI001B /* DosePatternDashboardView.swift in Sources */,
+				DPUI004B /* DosePatternReviewSheet.swift in Sources */,
+				DPUI005B /* MorningDoseHistoryReviewSection.swift in Sources */,
+				WBPROJ001 /* DashboardWorkCycleProjection.swift in Sources */,
+				WBOUT104 /* WorkShiftEventEditor.swift in Sources */,
+				WBOUT105 /* WorkSleepEventEditor.swift in Sources */,
+				WBCTX003 /* WorkContextEditors.swift in Sources */,
+				WBOUT003 /* WorkCycleReportedOutcomesView.swift in Sources */,
+				WBOUT002 /* WorkCycleNapDayReport.swift in Sources */,
+				WBOUT001 /* WorkCycleCategoryReport.swift in Sources */,
+				WBCTX002 /* DashboardWorkBlockView.swift in Sources */,
 				CLUST105 /* DeferredCloudKitSyncService.swift in Sources */,
+				DIDENT105 /* ProviderSessionAssociationView.swift in Sources */,
+				DIDENT108 /* DashboardContextProjection.swift in Sources */,
+				DIDENT104 /* DashboardProviderMatching.swift in Sources */,
+				DIDENT102 /* DashboardIdentityAggregation.swift in Sources */,
+				DPAD101 /* DashboardDosePatternAdapter.swift in Sources */,
 				CLUST107 /* DashboardTypes.swift in Sources */,
 				CLUST108 /* DashboardAnalyticsRefresh.swift in Sources */,
 				CLUST110 /* DashboardAnalyticsSupport.swift in Sources */,
 				CLUST112 /* DashboardAnalyticsMetrics.swift in Sources */,
+				DPRU1001 /* DashboardPeriodControls.swift in Sources */,
 				CLUST114 /* DashboardAnalyticsPreSleep.swift in Sources */,
 				CLUST116 /* DashboardAnalyticsCatalog.swift in Sources */,
 				CLUST118 /* DashboardAnalyticsMorning.swift in Sources */,
@@ -1123,7 +1442,6 @@
 				TLR003 /* TimelineReviewSupport.swift in Sources */,
 				CLUST104 /* HistoryViews.swift in Sources */,
 				1AB721451D7C4D41A86F5A01 /* IndependentDiaryHistoryView.swift in Sources */,
-				0DDCB5F12E644E9EBD074811 /* DaytimeCheckInEditor.swift in Sources */,
 				HIS001 /* HistorySelectedDayView.swift in Sources */,
 				HIS002 /* HistorySessionListViews.swift in Sources */,
 			);
@@ -1133,8 +1451,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				UI_DP01B /* DosePatternDashboardUITests.swift in Sources */,
 				80D996632F5CFA280092DB29 /* Formatters.swift in Sources */,
 				UI_B01 /* DoseTapUITests.swift in Sources */,
+				DYPU001 /* DaytimePromptUITests.swift in Sources */,
+				QNAU001 /* QuestionnaireAccessibilityUITests.swift in Sources */,
+				CTX003B /* ContextMorningOutcomesUITests.swift in Sources */,
+				NAP007B /* SleepNapsUITests.swift in Sources */,
+				PHRT1001 /* PhysicianReviewUITests.swift in Sources */,
 				D074B303 /* MedicationPresetSettingsUITests.swift in Sources */,
 				UI_B02 /* DoseTapUITestsLaunchTests.swift in Sources */,
 			);
@@ -1163,7 +1487,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 109;
+				CURRENT_PROJECT_VERSION = 111;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1190,7 +1514,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.19;
+				MARKETING_VERSION = 0.4.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.staging;
 				PRODUCT_NAME = DoseTapStaging;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1206,7 +1530,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Cloud.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 109;
+				CURRENT_PROJECT_VERSION = 111;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
 				ENABLE_PREVIEWS = YES;
@@ -1233,7 +1557,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.19;
+				MARKETING_VERSION = 0.4.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.staging;
 				PRODUCT_NAME = DoseTapStaging;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1481,7 +1805,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 109;
+				CURRENT_PROJECT_VERSION = 111;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1512,7 +1836,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.4.19;
+				MARKETING_VERSION = 0.4.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
 				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1529,7 +1853,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DoseTap/DoseTap.Local.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 109;
+				CURRENT_PROJECT_VERSION = 111;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"DoseTap/Preview Content\"";
 				DEVELOPMENT_TEAM = PJ487S8PS6;
@@ -1560,7 +1884,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.4.19;
+				MARKETING_VERSION = 0.4.21;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dosetap.ios;
 				PRODUCT_NAME = DoseTap;
 				SWIFT_EMIT_LOC_STRINGS = YES;

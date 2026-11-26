@@ -1,5 +1,8 @@
 import Foundation
 import DoseCore
+#if DEBUG && targetEnvironment(simulator)
+import SQLite3
+#endif
 #if canImport(OSLog)
 import OSLog
 #endif
@@ -59,6 +62,12 @@ public extension SessionRepository {
     /// process-level UI tests cover synchronous startup rollover.
     static func prepareExpiredSessionUITestFixture() {
         let storage = EventStorage.shared
+        if ProcessInfo.processInfo.arguments.contains("--uitesting"),
+           ProcessInfo.processInfo.arguments.contains("--uitesting-morning-save-failure"),
+           let testID = ProcessInfo.processInfo.environment["DOSETAP_DAYTIME_TEST_ID"], UUID(uuidString: testID) != nil {
+            let result = sqlite3_exec(storage.db, "CREATE TEMP TRIGGER reject_morning_ui BEFORE INSERT ON checkin_submissions BEGIN SELECT RAISE(ABORT, 'synthetic UI failure'); END", nil, nil, nil)
+            precondition(result == SQLITE_OK, "Could not prepare isolated morning save failure fixture")
+        }
         let start = Date().addingTimeInterval(-48 * 60 * 60)
         let id = UUID().uuidString
         let date = storage.sessionDateString(for: start)

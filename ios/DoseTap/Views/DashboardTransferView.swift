@@ -45,6 +45,7 @@ final class DashboardPublisherModel: ObservableObject {
             do {
                 let packet = try await load()
                 guard let self, !Task.isCancelled, generation == expected else { return }
+                guard healthEnabled() else { throw DashboardSnapshotError.invalidPayload }
                 evidence = packet; preparing = false
                 providerReceipt = "Prepared \(packet.samples.count) readable sleep samples through \(packet.queryEnd.formatted(date: .abbreviated, time: .shortened)). Start a new connection to refresh Apple Health."
                 service?.start()
@@ -55,17 +56,20 @@ final class DashboardPublisherModel: ObservableObject {
             }
         }
     }
+    /// Recheck the current preference at the actual report boundary, including
+    /// connections whose packet was prepared before Health was disabled.
+    func reportSleepEvidence() throws -> DashboardSleepEvidence? {
+        guard evidence == nil || healthEnabled() else { throw DashboardSnapshotError.invalidPayload }
+        return evidence
+    }
     private func publish(context: UUID) {
         guard let service, service.state == .paired, service.contextID == context else { return }
         receipt = nil; error = nil
         do {
             let reservation = try DashboardPublisherIdentity().reserve()
-            var snapshot = try SessionRepository.shared.dashboardSnapshot(
-                sourceID: reservation.sourceID, sequence: reservation.sequence)
-            if let evidence, let index = snapshot.sections.firstIndex(where: { $0.dataset == .appleHealth }) {
-                try evidence.validate(capturedAt: snapshot.capturedAt)
-                snapshot.sections[index] = try evidence.section()
-            }
+            let snapshot = try SessionRepository.shared.dashboardSnapshot(
+                sourceID: reservation.sourceID, sequence: reservation.sequence,
+                sleepEvidence: reportSleepEvidence())
             let bytes = try JSONEncoder().encode(snapshot)
             guard bytes.count <= NearbyReportingSession.maximumSnapshotBytes else { throw DashboardSnapshotError.invalidPayload }
             try service.sendSnapshot(bytes, contextID: context)

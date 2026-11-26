@@ -48,12 +48,17 @@ extension EventStorage {
         }
     }
 
-    /// Ordered for deletion of dependent records before their sources.
+    /// Ordered for deletion of dependent records before their sources. The diary,
+    /// dashboard and physician collections are created with the schema, so every
+    /// database this build opens owns them.
     private static let resetTables = [
-        "confirmed_medication_administrations", "medication_preset_revisions",
+        "dashboard_dose_reviews", "daytime_checkins", "daytime_events",
+        "confirmed_medication_administrations", "medication_preset_revisions", "nap_diary",
         "sleep_events", "dose_events", "current_session", "sleep_sessions", "pre_sleep_logs",
         "morning_checkins", "checkin_submissions", "medication_events", "inventory_snapshots", "body_map_points",
-        "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries", "work_wake_schedule", "supply_state"
+        "physician_review_records", "symptom_locations", "symptom_events", "symptom_command_log", "symptom_summaries",
+        "dashboard_provider_associations", "work_wake_schedule", "work_block_context", "supply_state",
+        "daytime_prompt_state"
     ]
     /// Migration receipts and sync tombstones are owned by this schema and retained during reset.
     static let nativeStorageTables = Set(resetTables + ["schema_migrations", "cloudkit_tombstones"])
@@ -92,17 +97,10 @@ extension EventStorage {
                 guard let name = sqlite3_column_text(row, 0) else { throw ExportReadError.unreadable }
                 return String(cString: name)
             }
-            var ownedTables = Self.resetTables
-            if try hasNativeDaytimeCheckIns() {
-                guard try independentRecordTables() == ["daytime_checkins"] else {
-                    throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
-                }
-                ownedTables.append("daytime_checkins")
-            }
-            guard Set(existing).isSubset(of: Self.nativeStorageTables.union(ownedTables)) else {
+            guard Set(existing).isSubset(of: Self.nativeStorageTables) else {
                 throw DataResetFailure(stage: "unsupportedSchema", sqliteCode: SQLITE_SCHEMA, rollbackFailed: false)
             }
-            for table in ownedTables { try execute("DELETE FROM \(table)", at: .delete) }
+            for table in Self.resetTables { try execute("DELETE FROM \(table)", at: .delete) }
             try execute("COMMIT", at: .commit)
             storageLog.info("Local clinical database reset committed")
             return true

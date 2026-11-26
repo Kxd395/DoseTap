@@ -16,15 +16,8 @@ struct DashboardTrendChartsCard: View {
     @ObservedObject var model: DashboardAnalyticsModel
     @State private var trendMode: DashboardTrendMode = .intervalVsSleep
 
-    private struct IntervalSleepPoint: Identifiable {
-        let id: String
-        let intervalMinutes: Double
-        let sleepMinutes: Double
-        let onTime: Bool
-    }
-
     private struct RecoveryPoint: Identifiable {
-        var id: Date { date }
+        let id: String
         let date: Date
         let recovery: Double
         let hrv: Double?
@@ -36,7 +29,7 @@ struct DashboardTrendChartsCard: View {
                 guard let recovery = night.whoopRecoveryScore,
                       let date = AppFormatters.sessionDate.date(from: night.sessionDate)
                 else { return nil }
-                return RecoveryPoint(date: date, recovery: recovery, hrv: night.whoopHRV)
+                return RecoveryPoint(id: night.id, date: date, recovery: recovery, hrv: night.whoopHRV)
             }
             .sorted { $0.date < $1.date }
     }
@@ -44,23 +37,15 @@ struct DashboardTrendChartsCard: View {
     private var trendColorLegend: String {
         switch trendMode {
         case .intervalVsSleep:
-            return (palette.isNight ? "Circles: inside; diamonds: outside. " : "Green circles: inside; orange diamonds: outside. ")
+            return (model.replayPresentation.timingContextBasis == .reported ? "Morning report: square work; circle off; triangle into block; inverted triangle out; hexagon recovery; diamond unsure/unknown. " : "Reviewed shifts: square work; circle off; diamond unknown. ") + " Single dose: 1 at zero. Blue: within reference; purple: below; orange: above; teal: single dose (warm colors in Night Mode). "
                 + "Built-in recorded-spacing reference: 150–240 minutes inclusive, not a historical prescription."
         case .recoveryTrend:
             return palette.isNight ? "WHOOP recovery ranges use labeled symbols: 67–100, 34–66, below 34."
                 : "WHOOP recovery: green 67–100, yellow/orange 34–66, red below 34. Symbols also identify ranges."
         case .cohorts:
-            return palette.isNight ? "Bars are labeled Screens and No screens; these identify groups, not better sleep."
-                : "Indigo: screens. Green: no screens. Colors identify groups, not better sleep."
+            return "Saved screen answers need review; questionnaire cohort averages are withheld."
         case .weekday:
             return "Recorded pairs within the built-in 150–240 minute inclusive reference, by weekday; not a historical prescription."
-        }
-    }
-
-    private var intervalSleepPoints: [IntervalSleepPoint] {
-        model.populatedNights.compactMap { night in
-            guard let interval = night.exactIntervalMinutes, let sleep = model.sleepMinutes(for: night) else { return nil }
-            return IntervalSleepPoint(id: night.sessionDate, intervalMinutes: Double(interval), sleepMinutes: sleep, onTime: night.onTimeDosing ?? false)
         }
     }
 
@@ -71,7 +56,7 @@ struct DashboardTrendChartsCard: View {
                     .font(.headline)
                 Spacer()
                 Picker("Trend", selection: $trendMode) {
-                    ForEach(DashboardTrendMode.allCases) { mode in
+                    ForEach([DashboardTrendMode.intervalVsSleep, .recoveryTrend, .weekday]) { mode in
                         Text(mode.rawValue).tag(mode)
                     }
                 }
@@ -80,8 +65,21 @@ struct DashboardTrendChartsCard: View {
             }
 
             #if canImport(Charts)
-            chartBody
-                .frame(height: 220)
+            if trendMode == .intervalVsSleep {
+                DashboardTimingContextControls(model: model)
+                chartBody
+            }
+            else { chartBody.frame(height: 220) }
+            if trendMode == .intervalVsSleep {
+                Text(model.sleepPairingSummary).font(.caption).accessibilityIdentifier("dashboard-sleep-pairing-counts")
+                if model.automaticSleepMatchCount > 0 {
+                    Text("Automatically matched: \(model.automaticSleepMatchCount) · Not manually reviewed").font(.caption)
+                }
+                if model.unmatchedSelectedSleepCount > 0 {
+                    NavigationLink("Review unmatched sleep (\(model.unmatchedSelectedSleepCount))") { ProviderSessionAssociationView(model: model) }
+                        .accessibilityIdentifier("dashboard-review-unmatched-sleep")
+                }
+            }
             Text(trendColorLegend).font(.caption).foregroundColor(.secondary)
             if trendMode == .weekday {
                 Text(model.weekdayTimingValues.map { "\($0.name): n=\($0.count)" }.joined(separator: " · "))
@@ -106,22 +104,9 @@ struct DashboardTrendChartsCard: View {
     private var chartBody: some View {
         switch trendMode {
         case .intervalVsSleep:
-            if intervalSleepPoints.isEmpty {
-                emptyChartState("Need nights with both interval and sleep data.")
-            } else {
-                Chart(intervalSleepPoints) { point in
-                    PointMark(
-                        x: .value("Interval (min)", point.intervalMinutes),
-                        y: .value("Total Sleep (min)", point.sleepMinutes)
-                    )
-                    .foregroundStyle(palette.chart(point.onTime ? .green : .orange))
-                    .symbol(by: .value("Recorded spacing", point.onTime ? "Inside reference" : "Outside reference"))
-                }
-                .chartSymbolScale(["Inside reference": BasicChartSymbolShape.circle, "Outside reference": .diamond])
-                .chartXAxisLabel("Dose interval (minutes)")
-                .accessibilityLabel("\(intervalSleepPoints.count) recorded pairs with \(model.sleepSource.rawValue) sleep")
-                .chartYAxisLabel("Sleep Minutes")
-            }
+            DashboardSleepIntervalChart(model: model, rows: model.replayComparisons(
+                for: model.replayDisplaySnapshots, outcome: .mainSleep, preset: .dose1ToDose2)
+                .filter { $0.matchesTimingContext(model.replayPresentation) })
 
         case .recoveryTrend:
             let points = recoveryTrendPoints
@@ -156,20 +141,7 @@ struct DashboardTrendChartsCard: View {
             }
 
         case .cohorts:
-            let values = model.screenSleepValues
-            if values.isEmpty {
-                emptyChartState("Need pre-sleep screen/no-screen data with sleep totals.")
-            } else {
-                Chart(values) { entry in
-                    BarMark(
-                        x: .value("Cohort", entry.name),
-                        y: .value("Avg Sleep (min)", entry.value)
-                    )
-                    .foregroundStyle(palette.chart(entry.name == "No screens" ? .green : .indigo))
-                    .annotation(position: .top) { Text("n=\(entry.count)").font(.caption) }
-                }
-                .chartYAxisLabel("Avg Sleep Minutes")
-            }
+            emptyChartState("Saved screen answers need review. Questionnaire cohort averages are withheld; review the original answers in Other Recorded Measures or Context & Morning Outcomes.")
 
         case .weekday:
             if model.weekdayTimingValues.isEmpty {
@@ -346,4 +318,43 @@ struct DashboardPeriodComparisonCard: View {
         }
     }
 
+}
+
+/// A small read-only entry point; exact record inspection remains in Session Replay.
+struct DashboardHomeTrend: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @Environment(\.dashboardPalette) private var palette
+    private var pairs: [DashboardNightAggregate] {
+        Array(model.populatedNights.filter { $0.exactIntervalMinutes != nil }.prefix(14)).reversed()
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Dose spacing").font(.headline)
+            if pairs.isEmpty {
+                Label("No recorded pairs in this period", systemImage: "chart.xyaxis.line")
+                    .font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 20)
+                Text("A trend appears when both dose times are recorded with a valid interval.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Chart(pairs) { night in
+                    if let interval = night.exactIntervalMinutes {
+                        PointMark(x: .value("Treatment night", night.sessionDate),
+                                  y: .value("Minutes between doses", interval))
+                            .foregroundStyle(palette.timing).symbolSize(45)
+                            .accessibilityLabel("Treatment night " + night.sessionDate)
+                            .accessibilityValue("\(interval) minutes between recorded doses")
+                    }
+                }.chartYAxisLabel("Minutes")
+                    .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) { value in
+                        AxisTick()
+                        AxisValueLabel { if let day = value.as(String.self) { Text(String(day.suffix(5))) } }
+                    } }
+                    .frame(height: 150)
+                    .accessibilityIdentifier("dashboard-home-spacing-chart")
+                Text("Most recent \(pairs.count) valid pairs in this period. Missing pairs are omitted.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+    }
 }

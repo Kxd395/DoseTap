@@ -71,6 +71,7 @@ extension SettingsView {
             }
 
             Section {
+                NavigationLink("Daytime reminder") { DaytimeReminderView() }
                 NavigationLink("Locked-phone alarm setup & test") { SystemAlarmSettingsView() }
                 Toggle(isOn: $settings.notificationsEnabled) {
                     Label("Enable Dose Notifications", systemImage: "bell.fill")
@@ -310,7 +311,7 @@ extension SettingsView {
                 Button("Create full export") { exportData(format: requestedExportFormat) }
                     .accessibilityIdentifier("settings.confirmFullExport")
             } message: {
-                Text("This file may include private notes, original health and diary records, and exact timestamps. Review the file before choosing where to share it.")
+                Text("This file includes original health and diary records, private notes, and exact timestamps. Review it before sharing. For a focused report, use the dashboard or physician review export. Creating a file does not send it to anyone.")
             }
             .alert("Export Complete", isPresented: $showingExportSuccess) {
                 Button("OK", role: .cancel) {}
@@ -419,7 +420,7 @@ extension SettingsView {
         } header: {
             Label("Data Management", systemImage: "externaldrive.fill")
         } footer: {
-            Text("Manual workbooks and Studio bundles include daytime, nap, reminder, physician-review, work-context and dashboard review records, plus available provider measurements. Scheduled ZIPs contain a subset of local records and are saved to Files > DoseTap Exports when iOS runs the task.")
+            Text("Excel workbooks include styled sheets with sortable columns and filters for reviewing your nights and recorded details. Studio bundles retain the original CSV and JSON records for software import. Scheduled ZIPs save a local subset to Files > DoseTap Exports; iOS decides when they run. Use a full manual export for independent daytime, nap, prompt, physician-review, work-context and dashboard review records, plus available provider measurements. Exports are not a tested full-app restore.")
         }
     }
 

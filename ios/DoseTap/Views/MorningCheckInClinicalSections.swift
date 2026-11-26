@@ -119,6 +119,8 @@ struct MorningCheckInWorkSafetySection: View {
 
                     MorningCheckInScoreSlider(
                         value: $viewModel.drivingConfidence,
+                        questionLabel: "Driving confidence",
+                        accessibilityID: "morning-driving-confidence",
                         range: 1...5,
                         accentColor: .blue,
                         lowLabel: "Not safe",
@@ -127,6 +129,8 @@ struct MorningCheckInWorkSafetySection: View {
 
                     MorningCheckInScoreSlider(
                         value: $viewModel.daytimeSleepiness,
+                        questionLabel: "Daytime sleepiness",
+                        accessibilityID: "morning-daytime-sleepiness",
                         range: 1...5,
                         accentColor: .purple,
                         lowLabel: "Alert",

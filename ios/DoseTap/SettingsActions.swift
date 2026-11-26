@@ -58,6 +58,8 @@ extension SettingsView {
             showingResetError = true
             return
         }
+        let resetGeneration = SessionRepository.shared.dataResetGeneration
+        let daytimeCleanup = DaytimePromptService.shared.beginDataResetCleanup()
         AlarmService.shared.prepareAlarmsForDataReset()
 
         if let bundleId = Bundle.main.bundleIdentifier {
@@ -71,11 +73,14 @@ extension SettingsView {
         SavedPainPatternStore.shared.reloadFromPreferences()
         sleepPlanStore.resetToDefaults()
         SessionRepository.shared.reload()
-        let generation = SessionRepository.shared.dataResetGeneration
         Task { @MainActor in
-            await DataResetPresentation.finishCleanup(repository: .shared, generation: generation,
+            await DataResetPresentation.finishCleanup(
+                repository: SessionRepository.shared,
+                generation: resetGeneration,
+                daytimeCleanup: daytimeCleanup,
                 verifyAlarms: { await AlarmService.shared.verifyDataResetAlarmCancellation() },
-                defaults: .standard)
+                defaults: .standard
+            )
         }
 
         #if DEBUG

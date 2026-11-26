@@ -27,6 +27,24 @@ extension DashboardAnalyticsModel {
         sleepSource == .appleHealth ? night.appleHealthSleepMinutes : night.whoopSleepMinutes
     }
 
+    var unmatchedSelectedSleepCount: Int {
+        populatedNights.filter { $0.unmatchedProviderEvidence != nil && sleepMinutes(for: $0) != nil }.count
+    }
+    var pairedSleepCount: Int {
+        populatedNights.filter { $0.exactIntervalMinutes != nil && sleepMinutes(for: $0) != nil }.count
+    }
+    var automaticSleepMatchCount: Int {
+        populatedNights.filter { $0.associationLabel(for: sleepSource).hasPrefix("Automatic time") && sleepMinutes(for: $0) != nil }.count
+    }
+    var sleepPairingSummary: String {
+        "Dose pairs: \(recordedPairCount) · Sleep records: \(sleepSampleCount) · Paired: \(pairedSleepCount)"
+    }
+    var intervalSleepEmptyReason: String {
+        if unmatchedSelectedSleepCount > 0 { return "Sleep records are available, but their session matches need review." }
+        if recordedPairCount == 0 { return "No recorded two-dose intervals in this period. Confirmed single-dose nights are shown in Overview → Sleep vs spacing." }
+        return "Dose intervals are available, but no \(sleepSource.rawValue) sleep is loaded for them. Refresh or check the selected sleep source."
+    }
+
     var sleepSampleCount: Int { populatedNights.compactMap { sleepMinutes(for: $0) }.count }
     var recordedPairCount: Int { dosingNights.compactMap(\.exactIntervalMinutes).count }
     var invalidIntervalCount: Int {

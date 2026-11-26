@@ -59,21 +59,21 @@ final class DashboardProviderAccessTests: XCTestCase {
 
     func testInvalidationDuringAuthorizationPreventsHistoryQuery() async {
         let access = DashboardProviderAccess(), entered = expectation(description: "Authorization suspended")
-        var continuation: CheckedContinuation<Bool, Never>?
+        var continuation: CheckedContinuation<HealthReadPreparation, Never>?
         var historyQueries = 0, reader = queries()
         reader.prepareHealth = { await withCheckedContinuation { continuation = $0; entered.fulfill() } }
         reader.healthHistory = { _ in historyQueries += 1; return [] }
         let model = model(access: access, reader: reader)
         let task = Task { await model.performRefresh(days: 30) }
         await fulfillment(of: [entered], timeout: 3)
-        access.invalidate(.health); continuation?.resume(returning: true)
+        access.invalidate(.health); continuation?.resume(returning: .ready)
         await task.value
         XCTAssertEqual(historyQueries, 0); XCTAssertNil(model.lastRefresh); XCTAssertFalse(model.isLoading)
     }
 
     func testConnectionEpochRejectsSuspendedWHOOPResult() async throws {
         let access = DashboardProviderAccess(), entered = expectation(description: "WHOOP suspended")
-        var continuation: CheckedContinuation<[WHOOPNightSummary], Never>?
+        var continuation: CheckedContinuation<WHOOPNightFetchResult, Never>?
         var reader = queries(); reader.healthEnabled = { false }
         reader.whoopEnabled = { true }; reader.whoopConnected = { true }
         reader.whoopHistory = { _, _ in await withCheckedContinuation { continuation = $0; entered.fulfill() } }
@@ -81,7 +81,7 @@ final class DashboardProviderAccessTests: XCTestCase {
         let task = Task { await model.performRefresh(days: 30) }
         await fulfillment(of: [entered], timeout: 3)
         access.invalidate(.whoop); access.invalidate(.whoop)
-        continuation?.resume(returning: [summary]); await task.value
+        continuation?.resume(returning: .init(summaries: [summary], sleepRecordCount: 1, recoveryRecordCount: 0, recoveryStatus: .completed)); await task.value
         XCTAssertTrue(model.nights.isEmpty); XCTAssertNil(model.lastRefresh); XCTAssertFalse(model.isLoading)
     }
 
@@ -125,7 +125,7 @@ final class DashboardProviderAccessTests: XCTestCase {
 
     private func queries() -> DashboardProviderQueries {
         DashboardProviderQueries(healthEnabled: { true }, whoopEnabled: { false }, whoopConnected: { false },
-            prepareHealth: { true }, healthHistory: { _ in [self.row(local: false).healthSummary!] }, whoopHistory: { _, _ in [] })
+            prepareHealth: { .ready }, healthHistory: { _ in [self.row(local: false).healthSummary!] }, whoopHistory: { _, _ in .init(summaries: [], sleepRecordCount: 0, recoveryRecordCount: 0, recoveryStatus: .completed) })
     }
 
     private func model(access: DashboardProviderAccess, reader: DashboardProviderQueries) -> DashboardAnalyticsModel {

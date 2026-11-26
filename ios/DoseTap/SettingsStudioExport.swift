@@ -616,7 +616,10 @@ struct StudioBundleExporter {
             sleepNeedStrainMinutes: summary.sleepNeedStrainMinutes,
             sleepNeedNapMinutes: summary.sleepNeedNapMinutes,
             spo2Percentage: summary.spo2Percentage,
-            skinTempCelsius: summary.skinTempCelsius
+            skinTempCelsius: summary.skinTempCelsius,
+            endpointEvidence: summary.endpointEvidence,
+            stageEvidence: summary.stageEvidence,
+            sleepEvidenceReviewReason: summary.sleepEvidenceReviewReason
         )
     }
 
@@ -1631,6 +1634,9 @@ private struct InsightsWHOOPSummary: Codable {
     let sleepNeedNapMinutes: Int?
     let spo2Percentage: Double?
     let skinTempCelsius: Double?
+    var endpointEvidence: WHOOPSleepEndpointEvidence? = nil
+    var stageEvidence: WHOOPSleepStageEvidence? = nil
+    var sleepEvidenceReviewReason: String? = nil
 }
 
 private struct InsightsSessionContext: Codable {

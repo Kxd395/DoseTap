@@ -85,14 +85,25 @@ final class Build108UpgradeExportTests: XCTestCase {
             XCTAssertEqual(original.status, .unsure)
             correction = try original.corrected(response: 5, status: .answered, reason: "Reviewed", recordedAt: now)
             try repo.saveDaytimeCheckIn(correction)
-            XCTAssertFalse(try storage.hasNativeDaytimeCheckIns())
-            XCTAssertFalse(storage.clearAllData())
         }
         let reopened = EventStorage(dbPath: url.path)
         XCTAssertEqual(try reopened.daytimeCheckIns().current, [correction])
         let rows = try reopened.exportIndependentSourceRecords()
         XCTAssertEqual(rows.count, originalRows.count + 1)
         XCTAssertEqual(rows.filter { $0.columns["revision_id"]?.text != correction.revisionID.uuidString }, originalRows)
+    }
+
+    func testResetOfBuild108DatabaseClearsEveryDiaryCollection() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try createBuild108Database(at: url.path)
+        let storage = EventStorage(dbPath: url.path)
+        XCTAssertFalse(try storage.exportIndependentSourceRecords().isEmpty)
+        XCTAssertTrue(storage.clearAllData())
+        XCTAssertTrue(try storage.exportIndependentSourceRecords().isEmpty)
+        let reopened = EventStorage(dbPath: url.path)
+        XCTAssertTrue(try reopened.exportIndependentSourceRecords().isEmpty)
+        XCTAssertTrue(try reopened.daytimeCheckIns().revisions.isEmpty)
     }
 
     private func createBuild108Database(at path: String) throws {

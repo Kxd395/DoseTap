@@ -1,4 +1,5 @@
 import Foundation
+import DoseCore
 
 enum WHOOPRecoveryFetchStatus: String {
     case completed, failed
@@ -142,7 +143,7 @@ extension WHOOPService {
             }
 
             let summary = sleep.toNightSummary()
-            guard summary.hasValidSleepData else { continue }
+            guard sleep.score?.stageSummary != nil else { continue }
             summariesBySleepID[summary.sleepId] = summary
         }
 
@@ -601,7 +602,11 @@ extension WHOOPSleepStages.WHOOPStage {
 extension WHOOPSleep {
     /// Convert WHOOP sleep to night summary
     func toNightSummary() -> WHOOPNightSummary {
-        WHOOPNightSummary(
+        let stages = WHOOPSleepStageEvidence(sleepID: id, scoreState: scoreState,
+            lightMilliseconds: score?.stageSummary?.totalLightSleepTimeMilli,
+            deepMilliseconds: score?.stageSummary?.totalSlowWaveSleepTimeMilli,
+            remMilliseconds: score?.stageSummary?.totalRemSleepTimeMilli)
+        return WHOOPNightSummary(
             date: start ?? Date(),
             sleepId: id,
             totalSleepMinutes: score?.stageSummary?.totalSleepMinutes ?? 0,
@@ -619,11 +624,12 @@ extension WHOOPSleep {
             sleepNeedDebtMinutes: score?.sleepNeeded?.needFromSleepDebtMilli.map { $0 / 60000 },
             sleepNeedStrainMinutes: score?.sleepNeeded?.needFromRecentStrainMilli.map { $0 / 60000 },
             sleepNeedNapMinutes: score?.sleepNeeded?.needFromRecentNapMilli.map { $0 / 60000 },
-            hasCompleteSleepStages: score?.stageSummary?.totalLightSleepTimeMilli != nil
-                && score?.stageSummary?.totalSlowWaveSleepTimeMilli != nil
-                && score?.stageSummary?.totalRemSleepTimeMilli != nil,
+            hasCompleteSleepStages: stages.sleepMinutes != nil,
             hasAwakeData: score?.stageSummary?.totalAwakeTimeMilli != nil,
-            hasDisturbanceData: score?.stageSummary?.disturbanceCount != nil
+            hasDisturbanceData: score?.stageSummary?.disturbanceCount != nil,
+            endpointEvidence: .init(sleepID: id, originalStart: start, originalEnd: end,
+                providerTimeZoneOffset: timezoneOffset, providerUpdatedAt: updatedAt),
+            stageEvidence: stages
         )
     }
 }
@@ -651,6 +657,45 @@ struct WHOOPNightSummary: Identifiable {
     var hasCompleteSleepStages: Bool = true
     var hasAwakeData: Bool = true
     var hasDisturbanceData: Bool = true
+    var endpointEvidence: WHOOPSleepEndpointEvidence? = nil
+    var stageEvidence: WHOOPSleepStageEvidence? = nil
+
+    /// Source inconsistencies remain inspectable and require review, not an available comparison.
+    var sleepEvidenceReviewReason: String? {
+        if let id = stageEvidence?.sleepID, id != sleepId {
+            return "WHOOP stage evidence belongs to a different sleep record."
+        }
+        if let stages = stageEvidence,
+           [stages.lightMilliseconds, stages.deepMilliseconds, stages.remMilliseconds].compactMap({ $0 }).contains(where: { $0 < 0 }) {
+            return "WHOOP reports a negative sleep-stage duration."
+        }
+        guard let endpoints = endpointEvidence else { return nil }
+        guard endpoints.sleepID == sleepId,
+              endpoints.originalStart == nil || endpoints.originalStart == date else {
+            return "WHOOP endpoint identity or start disagrees with the summary."
+        }
+        if endpoints.originalStart != nil && endpoints.originalEnd != nil {
+            guard let interval = endpoints.validatedInterval else {
+                return "WHOOP original episode bounds are invalid."
+            }
+            if let minutes = stageEvidence?.sleepMinutes, minutes > interval.duration / 60 {
+                return "WHOOP scored sleep exceeds the original episode interval."
+            }
+        }
+        return nil
+    }
+
+    var quantitativeSleepMinutes: Double? {
+        guard sleepEvidenceReviewReason == nil, stageEvidence?.sleepID == sleepId else { return nil }
+        return stageEvidence?.sleepMinutes
+    }
+
+    /// Original provider episode bounds; never inferred from duration or called a reported wake.
+    var originalSleepInterval: DateInterval? {
+        guard let evidence = endpointEvidence, evidence.sleepID == sleepId,
+              evidence.originalStart == date else { return nil }
+        return evidence.validatedInterval
+    }
 
     // Recovery data (merged from WHOOPRecovery — set after initial creation)
     var recoveryScore: Double?
@@ -667,8 +712,6 @@ struct WHOOPNightSummary: Identifiable {
         return "\(hours)h \(mins)m"
     }
 
-    /// True when the sleep record has actual scored data (not all zeros).
-    var hasValidSleepData: Bool {
-        totalSleepMinutes > 0 || deepMinutes > 0 || remMinutes > 0 || lightMinutes > 0
-    }
+    /// Explicit complete scored evidence includes zero; legacy integer totals are not score proof.
+    var hasValidSleepData: Bool { quantitativeSleepMinutes != nil }
 }

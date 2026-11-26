@@ -165,7 +165,6 @@ struct LegacyTonightView: View {
     @State private var showMorningCheckIn = false
     @State private var showPreSleepLog = false
     @State private var showMedications = false
-    @State private var showDaytimeCheckIn = false
     @State private var showExtraDoseWarning = false  // For second dose 2 attempt
     @State private var incompleteSessionDate: String? = nil
     @State private var showIncompleteCheckIn = false
@@ -453,7 +452,6 @@ struct LegacyTonightView: View {
             .nightModePresentation()
         }
         .sheet(isPresented: $showMedications) { MedicationPickerView().nightModePresentation() }
-        .sheet(isPresented: $showDaytimeCheckIn) { DaytimeCheckInEditor().nightModePresentation() }
         .sheet(isPresented: $showPreSleepLog) {
                 PreSleepLogView(
                     existingLog: preSleepEditingLog,
@@ -607,12 +605,7 @@ struct LegacyTonightView: View {
             .buttonStyle(.bordered)
             .accessibilityIdentifier("tonight-log-medication")
 
-            Button { showDaytimeCheckIn = true } label: {
-                Label("Daytime check-in", systemImage: "sun.max")
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("tonight-daytime-record")
+            TonightDaytimeCheckInCard()
         }
         .padding(.horizontal)
     }

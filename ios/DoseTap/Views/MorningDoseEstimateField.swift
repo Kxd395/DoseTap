@@ -42,3 +42,17 @@ struct MorningDoseEstimateField: View {
         }
     }
 }
+
+struct MorningOutsideWindowEstimateConfirmation: View {
+    @Binding var confirmed: Bool
+
+    var body: some View {
+        Group {
+            Label("This estimate is outside the app’s Dose 2 window. Check that it reflects when you took the dose.",
+                  systemImage: "exclamationmark.triangle")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+            Toggle("Confirm outside-window estimate", isOn: $confirmed)
+        }
+    }
+}

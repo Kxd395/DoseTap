@@ -57,6 +57,42 @@ final class UISmokeTests: XCTestCase {
         let explicit = try XCTUnwrap(model.toStoredCheckIn().timingContextJson?.data(using: .utf8))
         XCTAssertEqual((try JSONSerialization.jsonObject(with: explicit) as? [String: Any])?["dose2TakenReason"] as? String, "unsure")
     }
+    func testQuestionnaireMarkersInLightDarkAndIncreasedContrast() throws {
+        guard #available(iOS 17, *) else { throw XCTSkip("Contrast snapshot harness requires trait overrides") }
+        let model = MorningCheckInViewModel(sessionId: "visual", sessionDate: "2026-10-17", loadRememberedSettings: false)
+        model.grogginess = .severe
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            for contrast in [UIAccessibilityContrast.normal, .high] {
+                let content = VStack(spacing: 16) {
+                    ForEach(1...5, id: \.self) { level in StressSlider(value: .constant(level)) }
+                    MorningCheckInGrogginessPicker(viewModel: model)
+                }.padding().frame(width: 390).background(Color(.systemBackground))
+                    .environment(\.dynamicTypeSize, .large)
+                let host = UIHostingController(rootView: content)
+                host.traitOverrides.userInterfaceStyle = style
+                host.traitOverrides.accessibilityContrast = contrast
+                let window = UIWindow(windowScene: scene)
+                window.rootViewController = host
+                window.frame = CGRect(origin: .zero, size: host.sizeThatFits(in: CGSize(width: 390, height: 3000)))
+                window.isHidden = false
+                defer { window.isHidden = true }
+                host.view.frame = window.bounds
+                host.view.layoutIfNeeded()
+                XCTAssertEqual(host.traitCollection.accessibilityContrast, contrast)
+                var drawn = false
+                let rendered = UIGraphicsImageRenderer(size: window.bounds.size).image { _ in
+                    drawn = host.view.drawHierarchy(in: host.view.bounds, afterScreenUpdates: true)
+                }
+                XCTAssertTrue(drawn)
+                let attachment = XCTAttachment(image: rendered)
+                attachment.name = "Questionnaire markers - style \(style.rawValue) - contrast \(contrast.rawValue)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
+    }
+
     func testMorningReminderAndFailedSaveReadableAtLargeText() throws {
         let model = MorningCheckInViewModel(sessionId: "synthetic-night", sessionDate: "2026-08-30", loadRememberedSettings: false)
         model.submissionErrorMessage = "Your morning answers were not saved. They are still here; try Complete Check-In again. Any dose corrections already saved remain recorded."

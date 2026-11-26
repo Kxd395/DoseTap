@@ -66,9 +66,12 @@ extension EventStorage {
         guard databaseInitializationFailure == nil, db != nil else { throw ExportReadError.unreadable }
         return try withSQLiteTransaction {
             let tables = try independentRecordTables(checkUnknownTables: requestedTable == nil)
-            return try (requestedTable.map { [$0] } ?? tables).filter(tables.contains).flatMap { table in
+            let records = try (requestedTable.map { [$0] } ?? tables).filter(tables.contains).flatMap { table in
                 try readIndependentRecords(table: table)
             }
+            // A damaged identity cannot silently become an unrelated derived-path record.
+            _ = try JSONDecoder().decode([StudioIndependentSourceRecord].self, from: JSONEncoder().encode(records))
+            return records
         }
     }
 
@@ -92,13 +95,10 @@ extension EventStorage {
         let independent = objects.filter { tables.contains($0.0.lowercased()) }
         guard independent.allSatisfy({ $0.1 == "table" }) else { throw ExportReadError.unreadable }
         let names = Set(independent.map { $0.0 })
-        let native = try hasNativeDaytimeCheckIns()
-        if native {
-            guard names == ["daytime_checkins"] else { throw ExportReadError.unreadable }
-        } else {
-            guard names.isEmpty || names == Set(tables) else { throw ExportReadError.unreadable }
-        }
-        return tables.filter(names.contains)
+        // The schema creates every diary collection, so a partial set means the
+        // database was changed outside this build and is not read.
+        guard names == Set(tables) else { throw ExportReadError.unreadable }
+        return tables
     }
 
     func readIndependentRecords(table: String) throws -> [StoredExportSourceRecord] {

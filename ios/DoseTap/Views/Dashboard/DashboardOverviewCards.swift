@@ -6,16 +6,19 @@ struct DashboardExecutiveSummaryCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ObservedObject var model: DashboardAnalyticsModel
     @ObservedObject var core: DoseTapCore
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Recorded Nights").font(.headline)
+            if !dynamicTypeSize.isAccessibilitySize || verticalSizeClass != .compact {
+                Text("Recorded Nights").font(.headline)
+            }
             LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.adaptive(minimum: 130), alignment: .leading)], alignment: .leading, spacing: 12) {
                 kpi("In-window pairs", model.onTimePercentage.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Outcomes recorded", model.completionRate.map { String(format: "%.0f%%", $0) } ?? "—")
                 kpi("Recorded pairs", "\(model.recordedPairCount)")
                 kpi("Pending Dose 2", "\(model.pendingDose2OutcomeCount)")
-                kpi("Finished-night streak", "\(model.finishedNightStreak) nights")
+                kpi("Finished-night streak", "\(model.finishedNightStreak) \(model.finishedNightStreak == 1 ? "night" : "nights")")
                 kpi("Nights with data", "\(model.populatedNights.count)")
                 kpi("Coverage · 3+ categories", "\(model.threeCategoryNightCount) nights", color: palette.coverage)
                 kpi("WHOOP Recovery", model.averageWhoopRecovery.map { String(format: "%.0f%%", $0) } ?? "No data", color: palette.recovery(model.averageWhoopRecovery))
@@ -37,10 +40,13 @@ struct DashboardExecutiveSummaryCard: View {
     }
 
     private func kpi(_ title: String, _ value: String, color: Color? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        let layout = verticalSizeClass == .compact && dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 3))
+        return layout {
             Text(title).font(.caption).foregroundColor(.secondary)
             Text(value).font(.title2.bold()).foregroundColor(value == "No data" || value == "—" ? .secondary : (color ?? palette.timing))
-        }.accessibilityElement(children: .combine)
+        }.accessibilityElement(children: .combine).accessibilityIdentifier("dashboard-summary-" + title)
     }
 
     private var tonightStatus: String {
@@ -371,7 +377,7 @@ struct DashboardDataQualityCard: View {
             coverage("Reported final wake", available: model.recordedFinalWakeCount)
             Text("Missing counts are among recorded nights only; days with no records are not counted as zero sleep or missed doses. Work/off answers are not inferred from a schedule.")
                 .font(.caption).foregroundColor(.secondary)
-            Text(model.healthQueryDescription + " WHOOP query: up to 30 days.")
+            Text(model.healthQueryDescription + " " + model.whoopQueryDescription)
                 .font(.caption).foregroundColor(.secondary)
             Text("Nights with duplicate event clusters: \(model.duplicateNightCount)")
                 .font(.subheadline)
@@ -442,5 +448,43 @@ struct DashboardIntegrationsCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemGray6))
         )
+    }
+}
+
+/// The everyday overview stays small; the complete measure inventory remains in Explore.
+struct DashboardHomeSummary: View {
+    @ObservedObject var model: DashboardAnalyticsModel
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dashboardPalette) private var palette
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if !typeSize.isAccessibilitySize || verticalSizeClass != .compact {
+                Text("Your nights").font(.title2.bold())
+            }
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 16))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+            layout {
+                metric("Nights with data", value: model.populatedNights.count, id: "dashboard-home-nights")
+                metric("Recorded dose pairs", value: model.recordedPairCount, id: "dashboard-home-pairs")
+            }
+            Text(model.selectedRange.label + " · whole reporting period")
+                .font(.caption).foregroundStyle(.secondary)
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private func metric(_ label: String, value: Int, id: String) -> some View {
+        let layout = typeSize.isAccessibilitySize && verticalSizeClass == .compact
+            ? AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 12))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+        return layout {
+            Text(value.formatted()).font(.largeTitle.weight(.semibold)).monospacedDigit()
+                .foregroundStyle(palette.timing)
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine).accessibilityIdentifier(id)
     }
 }

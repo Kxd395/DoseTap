@@ -153,7 +153,11 @@ public extension SessionRepository {
 
     /// Summarize naps for a session by pairing `nap_start` and `nap_end` events in timestamp order.
     func napSummary(for sessionDate: String) -> NapSummary {
-        let events = fetchSleepEvents(for: sessionDate).sorted { $0.timestamp < $1.timestamp }
+        Self.napSummary(events: fetchSleepEvents(for: sessionDate))
+    }
+
+    internal static func napSummary(events: [StoredSleepEvent]) -> NapSummary {
+        let events = events.sorted { $0.timestamp < $1.timestamp }
         var openStarts: [Date] = []
         var napCount = 0
         var totalMinutes = 0

@@ -28,7 +28,7 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         XCTAssertEqual(calendar.dateComponents([.day], from: priorStart, to: start).day, 181)
         XCTAssertEqual(window.healthQueryDays, 367)
         XCTAssertEqual(DashboardDateRange.all.window(asOf: anchor, timeZone: calendar.timeZone)?.healthQueryDays, 730)
-        XCTAssertEqual(DashboardDateRange.allCases.map(\.rawValue), ["7D", "14D", "30D", "90D", "6M", "1Y", "All"])
+        XCTAssertEqual(DashboardDateRange.allCases.map(\.rawValue), ["7D", "14D", "28D", "30D", "90D", "6M", "1Y", "All", "Custom", "Since visit"])
     }
 
     func testSixMonthPhoneAndFrozenReportHaveIdenticalMembership() throws {
@@ -171,6 +171,7 @@ final class DashboardAnalyticsAuditTests: XCTestCase {
         model.nights = [night("2026-09-04", dose1: current.addingTimeInterval(-3600), interval: nil),
                         night("2026-09-03", interval: nil), night("2026-09-02", interval: nil, skipped: true),
                         night("2026-09-01", interval: -10), night("2026-08-31", interval: 239.9)]
+        model.nights[0].sessionActive = true
         XCTAssertEqual(model.pendingDose2OutcomeCount, 1)
         XCTAssertEqual(model.missingDose2OutcomeCount, 1)
         XCTAssertEqual(model.eligibleDose2OutcomeCount, 4)

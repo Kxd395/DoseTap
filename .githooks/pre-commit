@@ -17,8 +17,8 @@ if [ "$(sysctl -in hw.optional.arm64 2>/dev/null || echo 0)" = "1" ]; then
 else
   NATIVE_PREFIX=()
 fi
-echo "  ▸ ${NATIVE_PREFIX[*]} ${SWIFT_CMD[*]} build -q"
-if ! env -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET -u IPHONEOS_DEPLOYMENT_TARGET -u WATCHOS_DEPLOYMENT_TARGET -u TVOS_DEPLOYMENT_TARGET "${NATIVE_PREFIX[@]}" "${SWIFT_CMD[@]}" build -q; then
+echo "  ▸ ${NATIVE_PREFIX[*]} ${SWIFT_CMD[*]} build --jobs 2 -q"
+if ! env -u SDKROOT -u MACOSX_DEPLOYMENT_TARGET -u IPHONEOS_DEPLOYMENT_TARGET -u WATCHOS_DEPLOYMENT_TARGET -u TVOS_DEPLOYMENT_TARGET "${NATIVE_PREFIX[@]}" "${SWIFT_CMD[@]}" build --jobs 2 -q; then
   echo "❌ FAIL: swift build failed. Fix compile errors before committing."
   exit 1
 fi
@@ -60,15 +60,18 @@ if git diff --cached --name-only | grep -q '^ios/DoseTap/'; then
     exit 1
   fi
   echo "  ▸ xcodebuild build (ios/DoseTap changes detected)"
-  if ! xcodebuild build \
+  XCODE_LOG="$PWD/.build/precommit-xcode.log"
+  mkdir -p "$(dirname "$XCODE_LOG")"
+  if ! xcodebuild build -jobs 2 \
       -project ios/DoseTap.xcodeproj \
       -scheme DoseTap \
       -destination 'generic/platform=iOS Simulator' \
       CODE_SIGNING_ALLOWED=NO \
       CODE_SIGN_IDENTITY="" \
-      DEVELOPMENT_TEAM="" >/tmp/dosetap-precommit-xcode.log 2>&1; then
+      DEVELOPMENT_TEAM="" >"$XCODE_LOG" 2>&1; then
     echo "❌ FAIL: xcodebuild failed for ios/DoseTap/ changes."
-    tail -50 /tmp/dosetap-precommit-xcode.log || true
+    echo "   Build log: $XCODE_LOG"
+    tail -50 "$XCODE_LOG" || true
     exit 1
   fi
   echo "  ✅ Xcode build OK"

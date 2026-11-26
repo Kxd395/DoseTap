@@ -1,0 +1,9 @@
+# Physician report frozen context and assessed-day parity
+
+The report consumes the validated shared wake, provider and work-outcome projections. Daytime detail freezes exact elapsed seconds, original and current wake references, source timestamps, work candidates and medication-context identity. Provider detail retains boundary policy, freshness, covered/interval/unmeasured minutes and original scoring/end evidence; canonical work comparison still controls every duration contribution.
+
+Full-period and monthly categorical work sections retain original answers and source states, exact compatible groups, eligible/excluded counts and known-block denominators without converting categories into numerical scores. Independent nap sections use canonical original day/timezone assessment rows, including explicit zero only for qualifying reviewed days and unavailable counts for partial boundary days. Intent categories remain separate and work context remains Unknown.
+
+Validation passed: 19 native adapter regressions on simulator `59B53B2A-7736-488A-A6DD-838B0F7F648B`; evidence in `.build/physician-evidence/final-context-native-tests.xcresult` and matching log; Plane 15 tests/80 assertions, SSOT, architecture, project syntax and whitespace guards in `final-context-guards.log`; normal enabled generic simulator hook in `final-context-commit.log`. No UI or DoseCore behavior changed; previously validated UI/core suites are not repeated.
+
+Base: root `e06ba22`, including validated daytime wake `e7d01f1` and shared work-outcome `d3dc189`. The report accepts additional shared duration metric cases through the canonical factory. The work owner's forthcoming exact timing/source-ID extension remains a separate dependency. Root retains integrated validation, Plane closeout, versioning, installation and real-provider/device acceptance; this checkpoint performs none of those actions.

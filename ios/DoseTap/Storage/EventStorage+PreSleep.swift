@@ -650,7 +650,9 @@ extension EventStorage {
         completionState: String = "complete",
         now: Date = Date(),
         timeZone: TimeZone = .current,
-        existingLog: StoredPreSleepLog? = nil
+        existingLog: StoredPreSleepLog? = nil,
+        prospectiveCaptureEligible: Bool = false,
+        prospectiveCaptureSessionID: String? = nil
     ) throws -> StoredPreSleepLog {
         try answers.lastFood?.validate(at: now)
         if let error = answers.caffeineAmounts?.validationError { throw PreSleepLogStoreError.invalidCaffeineAmounts(error) }
@@ -742,6 +744,14 @@ extension EventStorage {
                 completionState: completionState,
                 submittedAt: now
             )
+
+            if prospectiveCaptureEligible && completionState == "complete" {
+                guard prospectiveCaptureSessionID == nil || prospectiveCaptureSessionID == sessionId else {
+                    throw WorkContextStorageError.invalid
+                }
+                _ = try captureWorkPlanInCurrentTransaction(preSleepLogID: id,
+                    sessionID: prospectiveCaptureSessionID, capturedAt: now)
+            }
 
             return StoredPreSleepLog(
                 id: id,

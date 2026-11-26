@@ -169,10 +169,10 @@ DOSETAP-56 adds optional `answers.reviewedSleepWindow` with version, stable sess
 
 ### `daytime_checkins` (DOSETAP-58)
 
-The first successful manual save creates this table for a fresh main database
-inside the same transaction as the first revision and the
-`native_daytime_checkins_v1` migration receipt. The phone schema already has
-the table and needs no conversion.
+Schema initialization creates this table with the other diary collections.
+Earlier main-branch builds created it lazily and wrote a
+`native_daytime_checkins_v1` migration receipt; that receipt is retained
+metadata and no longer changes behavior.
 
 | Column | Meaning |
 | --- | --- |
@@ -180,10 +180,11 @@ the table and needs no conversion.
 | `observation_id` | Stable observation UUID shared by original and corrections |
 | `payload` | Validated build-108 JSON, including Unix-second times and original timezone |
 
-An identical revision retry is idempotent. History and manual exports preserve
-prior revisions and their original payloads. Clear All Data includes the
-main-owned table when the receipt and collection layout match. The phone
-schema retains its existing reset protection for unsupported collections.
+An identical revision retry is idempotent. A correction must keep the
+current revision's occurrence, context, note, event review, prompt and source
+links. History and manual exports preserve prior revisions and their original
+payloads. Clear All Data includes this table with every other diary
+collection and still refuses a database that contains an unknown table.
 
 ## Medication and inventory tables
 
@@ -369,3 +370,29 @@ Named timezone provenance is not yet stored on every historical event row. Exist
 ## Local supply state (schema version 5)
 
 `supply_state` contains one row (`id INTEGER PRIMARY KEY CHECK (id = 1)`, `payload TEXT NOT NULL`). The versioned SupplyBackup JSON owns optional reminder source and correction history, plus independent bottle-start IDs, opened-at and recorded-at timestamps. Reminder dates preserve Gregorian year/month/day and local hour/minute, mode, lead days, current-device-wall-clock policy, entry timezone, enabled and handled state. Received-date mode adds 21 calendar days. No quantity is inferred from bottle starts. A single upsert commits the complete supply document; load/validation/write errors are surfaced. Reminder-only deletion preserves bottle starts and all medication data. Supply export/restore includes both reminder and bottle records; Clear All Data clears the row. The additive table does not rewrite existing medication records.
+
+
+### Dashboard dose-history reviews
+
+`dashboard_dose_reviews(observation_id TEXT PRIMARY KEY, session_date TEXT NOT NULL, payload TEXT NOT NULL)` stores versioned explicit patient count/plan review revisions independently of dose events. Reads validate the full ledger; writes compare the expected revision inside one SQLite transaction. Existing records are not backfilled. Raw local source exports include the ledger; Clear All Data removes it. Source fingerprint mismatch prevents an old confirmation from classifying changed administration evidence.
+
+### Dashboard provider associations (local-only)
+
+`dashboard_provider_associations` is additive: `episode_id` TEXT primary key, `provider`, `session_id`, `session_date`, `session_fingerprint`, `episode_fingerprint`, `revision`, and `recorded_at` are non-null TEXT; `(provider, session_id)` is unique. It retains an explicit reviewed relationship, never medication or measured sleep. Fingerprints revalidate every dashboard read. Clear All Data and date/session deletion remove it. Provider relationship metadata is not transferred by the nearby/cloud source snapshot.
+## Independent daytime observations
+
+`daytime_checkins(revision_id TEXT PRIMARY KEY, observation_id TEXT NOT NULL, payload TEXT NOT NULL)` stores validated versioned custom diary JSON with original and correction revisions. Index `idx_daytime_observation` groups revisions. No foreign key or operation creates a nighttime session. Clear All Data includes this table.
+
+`daytime_events(revision_id TEXT PRIMARY KEY, event_id TEXT NOT NULL, payload TEXT NOT NULL)` retains original and corrected explicit daytime events. `idx_daytime_event` groups revisions. A check-in can reference existing stable event IDs within an explicit review interval; links do not duplicate event records. Clear All Data includes this independent ledger.
+### Work-block context (version 1)
+
+`work_block_context(id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)` stores the validated, versioned roster, attendance and reviewed sleep-association document. Writes compare the document revision and append history inside one transaction. It is independent of `work_wake_schedule`; raw nearby reporting includes it in the work-schedule dataset and Clear All Data removes it. See [work-block contract](SSOT/contracts/work-block-context.md).
+## Physician review records
+`physician_review_records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, payload TEXT NOT NULL)` holds append-only completed-visit revisions (`kind=visit`, ID is revision ID) and immutable preview snapshots (`kind=report`, ID is snapshot ID). The kind CHECK permits only these values. Source records, corrections and explicit share selection remain in versioned JSON payloads; no night/session row is created. Failed writes roll back and identical retries are idempotent.
+## Independent reviewed naps
+
+`nap_diary` is an additive singleton table (`id INTEGER PRIMARY KEY CHECK(id=1)`, `payload TEXT NOT NULL`). The version1 NapDiaryDocument JSON stores append-only reviewed episodes/day reviews and an optimistic document revision. Dates use Foundation numeric seconds since2001-01-01 UTC; calendar dates and timezones are explicit. Exact SQLite TEXT bytes are decoded and validated; stale writes, replaced history and corrupt payloads fail visibly. No medication/session/alarm rows are created. Clear All Data includes the ledger; `.daytimeDiary` nearby snapshots preserve its original payload and source table without inventing a nightly association. Provider coverage remains transient and is not stored here.
+
+### Optional daytime prompts
+
+`daytime_prompt_state` stores one checked SQLite row (`id = 1`, JSON `payload`) containing immutable schedule versions and prompt history. It has no session or dose dependency. Writes atomically replace the ledger; failed/corrupt reads fail visibly. Clear All Data removes it. Delivery timestamps are never fabricated; intended and actual assessment timestamps remain distinct.
