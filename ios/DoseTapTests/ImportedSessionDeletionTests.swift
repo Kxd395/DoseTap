@@ -200,6 +200,7 @@ final class ImportedSessionDeletionTests: XCTestCase {
         XCTAssertTrue(repository.setDose1Time(now).isCommitted)
         let date = try XCTUnwrap(repository.activeSessionDate)
         try execute("""
+            DROP TABLE dashboard_provider_associations;
             CREATE TABLE dashboard_provider_associations (session_date TEXT);
             INSERT INTO dashboard_provider_associations VALUES ('\(date)');
             CREATE TRIGGER reject_link BEFORE DELETE ON dashboard_provider_associations
