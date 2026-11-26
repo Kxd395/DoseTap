@@ -46,7 +46,7 @@ struct DashboardWorkBlockView: View {
         let provider: DashboardProviderAccess.Provider = model.sleepSource == .appleHealth ? .health : .whoop
         let hasSnapshot = model.sleepSource == .appleHealth ? model.healthSnapshot != nil : model.whoopSnapshot != nil
         let definition = !metric.isProviderSleep && metric != .doseInterval ? (metric == .dose2ToRequiredWake ? DashboardRecordedWakeTarget.version : "actual_shift_intervals_v1") : metric == .doseInterval ? DashboardDosePattern.version
-            : DashboardSleepMetricProjection.version + ":" + (metric == .mainSleep ? "mainProviderEpisode" : "observedAfterDose2")
+            : "\(DashboardSleepMetricProjection.version):\(metric == .mainSleep ? "mainProviderEpisode" : "observedAfterDose2")"
         return .init(selectedSource: metric.isProviderSleep ? model.sleepSource.rawValue : "Reported administration / work evidence", selectedDefinition: definition,
             timeZoneIdentifier: model.reportingTimeZone.identifier,
             periodStart: model.reportingPeriod?.start ?? model.currentReportWindow?.start,
@@ -59,8 +59,9 @@ struct DashboardWorkBlockView: View {
             providerSnapshotState: !metric.isProviderSleep ? "not_applicable" : model.providerSnapshotIsCurrent(provider) ? "current" : hasSnapshot ? "stale" : "unavailable")
     }
     private func profileLabel(_ row: WorkCycleObservation) -> String {
-        let index = profileNames[row.stratumID ?? "unknown:" + row.id] ?? "Unknown"
-        return row.position + " • " + (row.stratumLabel ?? "Context unknown, " + row.sleepDate) + " [" + index + "]"
+        let index = profileNames[row.stratumID ?? "unknown:\(row.id)"] ?? "Unknown"
+        let stratum: String = row.stratumLabel ?? "Context unknown, \(row.sleepDate)"
+        return "\(row.position) • \(stratum) [\(index)]"
     }
     private var profileLabels: [String] { Array(Set(rows.map(profileLabel))).sorted() }
     private var maximum: Double { max(1, (axisRows.compactMap(\.value).max() ?? 1) * 1.1) }
@@ -68,8 +69,9 @@ struct DashboardWorkBlockView: View {
         List {
             Section {
                 Text(model.rangeDescription).font(.caption)
-                Text((basis == .planned ? "Reviewed plan snapshot" : "Confirmed work history") + " • " + metric.rawValue + " • " + model.sleepSource.rawValue).font(.caption)
-                Text("Phase: " + (model.inspection.workPhaseFilter?.label ?? "All") + " • Position: " + positionFilter).font(.caption)
+                let basisLabel: String = basis == .planned ? "Reviewed plan snapshot" : "Confirmed work history"
+                Text(verbatim: "\(basisLabel) • \(metric.rawValue) • \(model.sleepSource.rawValue)").font(.caption)
+                Text(verbatim: "Phase: \(model.inspection.workPhaseFilter?.label ?? "All") • Position: \(positionFilter)").font(.caption)
                 Button("Comparison controls") { controlsVisible = true }.accessibilityIdentifier("work-comparison-controls")
                 if metric == .recordedWork24h { Text("Recorded shift minutes only; unlogged attendance is unknown, not zero.").font(.caption) }
                 if metric == .dose2ToRequiredWake { Text("Uses a saved required-wake target, not actual awakening or today’s schedule.").font(.caption) }
@@ -265,7 +267,8 @@ struct DashboardWorkBlockView: View {
                                     if cells.isEmpty { Text("Missing") }
                                     ForEach(cells) { cell in
                                         Button { select(cell) } label: {
-                                            Text(cell.sleepDate + "\n" + cell.phase.label + "\n" + (cell.value.map { String(format: "%.1f min", $0) } ?? "Unavailable"))
+                                            let value: String = cell.value.map { String(format: "%.1f min", $0) } ?? "Unavailable"
+                                            Text(verbatim: "\(cell.sleepDate)\n\(cell.phase.label)\n\(value)")
                                                 .foregroundStyle(.primary).padding(6).frame(maxWidth: .infinity)
                                                 .background(cellFill(cell)).clipShape(RoundedRectangle(cornerRadius: 6))
                                         }
@@ -409,7 +412,7 @@ private struct WorkBlockRecordDetail: View {
                 Text(row.value.map { String(format: "%.3f minutes contributed", $0) } ?? "No numeric contribution")
                 if let evidence = row.metricEvidence {
                     Text("Recorded state: " + evidence.metric.state.rawValue)
-                    Text(evidence.metric.value.map { "Recorded value: " + String($0) + " " + evidence.metric.unit } ?? "Recorded value unavailable")
+                    Text(verbatim: evidence.metric.value.map { "Recorded value: \(String($0)) \(evidence.metric.unit)" } ?? "Recorded value unavailable")
                     Text(evidence.source + " • " + evidence.definitionVersion)
                 }
                 Text("Contribution state: " + row.contributionState.rawValue)
@@ -421,11 +424,11 @@ private struct WorkBlockRecordDetail: View {
                     Text("Waking dates: \(association.precedingDate) → \(association.followingDate)")
                     Text(association.timeZoneIdentifier)
                     if let context = association.eventContext {
-                        Text("Reviewed main sleep: " + (context.mainSleepStart?.formatted() ?? "Start unknown") + " → " + (context.mainSleepEnd?.formatted() ?? "End unknown"))
+                        Text(verbatim: "Reviewed main sleep: \(context.mainSleepStart?.formatted() ?? "Start unknown") → \(context.mainSleepEnd?.formatted() ?? "End unknown")")
                         ForEach([context.precedingShiftID, context.followingShiftID].compactMap { $0 }, id: \.self) { id in
                             if let shift = document.shiftEvents?.first(where: { $0.shiftID == id && row.metricSourceRecordIDs.contains($0.id.uuidString) }) ?? document.latestShiftEvents(asOf: row.contextSnapshotAt ?? association.recordedAt).first(where: { $0.shiftID == id }) {
                                 Text(shift.positionLabel + " • " + shift.status.rawValue)
-                                Text("Actual: " + (shift.actualStart?.formatted() ?? "Start unknown") + " → " + (shift.actualEnd?.formatted() ?? "End unknown")).font(.caption)
+                                Text(verbatim: "Actual: \(shift.actualStart?.formatted() ?? "Start unknown") → \(shift.actualEnd?.formatted() ?? "End unknown")").font(.caption)
                             }
                         }
                     }

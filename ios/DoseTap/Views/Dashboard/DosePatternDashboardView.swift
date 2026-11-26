@@ -195,7 +195,8 @@ struct DosePatternDashboardView: View {
                     Text(first.context.label + " • " + endpointLabel(first.sleep.boundaryBasis)).font(.caption)
                     let included = group.compactMap { $0.sleep.summaryValue(includePartial: model.inspection.includePartialMetrics) }
                     let summary = DiaryMetricSummary(included.map(Optional.some))
-                    Text(DosePatternPresentation.summary(summary, total: group.count) + "; partial contributions \(group.filter { $0.sleep.metric.state == .partial && $0.sleep.summaryValue(includePartial: model.inspection.includePartialMetrics) != nil }.count)")
+                    let partialCount: Int = group.filter { $0.sleep.metric.state == .partial && $0.sleep.summaryValue(includePartial: model.inspection.includePartialMetrics) != nil }.count
+                    Text(verbatim: "\(DosePatternPresentation.summary(summary, total: group.count)); partial contributions \(partialCount)")
                         .font(.caption)
                     Text("Horizontal: sleep (minutes). Vertical: reported dose pattern; the full category label is shown above.").font(.caption)
                     Chart(group) { sample in
@@ -353,9 +354,9 @@ struct DosePatternDashboardView: View {
         DisclosureGroup("Work phase strip • \(model.inspection.workContextBasis.rawValue)") {
             ForEach(rows) { night in
                 let phase = model.workClassification(for: night.id)
-                Text(night.sessionDate + " • " + discriminator(night) + " • "
-                    + (workCurrent ? phase?.phase.label ?? "Unknown / no reviewed association" : "Unavailable / read incomplete")
-                    + (phase.map { " • " + $0.detail } ?? ""))
+                let phaseLabel: String = workCurrent ? phase?.phase.label ?? "Unknown / no reviewed association" : "Unavailable / read incomplete"
+                let phaseDetail: String = phase.map { " • \($0.detail)" } ?? ""
+                Text(verbatim: "\(night.sessionDate) • \(discriminator(night)) • \(phaseLabel)\(phaseDetail)")
                     .font(.caption)
             }
         }
@@ -363,15 +364,16 @@ struct DosePatternDashboardView: View {
     private var annotations: some View {
         DisclosureGroup("Reference and questionnaire version evidence") {
             ForEach(periodAnnotations) { annotation in
-                Text(annotation.title + " • " + (annotation.effectiveAt.map(timestamp) ?? "Effective date not collected; observed " + timestamp(annotation.observedAt))
-                    + " • " + annotation.detail).font(.caption)
+                let effective: String = annotation.effectiveAt.map(timestamp) ?? "Effective date not collected; observed \(timestamp(annotation.observedAt))"
+                Text(verbatim: "\(annotation.title) • \(effective) • \(annotation.detail)").font(.caption)
             }
             Text("Evidence follows the selected period, retaining the original effective date of baseline references. These dates retain their source meaning; a recorded questionnaire version does not establish a rollout date.").font(.caption)
         }
     }
     private func label(_ sample: Sample) -> String {
-        DosePatternPresentation.description(sample.night, sleep: sample.value) + "; "
-            + DosePatternPresentation.sleepDescription(sample.night, source: model.sleepSource, outcome: outcome, freshness: freshness)
+        let description = DosePatternPresentation.description(sample.night, sleep: sample.value)
+        let sleep = DosePatternPresentation.sleepDescription(sample.night, source: model.sleepSource, outcome: outcome, freshness: freshness)
+        return "\(description); \(sleep)"
     }
     private func timestamp(_ date: Date) -> String {
         guard date.timeIntervalSince1970.isFinite else { return "Invalid timestamp — review" }
@@ -380,8 +382,8 @@ struct DosePatternDashboardView: View {
         return formatter.string(from: date) + " • " + model.reportingTimeZone.identifier
     }
     private func discriminator(_ night: DashboardNightAggregate) -> String {
-        (night.dose1Time ?? (model.sleepSource == .appleHealth ? night.healthSummary?.sleepOnset : nil)).map(timestamp)
-            ?? "Occurrence anchor unavailable; " + night.id
+        let anchor: Date? = night.dose1Time ?? (model.sleepSource == .appleHealth ? night.healthSummary?.sleepOnset : nil)
+        return anchor.map(timestamp) ?? "Occurrence anchor unavailable; \(night.id)"
     }
     private func exactTable(_ observations: [DashboardNightAggregate], title: String, expanded: Bool = false) -> some View {
         DisclosureGroup(title, isExpanded: Binding(get: { expanded || expandedTables.contains(title) }, set: { value in

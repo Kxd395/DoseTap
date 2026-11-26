@@ -10,8 +10,12 @@ struct SleepIntervalChartPoint: Identifiable, Equatable {
     let usesReported: Bool
     var x: Double { single ? 0 : interval ?? 0 }
     var label: String {
-        date + " · " + (single ? "Single dose" : "Spacing " + Self.number(x) + " min")
-            + " · Sleep " + Self.number(sleep) + " min · " + (usesReported ? "Morning report: " + (reported?.label ?? "Unknown · no usable check-in") : "Reviewed work: " + work.rawValue) + " · " + source
+        // Interpolation keeps type checking linear on older compilers.
+        let spacing: String = single ? "Single dose" : "Spacing \(Self.number(x)) min"
+        let context: String = usesReported
+            ? "Morning report: \(reported?.label ?? "Unknown · no usable check-in")"
+            : "Reviewed work: \(work.rawValue)"
+        return "\(date) · \(spacing) · Sleep \(Self.number(sleep)) min · \(context) · \(source)"
     }
     static func number(_ value: Double) -> String { value.formatted(.number.precision(.fractionLength(0...2))) }
     init?(id: String, date: String, interval: Double?, sleep: Double?, single: Bool,
@@ -90,8 +94,8 @@ struct DashboardSleepIntervalChart: View {
                         moveButton("Move down", symbol: "arrow.down", dx: 0, dy: -0.25)
                         moveButton("Move up", symbol: "arrow.up", dx: 0, dy: 0.25)
                     }.buttonStyle(.bordered)
-                    Text("View: spacing " + SleepIntervalChartPoint.number(xDomain.lowerBound) + "–" + SleepIntervalChartPoint.number(xDomain.upperBound)
-                         + " min · sleep " + SleepIntervalChartPoint.number(yDomain.lowerBound) + "–" + SleepIntervalChartPoint.number(yDomain.upperBound) + " min")
+                    Text(verbatim: "View: spacing \(SleepIntervalChartPoint.number(xDomain.lowerBound))–\(SleepIntervalChartPoint.number(xDomain.upperBound))"
+                         + " min · sleep \(SleepIntervalChartPoint.number(yDomain.lowerBound))–\(SleepIntervalChartPoint.number(yDomain.upperBound)) min")
                         .font(.caption).accessibilityIdentifier("dashboard-sleep-viewport")
                     Text("Drag inside the chart to move the zoomed view.").font(.caption)
                 }
@@ -104,11 +108,11 @@ struct DashboardSleepIntervalChart: View {
                 if showDetails, let selected {
                     Text(selected.label).font(.callout).accessibilityIdentifier("dashboard-sleep-point-details")
                     DisclosureGroup("Exact recorded values") {
-                        Text("Spacing: " + (selected.interval.map(String.init(describing:)) ?? "Single dose; no interval")
-                             + " · Sleep minutes: " + String(selected.sleep))
+                        let exactSpacing: String = selected.interval.map(String.init(describing:)) ?? "Single dose; no interval"
+                        Text(verbatim: "Spacing: \(exactSpacing) · Sleep minutes: \(String(selected.sleep))")
                         Text("Observation: " + selected.id)
                         if let report = selected.reported {
-                            Text("Morning check-in " + report.recordID + " · reported " + ISO8601DateFormatter().string(from: report.reportedAt))
+                            Text(verbatim: "Morning check-in \(report.recordID) · reported \(ISO8601DateFormatter().string(from: report.reportedAt))")
                         }
                         Text("Reviewed work before sleep: " + selected.work.rawValue)
                     }.font(.caption)
@@ -123,7 +127,8 @@ struct DashboardSleepIntervalChart: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(point.date).font(.headline)
                                 Text(point.label).font(.subheadline)
-                                Text("Exact spacing: " + (point.interval.map(String.init(describing:)) ?? "Single dose") + " · sleep: " + String(point.sleep) + " min")
+                                let pointSpacing: String = point.interval.map(String.init(describing:)) ?? "Single dose"
+                                Text(verbatim: "Exact spacing: \(pointSpacing) · sleep: \(String(point.sleep)) min")
                                     .font(.caption).foregroundStyle(.secondary)
                             }.padding(.vertical, 6)
                         }.accessibilityIdentifier("dashboard-sleep-overlap-record-" + point.id)
