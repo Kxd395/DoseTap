@@ -49,3 +49,11 @@ git diff --check
 ```
 
 If Plane is unavailable, auth is missing, no exact work item exists, multiple matches are found, or readback does not match, the task is not fully closed. Preserve the implementation, report the concrete blocker, and do not invent a tracker update.
+
+## Writing for DoseTap
+
+Use plain technical English by default in replies to Kevin, including progress updates. Apply the writing skill whenever it improves clarity. Keep exact values, conditions, and uncertainty when they affect the answer.
+
+Use `$asd-ste100:asd-ste100` when a handoff, acceptance criterion, or test procedure needs clearer wording. Ask for a before-and-after comparison when reviewing dose or reminder text. Preserve distinctions such as a missed dose, a dose taken at an approximate time, and an unknown time.
+
+To enable the pinned skill in a fresh checkout, run `git submodule update --init -- .agents/skills/asd-ste100`. To check a document locally, run `python3 .agents/skills/asd-ste100/scripts/ste-lint.py path/to/document.md`. Treat the findings as suggestions.
