@@ -98,7 +98,8 @@ public struct WorkCycleSummary: Equatable, Sendable {
         var groupFields: [String: [String]] = [:]
         for group in groups {
             let count = group.summary
-            let fields = [group.id, group.month ?? "", String(count.availableCount), String(count.eligibleCount),
+            // An explicit element type keeps this long literal within the type checker's time limit.
+            let fields: [String] = [group.id, group.month ?? "", String(count.availableCount), String(count.eligibleCount),
                 String(count.missingCount), String(count.notApplicableCount), String(count.partialCount), String(count.partialIncludedCount),
                 String(count.distinctBlockCount), String(count.unresolvedBlockCount), String(group.representedDateCount), String(group.needsReviewCount),
                 count.median.map(String.init(describing:)) ?? "", count.lowerQuartile.map(String.init(describing:)) ?? "",

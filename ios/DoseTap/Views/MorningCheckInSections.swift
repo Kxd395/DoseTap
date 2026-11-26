@@ -111,8 +111,7 @@ struct MorningCheckInSubmitSection: View {
         VStack(alignment: .leading, spacing: 8) {
             if let submissionErrorMessage = viewModel.submissionErrorMessage {
                 Label(submissionErrorMessage, systemImage: "externaldrive.badge.exclamationmark")
-                    .font(.callout)
-                    .foregroundColor(.red)
+                    .font(.callout).foregroundColor(.red)
                     .accessibilityIdentifier("morning-check-in-storage-error")
                     .fixedSize(horizontal: false, vertical: true)
             }
